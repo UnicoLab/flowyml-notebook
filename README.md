@@ -22,14 +22,33 @@
 
 ## ✨ Why FlowyML?
 
-Traditional notebooks are great for exploration but terrible for production. FlowyML Notebook bridges this gap by offering:
+Traditional notebooks are great for exploration but terrible for production. FlowyML Notebook bridges this gap:
 
-- **🔄 Reactive Execution** — Cells are nodes in a Directed Acyclic Graph (DAG). Changing a variable automatically triggers re-execution of only dependent cells.
-- **📄 Git-Native** — Notebooks are stored as human-readable `.py` files. No more JSON diff nightmares or hidden state.
-- **🎛️ Interactive Instruments** — Professional-grade UI widgets (sliders, plots, inputs) bound directly to Python variables.
-- **🤖 AI Intelligence** — Integrated assistant with deep knowledge of the Flowml ecosystem.
-- **📊 SQL First-Class** — Transition seamlessly between Python and SQL with automatic DataFrame conversion.
-- **🚀 One-Click Deploy** — Turn any notebook into a scheduled job or a standalone dashboard app instantly.
+| Feature | Jupyter | Deepnote | Marimo | **FlowyML Notebook** |
+|---|:---:|:---:|:---:|:---:|
+| Reactive execution (DAG) | ❌ | ❌ | ✅ | ✅ |
+| Pure `.py` file storage | ❌ | ❌ | ✅ | ✅ |
+| Git-native collaboration | ❌ | ⚠️ Cloud | ❌ | ✅ GitHub |
+| ML pipeline integration | ❌ | ❌ | ❌ | ✅ FlowyML |
+| Reusable recipes | ❌ | ❌ | ❌ | ✅ |
+| One-click deploy | ❌ | ⚠️ Cloud | ❌ | ✅ |
+| SQL first-class | ❌ | ✅ | ✅ | ✅ |
+| AI assistant | ❌ | ✅ | ❌ | ✅ |
+| Rich data explorer | ❌ | ✅ | ✅ | ✅ |
+| App mode | ❌ | ❌ | ✅ | ✅ |
+| Self-hosted | ✅ | ❌ | ✅ | ✅ |
+
+### Core Highlights
+
+- **🔄 Reactive Execution** — Cells are nodes in a DAG. Changing a variable automatically triggers re-execution of only dependent cells.
+- **📄 Git-Native** — Notebooks are stored as human-readable `.py` files. No more JSON diff nightmares.
+- **🎛️ Interactive Instruments** — Professional-grade UI widgets bound directly to Python variables.
+- **🤖 AI Intelligence** — Integrated assistant with deep knowledge of the FlowyML ecosystem.
+- **📊 SQL First-Class** — Seamless Python ↔ SQL with automatic DataFrame conversion.
+- **🚀 One-Click Deploy** — Turn any notebook into a pipeline, dashboard, Docker container, or web app.
+- **🤝 Git Collaboration** — Full branching and versioning using GitHub as a backend. No database required.
+- **🧾 Optimized Recipes** — Create and share reusable code templates for common ML tasks.
+- **📈 Rich Exploration** — Automated data profiling with histograms, statistics, ML insights, and scatter plots.
 
 ---
 
@@ -53,15 +72,46 @@ fml-notebook start
 
 Your browser will automatically open to the FlowyML dashboard.
 
+### Your First Reactive Notebook
+
+```python
+# Cell 1
+x = 10
+
+# Cell 2 (auto-executes when x changes!)
+result = x * 2
+print(f"Result: {result}")  # → Result: 20
+```
+
+---
+
+## 🛠️ CLI Reference
+
+| Command | Description |
+|---|---|
+| `fml-notebook dev` | 🔥 Launch with Vite hot reload |
+| `fml-notebook start` | 🚀 Launch with production build |
+| `fml-notebook run <file>` | ▶️ Execute a notebook headlessly |
+| `fml-notebook export <file>` | 📦 Export as pipeline/HTML/PDF/Docker |
+| `fml-notebook app <file>` | 🌐 Deploy as interactive web app |
+| `fml-notebook list --server <URL>` | 📚 List notebooks on a server |
+
 ---
 
 ## 📚 Documentation
 
 Detailed documentation is available at [docs.flowyml.ai/notebook](https://docs.flowyml.ai/notebook).
 
-- [Getting Started](https://docs.flowyml.ai/notebook/getting-started)
-- [Key Features](https://docs.flowyml.ai/notebook/features)
-- [API Reference](https://docs.flowyml.ai/notebook/api)
+| Section | Description |
+|---|---|
+| [Getting Started](https://docs.flowyml.ai/notebook/getting-started) | Install, launch, configure |
+| [Key Features](https://docs.flowyml.ai/notebook/features) | Complete feature inventory |
+| [Architecture](https://docs.flowyml.ai/notebook/architecture) | System design & reactive engine |
+| [Recipes](https://docs.flowyml.ai/notebook/recipes) | Reusable cell templates |
+| [Collaboration](https://docs.flowyml.ai/notebook/collaboration) | GitHub-based team workflows |
+| [Integration](https://docs.flowyml.ai/notebook/integration) | FlowyML instance connections |
+| [Data Exploration](https://docs.flowyml.ai/notebook/exploration) | Rich DataFrame profiling |
+| [API Reference](https://docs.flowyml.ai/notebook/api) | CLI & Python API docs |
 
 ---
 
@@ -76,9 +126,38 @@ make setup
 make dev
 ```
 
+| Target | Description |
+|---|---|
+| `make setup` | Install Python package + frontend deps |
+| `make dev` | Launch dev mode with hot reload |
+| `make test` | Run all tests |
+| `make lint` | Run Ruff linter |
+| `make format` | Auto-format code |
+| `make docs` | Build MkDocs documentation |
+| `make docs-serve` | Preview docs locally |
+| `make build` | Build frontend for production |
+| `make clean` | Remove all build artifacts |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+
 ---
+
+## 🤝 Community
+
+- 📖 [Documentation](https://docs.flowyml.ai/notebook)
+- 🐛 [Bug Reports](https://github.com/UnicoLab/FlowyML-Notebook/issues)
+- 💬 [Discussions](https://github.com/UnicoLab/FlowyML-Notebook/discussions)
+- 📋 [Contributing Guide](CONTRIBUTING.md)
+- 📜 [Changelog](CHANGELOG.md)
+- 🔒 [Security Policy](SECURITY.md)
+- 📝 [Code of Conduct](CODE_OF_CONDUCT.md)
+
+---
+
+## 📄 License
+
+Licensed under the [Apache License 2.0](LICENSE).
 
 <p align="center">
   <strong>Built with ❤️ by <a href="https://unicolab.ai">UnicoLab</a></strong>
 </p>
-

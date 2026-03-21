@@ -15,7 +15,14 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Framework :: Jupyter",
+    "Operating System :: OS Independent",
 ]
+keywords = [
+    "notebook", "reactive", "dag", "machine-learning", "mlops",
+    "data-science", "jupyter-alternative", "pipeline", "flowyml",
+]
+
 
 dependencies = [
     "flowyml>=1.8.0",
@@ -57,6 +64,9 @@ fml-notebook = "flowyml_notebook.cli:main"
 Homepage = "https://github.com/UnicoLab/FlowyML-Notebook"
 Repository = "https://github.com/UnicoLab/FlowyML-Notebook"
 Documentation = "https://docs.flowyml.ai/notebook"
+Changelog = "https://github.com/UnicoLab/FlowyML-Notebook/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/UnicoLab/FlowyML-Notebook/issues"
+
 
 [build-system]
 requires = ["hatchling"]

@@ -40,7 +40,14 @@ nav:
   - Introduction: index.md
   - Getting Started: getting-started.md
   - Features: features.md
+  - Architecture: architecture.md
+  - Recipes: recipes.md
+  - Collaboration: collaboration.md
+  - Integration: integration.md
+  - Data Exploration: exploration.md
   - API Reference: api.md
+
+
 
 markdown_extensions:
   - admonition

@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, AlertCircle, Table, Image, LineChart, Box, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import DataFrameExplorer from './DataFrameExplorer';
 import ChartRenderer from './ChartRenderer';
 import InputWidgets from './InputWidgets';
@@ -9,12 +11,24 @@ export default function CellOutput({ outputs }) {
 
   return (
     <div className="cell-output">
-      {outputs.map((output, i) => (
-        <OutputRenderer key={i} output={output} />
-      ))}
+      <AnimatePresence mode="popLayout">
+        {outputs.map((output, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="output-wrapper"
+          >
+            <OutputRenderer output={output} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
+
 
 function OutputRenderer({ output }) {
   const type = output.output_type;

@@ -786,18 +786,109 @@ body {
 /* ===== DataFrame Stats Panel ===== */
 .df-stats-panel { padding: 0.75rem; }
 
-.df-stats-overview {
-  display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;
+/* ===== DataFrame Summary Deck (Bento Grid) ===== */
+.df-summary-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
-.stat-pill {
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.75rem; border-radius: 20px;
-  background: var(--accent-glow); border: 1px solid var(--border);
-  font-size: 0.72rem;
+.summary-card {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
-.stat-pill-label { color: var(--fg-muted); font-weight: 500; }
-.stat-pill-value { color: var(--fg-primary); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-light);
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-light), transparent);
+  opacity: 0.3;
+}
+
+.summary-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-light);
+  margin-bottom: 4px;
+}
+
+.summary-card-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--fg-primary);
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.summary-card-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summary-card-trend {
+  font-size: 0.65rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ===== Premium Mini Histograms ===== */
+.mini-histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  padding: 2px 0;
+}
+
+.mini-hist-bar {
+  flex: 1;
+  background: linear-gradient(180deg, var(--accent-light), var(--accent));
+  border-radius: 1px 1px 0 0;
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  min-width: 2px;
+}
+
+.mini-hist-bar:hover {
+  opacity: 0.8;
+  filter: brightness(1.2);
+}
+
+/* ===== Pulse Animation for New Outputs ===== */
+@keyframes outputPulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 15px 2px var(--accent-glow-strong); }
+  100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+}
+
+.output-new {
+  animation: outputPulse 2s ease-in-out;
+}
+
 
 .df-column-grid {
   display: grid;

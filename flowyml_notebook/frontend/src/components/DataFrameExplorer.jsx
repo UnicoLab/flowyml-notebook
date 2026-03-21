@@ -5,8 +5,12 @@ import {
   PieChart, TrendingUp, Hash, Type as TypeIcon,
   AlertTriangle, Info, Columns, Grid3X3, Sparkles,
   CheckCircle, XCircle, Shield, Loader2, Upload,
-  Brain, ScatterChart, Zap, Target, Scale, Box
+  Brain, ScatterChart, Zap, Target, Scale, Box,
+  Database, Activity, HardDrive
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+
 
 const PAGE_SIZE = 25;
 const TABS = ['table', 'stats', 'charts', 'correlations', 'quality', 'insights', 'compare'];
@@ -313,7 +317,12 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
       )}
 
       {expanded && (
-        <>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+
           {/* Table Tab */}
           {activeTab === 'table' && (
             <>
@@ -376,37 +385,14 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
                 </div>
               ) : (
                 <>
-                  {/* Overview row */}
-                  <div className="df-stats-overview">
-                    <div className="stat-pill">
-                      <span className="stat-pill-label">Rows</span>
-                      <span className="stat-pill-value">{totalRows.toLocaleString()}</span>
-                    </div>
-                    <div className="stat-pill">
-                      <span className="stat-pill-label">Columns</span>
-                      <span className="stat-pill-value">{columns.length}</span>
-                    </div>
-                    <div className="stat-pill">
-                      <span className="stat-pill-label">Numeric</span>
-                      <span className="stat-pill-value">{columns.filter(c => stats[c]?.type === 'numeric').length}</span>
-                    </div>
-                    <div className="stat-pill">
-                      <span className="stat-pill-label">Categorical</span>
-                      <span className="stat-pill-value">{columns.filter(c => stats[c]?.type === 'categorical').length}</span>
-                    </div>
-                    <div className="stat-pill">
-                      <span className="stat-pill-label">Nulls</span>
-                      <span className="stat-pill-value">
-                        {columns.reduce((sum, c) => sum + (stats[c]?.null_count || 0), 0)}
-                      </span>
-                    </div>
-                    {profile?.memory_bytes && (
-                      <div className="stat-pill">
-                        <span className="stat-pill-label">Memory</span>
-                        <span className="stat-pill-value">{formatBytes(profile.memory_bytes)}</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Overview Deck (Bento Grid) */}
+                  <SummaryDeck
+                    totalRows={totalRows}
+                    columns={columns}
+                    stats={stats}
+                    profile={profile}
+                  />
+
 
                   {/* Column cards */}
                   <div className="df-column-grid">
@@ -630,11 +616,60 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
               />
             </div>
           )}
-        </>
+        </motion.div>
       )}
     </div>
   );
 }
+
+/* ===== Summary Deck (Bento Grid) ===== */
+function SummaryDeck({ totalRows, columns, stats, profile }) {
+  const nullCount = columns.reduce((sum, c) => sum + (stats[c]?.null_count || 0), 0);
+  const numericCount = columns.filter(c => stats[c]?.type === 'numeric').length;
+  
+  return (
+    <div className="df-summary-deck">
+      <div className="summary-card">
+        <div className="summary-card-icon"><Database size={16} /></div>
+        <div className="summary-card-value">{totalRows.toLocaleString()}</div>
+        <div className="summary-card-label">Total Rows</div>
+        <div className="summary-card-trend" style={{ color: 'var(--success)' }}>
+          <Activity size={10} /> Live Dataset
+        </div>
+      </div>
+      
+      <div className="summary-card">
+        <div className="summary-card-icon"><Columns size={16} /></div>
+        <div className="summary-card-value">{columns.length}</div>
+        <div className="summary-card-label">Columns</div>
+        <div className="summary-card-trend">
+          {numericCount} numeric • {columns.length - numericCount} cat
+        </div>
+      </div>
+
+      <div className="summary-card">
+        <div className="summary-card-icon" style={{ background: nullCount > 0 ? 'var(--error-glow)' : undefined, color: nullCount > 0 ? 'var(--error)' : undefined }}>
+          <Shield size={16} />
+        </div>
+        <div className="summary-card-value">{nullCount.toLocaleString()}</div>
+        <div className="summary-card-label">Missing Values</div>
+        <div className="summary-card-trend" style={{ color: nullCount > 0 ? 'var(--error)' : 'var(--success)' }}>
+          {nullCount > 0 ? 'Attention required' : 'Clean dataset'}
+        </div>
+      </div>
+
+      {profile?.memory_bytes && (
+        <div className="summary-card">
+          <div className="summary-card-icon"><HardDrive size={16} /></div>
+          <div className="summary-card-value">{formatBytes(profile.memory_bytes)}</div>
+          <div className="summary-card-label">Memory Impact</div>
+          <div className="summary-card-trend">RAM usage</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /* ===== Correlation Heatmap ===== */
 function CorrelationHeatmap({ correlations }) {
@@ -827,10 +862,11 @@ function MiniHistogram({ data }) {
   return (
     <div className="mini-histogram">
       {counts.map((c, i) => (
-        <div
+        <motion.div
           key={i}
+          initial={{ height: 0 }}
+          animate={{ height: `${Math.max(2, (c / max) * 32)}px` }}
           className="mini-hist-bar"
-          style={{ height: `${Math.max(2, (c / max) * 32)}px` }}
           title={`${bin_edges[i].toFixed(2)} – ${bin_edges[i + 1].toFixed(2)}: ${c}`}
         />
       ))}
@@ -849,7 +885,11 @@ function MiniBarChart({ data }) {
             {label.length > 12 ? label.slice(0, 10) + '…' : label}
           </span>
           <div className="mini-bar-track">
-            <div className="mini-bar-fill" style={{ width: `${(val / max) * 100}%` }} />
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(val / max) * 100}%` }}
+              className="mini-bar-fill"
+            />
           </div>
           <span className="mini-bar-count">{val}</span>
         </div>
@@ -857,6 +897,7 @@ function MiniBarChart({ data }) {
     </div>
   );
 }
+
 
 function LargeHistogram({ data, label }) {
   const { counts, bin_edges } = data;
