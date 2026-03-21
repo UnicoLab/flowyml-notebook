@@ -1,0 +1,79 @@
+[project]
+name = "flowyml-notebook"
+version = "0.1.0"
+description = "Production-grade reactive notebook for FlowyML — the Jupyter replacement for ML pipelines"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [{name = "UnicoLab", email = "support@unicolab.ai"}]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "flowyml>=1.8.0",
+    "ipython>=8.0",
+    "rich>=13.0",
+    "httpx>=0.24",
+    "websockets>=11.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "pydantic>=2.0",
+    "python-multipart>=0.0.6",
+    "pandas>=2.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+ai = [
+    "openai>=1.0",
+    "google-generativeai>=0.3",
+]
+sql = ["sqlalchemy>=2.0", "duckdb>=0.9"]
+exploration = ["scipy>=1.11", "scikit-learn>=1.3"]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.23.0",
+]
+all = [
+    "flowyml-notebook[ai]",
+    "flowyml-notebook[sql]",
+    "flowyml-notebook[exploration]",
+    "flowyml-notebook[docs]",
+]
+
+[project.scripts]
+fml-notebook = "flowyml_notebook.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/UnicoLab/FlowyML-Notebook"
+Repository = "https://github.com/UnicoLab/FlowyML-Notebook"
+Documentation = "https://docs.flowyml.ai/notebook"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flowyml_notebook"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
