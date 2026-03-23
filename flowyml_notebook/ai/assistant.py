@@ -71,22 +71,41 @@ Widgets:
 Generate clean, idiomatic Python code. Use FlowyML abstractions when appropriate.
 Provide brief explanations. Be concise and practical."""
 
-    def __init__(self, notebook: Any = None):
+    def __init__(self, notebook: Any = None, provider: str = "openai", model: str | None = None, base_url: str | None = None):
         self.notebook = notebook
         self._client = None
-        self._model = "gpt-4o-mini"  # Default model
+        self._provider = provider.lower()
+        self._base_url = base_url
+        # Set default model per provider
+        if model:
+            self._model = model
+        elif self._provider == "ollama":
+            self._model = "llama3.1"
+        elif self._provider == "google":
+            self._model = "gemini-pro"
+        else:
+            self._model = "gpt-4o-mini"
 
     def _get_client(self):
-        """Lazily initialize OpenAI client."""
+        """Lazily initialize AI client (OpenAI-compatible for all providers)."""
         if self._client is None:
             try:
                 from openai import OpenAI
-                self._client = OpenAI()
             except ImportError:
                 raise ImportError(
-                    "AI assistant requires OpenAI. Install with: "
+                    "AI assistant requires the openai package. Install with: "
                     "pip install 'flowyml-notebook[ai]'"
                 ) from None
+
+            if self._provider == "ollama":
+                base_url = self._base_url or "http://localhost:11434/v1"
+                self._client = OpenAI(base_url=base_url, api_key="ollama")
+            elif self._base_url:
+                # Custom OpenAI-compatible endpoint
+                self._client = OpenAI(base_url=self._base_url)
+            else:
+                # Standard OpenAI / Google AI
+                self._client = OpenAI()
         return self._client
 
     def _build_context(self) -> str:

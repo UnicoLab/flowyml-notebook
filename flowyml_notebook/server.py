@@ -95,9 +95,33 @@ class NotebookServer:
         self.recipe_store = RecipeStore()
         self.current_nb_id: str | None = None  # Track currently loaded notebook
         self._connection_config: dict = {}  # FlowyML connection config
+        self._ai_config: dict = self._load_ai_config()  # AI provider config
         self._comments: list[dict] = []  # In-memory comments store
         self._reviews: list[dict] = []  # In-memory reviews store
         self.app = self._create_app()
+
+    @staticmethod
+    def _load_ai_config() -> dict:
+        """Load AI provider config from disk."""
+        config_file = Path.home() / ".flowyml" / "ai_config.json"
+        if config_file.exists():
+            try:
+                return json.loads(config_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return {
+            "provider": "openai",
+            "model": "",
+            "api_key": "",
+            "base_url": "",
+            "temperature": 0.3,
+        }
+
+    def _save_ai_config(self) -> None:
+        """Persist AI provider config to disk."""
+        config_file = Path.home() / ".flowyml" / "ai_config.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(json.dumps(self._ai_config, indent=2), encoding="utf-8")
 
     def _create_app(self) -> FastAPI:
         """Create the FastAPI application."""
@@ -1398,6 +1422,117 @@ class NotebookServer:
 
             return result
 
+        # --- AI Configuration ---
+
+        @app.get("/api/ai/config")
+        async def get_ai_config():
+            """Get AI provider configuration."""
+            # Return config but mask the API key for security
+            safe_config = dict(self._ai_config)
+            if safe_config.get("api_key"):
+                key = safe_config["api_key"]
+                safe_config["api_key_set"] = True
+                safe_config["api_key_preview"] = key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
+            else:
+                safe_config["api_key_set"] = False
+                safe_config["api_key_preview"] = ""
+            safe_config.pop("api_key", None)
+            return safe_config
+
+        @app.post("/api/ai/config")
+        async def save_ai_config(config: dict):
+            """Save AI provider configuration.
+
+            Accepts: provider, model, api_key, base_url, temperature
+            """
+            allowed_keys = {"provider", "model", "api_key", "base_url", "temperature"}
+            for key in allowed_keys:
+                if key in config:
+                    self._ai_config[key] = config[key]
+
+            # Set sensible defaults per provider
+            provider = self._ai_config.get("provider", "openai").lower()
+            if not self._ai_config.get("model"):
+                defaults = {
+                    "openai": "gpt-4o-mini",
+                    "ollama": "llama3.1",
+                    "google": "gemini-pro",
+                    "anthropic": "claude-3-5-sonnet-20241022",
+                }
+                self._ai_config["model"] = defaults.get(provider, "gpt-4o-mini")
+
+            if provider == "ollama" and not self._ai_config.get("base_url"):
+                self._ai_config["base_url"] = "http://localhost:11434/v1"
+
+            self._save_ai_config()
+
+            return {"saved": True, "provider": provider, "model": self._ai_config["model"]}
+
+        @app.post("/api/ai/test")
+        async def test_ai_connection():
+            """Test the current AI provider connection."""
+            try:
+                from flowyml_notebook.ai.assistant import NotebookAIAssistant
+                provider = self._ai_config.get("provider", "openai")
+                model = self._ai_config.get("model") or None
+                base_url = self._ai_config.get("base_url") or None
+                api_key = self._ai_config.get("api_key")
+
+                # Set API key as env var if provided
+                if api_key:
+                    os.environ["OPENAI_API_KEY"] = api_key
+
+                assistant = NotebookAIAssistant(
+                    notebook=self.notebook,
+                    provider=provider,
+                    model=model,
+                    base_url=base_url,
+                )
+                response = assistant.chat("Reply with exactly: OK")
+                return {
+                    "success": True,
+                    "provider": provider,
+                    "model": model,
+                    "response": response.content[:100],
+                }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": str(e),
+                }
+
+        @app.post("/api/ai/chat")
+        async def ai_chat(body: dict):
+            """Chat with the AI assistant. Used by the AI panel in the frontend."""
+            message = body.get("message", "")
+            if not message:
+                raise HTTPException(400, "Message is required")
+
+            # Use stored AI config
+            ai_provider = self._ai_config.get("provider", "openai")
+            ai_model = self._ai_config.get("model") or None
+            ai_base_url = self._ai_config.get("base_url") or None
+            stored_key = self._ai_config.get("api_key")
+            if stored_key:
+                os.environ["OPENAI_API_KEY"] = stored_key
+
+            try:
+                from flowyml_notebook.ai.assistant import NotebookAIAssistant
+                assistant = NotebookAIAssistant(
+                    notebook=self.notebook,
+                    provider=ai_provider,
+                    model=ai_model,
+                    base_url=ai_base_url,
+                )
+                response = assistant.chat(message)
+                return {
+                    "content": response.content,
+                    "code": response.code,
+                    "suggestions": response.suggestions,
+                }
+            except Exception as e:
+                raise HTTPException(500, f"AI error: {str(e)}")
+
         # --- AI Data Analysis ---
 
         @app.post("/api/ai/analyze")
@@ -1439,7 +1574,16 @@ class NotebookServer:
                     })
                 profile["columns"][col] = col_info
 
-            # Use the AI assistant with the specified provider
+            # Use stored AI config (prefer stored config over request params)
+            ai_provider = self._ai_config.get("provider", provider)
+            ai_model = self._ai_config.get("model") or None
+            ai_base_url = self._ai_config.get("base_url") or None
+            stored_key = self._ai_config.get("api_key")
+            if stored_key:
+                os.environ["OPENAI_API_KEY"] = stored_key
+            elif api_key:
+                os.environ["OPENAI_API_KEY"] = api_key
+
             prompt = f"""Analyze this dataset and provide:
 1. **Data Quality Summary** — missing values, outliers, data type issues
 2. **Key Insights** — interesting patterns, correlations, distributions
@@ -1453,7 +1597,12 @@ Dataset profile:
 """
             try:
                 from flowyml_notebook.ai.assistant import NotebookAIAssistant
-                assistant = NotebookAIAssistant(self.notebook)
+                assistant = NotebookAIAssistant(
+                    notebook=self.notebook,
+                    provider=ai_provider,
+                    model=ai_model,
+                    base_url=ai_base_url,
+                )
                 response = assistant.chat(prompt)
                 return {
                     "analysis": response.content,

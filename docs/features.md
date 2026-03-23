@@ -82,6 +82,18 @@ Integrated AI assistant (`⌘J`) with deep FlowyML ecosystem knowledge. The assi
 |----------|--------|-------|
 | **OpenAI** | GPT-4o, GPT-4o-mini | `OPENAI_API_KEY` env variable |
 | **Google AI** | Gemini Pro, Gemini Ultra | `GOOGLE_API_KEY` env variable |
+| **Ollama** | Llama 3.1, Mistral, CodeLlama, Phi-3 | Local — `ollama serve` (no API key needed) |
+| **Anthropic** | Claude 3.5 Sonnet, Claude 3 Opus | `ANTHROPIC_API_KEY` env variable |
+| **Custom** | Any OpenAI-compatible API | Set `base_url` to your endpoint |
+
+!!! tip "100% Private with Ollama"
+    Run AI entirely on your machine — no data ever leaves your laptop:
+    ```bash
+    # Install Ollama: https://ollama.com
+    ollama pull llama3.1
+    ollama serve
+    # FlowyML auto-detects Ollama at localhost:11434
+    ```
 
 ### Usage Examples
 
