@@ -3,11 +3,11 @@ import {
   Play, RotateCcw, Save, PanelLeftClose, PanelLeftOpen,
   Sparkles, Zap, Command, ChevronDown, Rocket, Sun, Moon,
   GitBranch, Server, Check, X, FlaskConical, MessageSquare,
-  ClipboardCheck, User, FileText, Globe
+  ClipboardCheck, User, FileText, Globe, AlertTriangle
 } from 'lucide-react';
 
 export default function NotebookHeader({
-  metadata, executing, onRunAll, onSave, onResetKernel, onLoadDemo,
+  metadata, executing, staleCellCount = 0, onRunAll, onRunStale, onSave, onResetKernel, onLoadDemo,
   onToggleSidebar, onToggleAI, onToggleFlowyML, onToggleDAG, onToggleComments,
   onToggleReport, onToggleApp,
   onOpenPalette, onRenameNotebook, onRequestReview,
@@ -93,6 +93,18 @@ export default function NotebookHeader({
           <Play size={13} />
           {executing ? 'Running...' : 'Run All'}
         </button>
+
+        {staleCellCount > 0 && (
+          <button
+            className="btn btn-stale"
+            onClick={onRunStale}
+            disabled={!!executing}
+            title={`${staleCellCount} stale cell${staleCellCount > 1 ? 's' : ''} — click to re-run`}
+          >
+            <AlertTriangle size={12} />
+            Run {staleCellCount} Stale
+          </button>
+        )}
 
         <button className="btn btn-ghost" onClick={onSave} title="Save (⌘ S)">
           <Save size={13} />

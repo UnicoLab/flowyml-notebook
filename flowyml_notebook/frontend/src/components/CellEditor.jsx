@@ -7,7 +7,7 @@ import {
   Code, Type, Database, GripVertical, Eye, EyeOff,
   MoreHorizontal, Clock, ArrowUpDown, Check,
   Cpu, HardDrive, Activity, Gauge, Zap, Workflow,
-  Plus, ToggleLeft, Tag, FileCode
+  Plus, ToggleLeft, Tag, FileCode, AlertTriangle
 } from 'lucide-react';
 import { detectFlowyML, wrapInStep, DETECTION_BADGES, extractAllArtifacts, getArtifactType } from '../data/flowymlSnippets';
 
@@ -262,6 +262,17 @@ export default function CellEditor({
           </button>
         </div>
       </div>
+
+      {/* Stale cell banner — reactive upstream changed */}
+      {state === 'stale' && (
+        <div className="cell-stale-banner">
+          <AlertTriangle size={12} />
+          <span>Upstream changed — re-run to update</span>
+          <button className="cell-stale-run" onClick={(e) => { e.stopPropagation(); onExecute(); }}>
+            <Play size={10} /> Run
+          </button>
+        </div>
+      )}
 
       {/* FlowyML Contextual Actions Bar (for detected constructs) */}
       {!collapsed && flowymlDetections && flowymlDetections.length > 0 && focused && (

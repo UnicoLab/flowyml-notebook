@@ -22,6 +22,48 @@ const CATEGORIES = [
 ];
 
 // Default built-in recipes — comprehensive FlowyML collection
+
+// ── Python syntax highlighting (CSS-based, no external lib) ──
+function highlightPython(code) {
+  if (!code) return '';
+  // Escape HTML first
+  const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Token patterns (order matters — strings/comments first to avoid partial matches)
+  const patterns = [
+    // Triple-quoted strings
+    [/(&quot;&quot;&quot;[\s\S]*?&quot;&quot;&quot;|&#039;&#039;&#039;[\s\S]*?&#039;&#039;&#039;|"""[\s\S]*?"""|'''[\s\S]*?''')/g, 'syn-str'],
+    // Comments
+    [/(#.*)/gm, 'syn-cmt'],
+    // Strings (double/single)
+    [/("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')/g, 'syn-str'],
+    // Decorators
+    [/(@\w+)/g, 'syn-dec'],
+    // Keywords
+    [/\b(from|import|def|class|return|if|elif|else|for|while|in|not|and|or|is|with|as|try|except|finally|raise|yield|lambda|pass|break|continue|async|await|None|True|False)\b/g, 'syn-kw'],
+    // Builtins
+    [/\b(print|len|range|type|str|int|float|list|dict|set|tuple|enumerate|zip|map|filter|sorted|sum|min|max|abs|open|isinstance|super|round|format)\b/g, 'syn-bi'],
+    // FlowyML identifiers
+    [/\b(Pipeline|step|context|Context|Dataset|Model|Metrics|Artifact|FeatureSet|Report|Prompt|Checkpoint|Experiment|Run|ModelRegistry|ArtifactCatalog|EvalSuite|EvalSchedule|SmartCache|TraceBridge|JudgeArena)\b/g, 'syn-fml'],
+    // Numbers
+    [/\b(\d+\.?\d*(?:e[+-]?\d+)?|0x[0-9a-f]+)\b/gi, 'syn-num'],
+    // f-string prefix
+    [/\b(f)(?=["\'\{])/g, 'syn-kw'],
+  ];
+
+  let result = esc;
+  // Apply patterns — skip already-wrapped spans
+  patterns.forEach(([regex, cls]) => {
+    result = result.replace(regex, (match) => {
+      // Don't double-wrap
+      if (match.includes('class="syn-')) return match;
+      return `<span class="${cls}">${match}</span>`;
+    });
+  });
+
+  return result;
+}
+
 const BUILTIN_RECIPES = [
   // ═══════════════════════════════════════
   //  FlowyML CORE — Steps & Pipelines
@@ -878,6 +920,474 @@ results = arena.compare(
 print(f"🏆 Winner: Model {'A' if results.a_wins > results.b_wins else 'B'}")
 print(f"   Model A wins: {results.a_wins}, Model B wins: {results.b_wins}")`,
   },
+  {
+    id: 'fml-prompt',
+    name: 'Prompt Asset',
+    category: 'flowyml-assets',
+    description: 'Version-controlled prompt templates with variables',
+    tags: ['prompt', 'llm', 'template', 'genai'],
+    builtin: true,
+    docs: 'The Prompt asset lets you version and manage LLM prompts as first-class pipeline artifacts with variable interpolation.',
+    source: `from flowyml import Prompt
+
+# Create a versioned prompt template
+prompt = Prompt(
+    name="summarizer",
+    template="""You are an expert summarizer.
+Summarize the following text in {style} style:
+
+{text}
+
+Keep it under {max_words} words.""",
+    variables={"style": "concise", "max_words": "100"},
+)
+
+# Render with variables
+rendered = prompt.render(
+    text="FlowyML is a next-generation ML pipeline framework...",
+    style="technical",
+    max_words="50",
+)
+print(rendered)
+
+# Save as asset for pipeline reuse
+prompt.save("prompts/summarizer_v1")`,
+  },
+  {
+    id: 'fml-checkpoint-asset',
+    name: 'Checkpoint Save/Restore',
+    category: 'flowyml-assets',
+    description: 'Save and restore training state mid-pipeline',
+    tags: ['checkpoint', 'save', 'restore', 'training'],
+    builtin: true,
+    docs: 'Checkpoint lets you persist intermediate training state so long-running pipelines can resume from the last good point.',
+    source: `from flowyml import Checkpoint, step
+
+@step(outputs=["model/trained"])
+def train_model(data, epochs=100):
+    """Train with automatic checkpointing."""
+    ckpt = Checkpoint("training_checkpoint")
+
+    # Restore if previous run exists
+    start_epoch = 0
+    if ckpt.exists():
+        state = ckpt.restore()
+        model = state["model"]
+        start_epoch = state["epoch"]
+        print(f"♻️ Resumed from epoch {start_epoch}")
+    else:
+        model = create_model()
+
+    for epoch in range(start_epoch, epochs):
+        loss = train_one_epoch(model, data)
+
+        # Save checkpoint every 10 epochs
+        if epoch % 10 == 0:
+            ckpt.save({"model": model, "epoch": epoch, "loss": loss})
+            print(f"💾 Checkpoint at epoch {epoch}, loss={loss:.4f}")
+
+    return model`,
+  },
+  {
+    id: 'fml-versioned-pipeline',
+    name: 'Versioned Pipeline',
+    category: 'flowyml-core',
+    description: 'Freeze and version pipelines for reproducibility',
+    tags: ['version', 'freeze', 'snapshot', 'reproducibility'],
+    builtin: true,
+    docs: 'VersionedPipeline + freeze_pipeline let you snapshot a pipeline definition so you can reproduce exact runs later.',
+    source: `from flowyml import Pipeline, step, VersionedPipeline, freeze_pipeline
+
+@step(outputs=["data/clean"])
+def clean(raw): return raw.dropna()
+
+@step(outputs=["model/trained"])
+def train(clean_data): return fit_model(clean_data)
+
+# Build pipeline
+pipe = Pipeline("ml_pipeline", steps=[clean, train])
+
+# Freeze current version (snapshot code + config)
+snapshot = freeze_pipeline(pipe, version="1.0.0", tag="production")
+print(f"📌 Frozen: {snapshot.version} at {snapshot.frozen_at}")
+
+# Load a versioned pipeline later
+versioned = VersionedPipeline("ml_pipeline")
+versions = versioned.list_versions()
+print(f"Available versions: {[v.version for v in versions]}")
+
+# Run a specific historical version
+versioned.run(version="1.0.0")`,
+  },
+  {
+    id: 'fml-dynamic-step',
+    name: 'Dynamic Step',
+    category: 'flowyml-core',
+    description: 'Create pipeline steps dynamically at runtime',
+    tags: ['dynamic', 'runtime', 'adaptive', 'step'],
+    builtin: true,
+    docs: 'The @dynamic decorator lets a step create new sub-steps at runtime based on data or conditions — essential for adaptive pipelines.',
+    source: `from flowyml import dynamic, step, Pipeline
+
+@dynamic
+def process_files(file_list):
+    """Dynamically create a step per file at runtime."""
+    results = []
+    for f in file_list:
+        # Each call creates a tracked sub-step
+        result = process_single_file(f)
+        results.append(result)
+    return results
+
+@step
+def process_single_file(filepath):
+    """Process one file — this runs as its own tracked step."""
+    import pandas as pd
+    df = pd.read_csv(filepath)
+    df = df.dropna()
+    print(f"✅ Processed {filepath}: {len(df)} rows")
+    return df
+
+pipe = Pipeline("adaptive", steps=[process_files])
+pipe.run(file_list=["data_jan.csv", "data_feb.csv", "data_mar.csv"])`,
+  },
+  {
+    id: 'fml-approval',
+    name: 'Human Approval Gate',
+    category: 'flowyml-core',
+    description: 'Pause pipeline for human review before proceeding',
+    tags: ['approval', 'gate', 'human-in-loop', 'review'],
+    builtin: true,
+    docs: 'The @approval decorator adds a human-in-the-loop gate that pauses the pipeline and waits for manual approval before continuing.',
+    source: `from flowyml import approval, step, Pipeline
+
+@step(outputs=["model/candidate"])
+def train_candidate(data):
+    model = train(data)
+    metrics = evaluate(model)
+    print(f"📊 Accuracy: {metrics['accuracy']:.2%}")
+    return model, metrics
+
+@approval(
+    message="Review model metrics before deploying",
+    timeout_hours=24,
+    notify=["team-lead@company.com"],
+)
+@step(outputs=["model/production"])
+def deploy_model(model, metrics):
+    """This step only runs after human approval."""
+    print("🚀 Deploying approved model to production")
+    return deploy(model)
+
+pipe = Pipeline("safe_deploy", steps=[train_candidate, deploy_model])
+pipe.run(data=training_data)`,
+  },
+  {
+    id: 'fml-artifact-catalog',
+    name: 'Artifact Catalog',
+    category: 'flowyml-assets',
+    description: 'Browse, register, and fetch versioned artifacts',
+    tags: ['catalog', 'browse', 'versioned', 'artifacts'],
+    builtin: true,
+    docs: 'ArtifactCatalog provides a searchable registry of all datasets, models, and artifacts produced by your pipelines.',
+    source: `from flowyml import ArtifactCatalog, Dataset, Model
+
+catalog = ArtifactCatalog()
+
+# Register artifacts
+dataset = Dataset(name="training_v3", data=df)
+catalog.register(dataset, tags=["training", "v3"])
+
+model = Model(name="xgb_classifier", model=trained_model)
+catalog.register(model, tags=["production", "xgboost"])
+
+# Browse catalog
+all_items = catalog.list()
+print(f"📦 {len(all_items)} artifacts in catalog")
+
+# Search by tag
+production = catalog.search(tags=["production"])
+for item in production:
+    print(f"  {item.name} ({item.type}) — v{item.version}")
+
+# Fetch a specific artifact
+fetched = catalog.fetch("training_v3", version="latest")
+print(f"✅ Loaded: {fetched.name}, shape={fetched.data.shape}")`,
+  },
+  {
+    id: 'fml-debug-step',
+    name: 'Debug & Profile Steps',
+    category: 'flowyml-observe',
+    description: 'Debug, trace, and profile step execution',
+    tags: ['debug', 'profile', 'trace', 'performance'],
+    builtin: true,
+    docs: 'Decorators for detailed step introspection: @debug_step prints inputs/outputs, @profile_step measures time/memory, @trace_step logs execution flow.',
+    source: `from flowyml import step, debug_step, profile_step, trace_step
+
+# Debug: prints inputs, outputs, and intermediate values
+@debug_step
+@step(outputs=["data/features"])
+def extract_features(df):
+    features = df.select_dtypes(include="number")
+    print(f"Selected {len(features.columns)} numeric features")
+    return features
+
+# Profile: measures execution time and memory usage
+@profile_step
+@step(outputs=["model/trained"])
+def train_model(features, labels):
+    from sklearn.ensemble import RandomForestClassifier
+    model = RandomForestClassifier(n_estimators=100)
+    model.fit(features, labels)
+    return model
+
+# Trace: logs the full execution graph
+@trace_step
+@step(outputs=["metrics/evaluation"])
+def evaluate_model(model, test_features, test_labels):
+    score = model.score(test_features, test_labels)
+    print(f"✅ Accuracy: {score:.2%}")
+    return {"accuracy": score}`,
+  },
+  {
+    id: 'fml-gpu-resource',
+    name: 'GPU Resource Manager',
+    category: 'flowyml-parallel',
+    description: 'Allocate and manage GPU resources for training',
+    tags: ['gpu', 'resource', 'allocation', 'training'],
+    builtin: true,
+    docs: 'GPUResourceManager handles GPU allocation and memory management for training steps that need hardware acceleration.',
+    source: `from flowyml import GPUResourceManager, step
+
+# Check available GPUs
+gpu = GPUResourceManager()
+devices = gpu.list_devices()
+for dev in devices:
+    print(f"🖥️ {dev.name}: {dev.memory_total}GB ({dev.memory_free}GB free)")
+
+# Allocate specific GPU for training
+@step(outputs=["model/trained"])
+def train_on_gpu(data):
+    with gpu.allocate(device_id=0, memory_fraction=0.8) as device:
+        print(f"Training on {device.name}")
+        model = build_model()
+        model.to(device.torch_device)
+        trained = train(model, data)
+    return trained
+
+# Batch across multiple GPUs
+results = gpu.distribute(
+    fn=train_variant,
+    inputs=[config_a, config_b, config_c],
+    devices=[0, 1],
+)
+print(f"✅ Trained {len(results)} model variants")`,
+  },
+  {
+    id: 'fml-smart-cache',
+    name: 'Smart Caching',
+    category: 'flowyml-core',
+    description: 'Content-based and shared caching for steps',
+    tags: ['cache', 'memoize', 'smart', 'performance'],
+    builtin: true,
+    docs: 'SmartCache auto-detects when inputs change and skips re-execution. @memoize caches function results by arguments.',
+    source: `from flowyml import SmartCache, ContentBasedCache, memoize, step
+
+# Smart cache: auto-skips if inputs unchanged
+@step(outputs=["data/processed"], cache=SmartCache())
+def process_data(raw_df):
+    """This step is skipped if raw_df hasn't changed."""
+    print("⚙️ Processing data...")
+    return raw_df.dropna().drop_duplicates()
+
+# Content-based: caches by data hash, not reference
+@step(outputs=["features/extracted"], cache=ContentBasedCache())
+def extract_features(df):
+    return df.select_dtypes(include="number")
+
+# @memoize for any function
+@memoize(ttl_seconds=3600)
+def expensive_api_call(query):
+    """Cached for 1 hour — avoids redundant API calls."""
+    import requests
+    return requests.get(f"https://api.example.com/search?q={query}").json()
+
+result = expensive_api_call("flowyml")  # First call hits API
+result = expensive_api_call("flowyml")  # ⚡ Returns cached result`,
+  },
+  {
+    id: 'fml-project',
+    name: 'Project Manager',
+    category: 'flowyml-core',
+    description: 'Organize pipelines and assets into projects',
+    tags: ['project', 'organization', 'workspace'],
+    builtin: true,
+    docs: 'Project and ProjectManager let you organize multiple pipelines, experiments, and assets under a single project namespace.',
+    source: `from flowyml import Project, ProjectManager
+
+# Create or load a project
+pm = ProjectManager()
+project = pm.get_or_create("recommendation-engine",
+    description="Product recommendation ML pipeline",
+    tags=["ml", "recommendations", "production"],
+)
+
+# List project contents
+print(f"📁 Project: {project.name}")
+print(f"   Pipelines: {len(project.pipelines)}")
+print(f"   Experiments: {len(project.experiments)}")
+print(f"   Assets: {len(project.assets)}")
+
+# Set active project (all new artifacts auto-register here)
+project.activate()
+print(f"✅ Active project: {project.name}")
+
+# List all projects
+for p in pm.list_projects():
+    print(f"  📂 {p.name} — {p.description}")`,
+  },
+  {
+    id: 'fml-scorer',
+    name: 'Custom Scorer',
+    category: 'flowyml-evals',
+    description: 'Build custom evaluation scorers and judges',
+    tags: ['scorer', 'judge', 'evaluation', 'custom'],
+    builtin: true,
+    docs: 'make_scorer creates reusable evaluation functions. make_judge creates LLM-based evaluators. get_scorer loads pre-built scorers.',
+    source: `from flowyml import make_scorer, make_judge, get_scorer
+
+# Custom scorer function
+@make_scorer
+def response_quality(output, reference=None, **kwargs):
+    """Score response quality on 0-1 scale."""
+    score = 0.0
+    if len(output) > 50: score += 0.3
+    if reference and reference.lower() in output.lower(): score += 0.5
+    if "error" not in output.lower(): score += 0.2
+    return score
+
+# LLM-based judge
+judge = make_judge(
+    model="gpt-4",
+    criteria=["accuracy", "helpfulness", "conciseness"],
+    scale=(1, 5),
+)
+
+# Use built-in scorers
+bleu = get_scorer("bleu")
+rouge = get_scorer("rouge")
+toxicity = get_scorer("toxicity")
+
+# Evaluate
+result = response_quality("FlowyML is a great framework for ML pipelines.")
+print(f"Quality score: {result:.2f}")`,
+  },
+  {
+    id: 'fml-trace-bridge',
+    name: 'Trace Bridge (Evals ↔ Traces)',
+    category: 'flowyml-evals',
+    description: 'Link evaluation results to GenAI execution traces',
+    tags: ['trace', 'bridge', 'eval', 'observability'],
+    builtin: true,
+    docs: 'TraceBridge connects evaluation scores back to GenAI execution traces so you can see exactly which LLM calls led to each score.',
+    source: `from flowyml import TraceBridge, evaluate, trace_genai
+
+# Initialize trace bridge
+bridge = TraceBridge()
+
+# Run traced LLM calls
+@trace_genai("qa_pipeline")
+def answer_question(question):
+    response = llm.invoke(question)
+    return response
+
+# Run evaluation with trace linking
+results = evaluate(
+    fn=answer_question,
+    dataset=eval_dataset,
+    scorers=["accuracy", "latency"],
+    trace_bridge=bridge,  # Links scores to traces
+)
+
+# Now each eval result has linked traces
+for r in results:
+    print(f"Q: {r.input[:40]}...")
+    print(f"  Score: {r.score:.2f}")
+    print(f"  Trace: {r.trace_id} ({r.trace_latency_ms}ms)")
+    print(f"  Tokens: {r.trace_tokens}")`,
+  },
+  {
+    id: 'fml-eval-schedule',
+    name: 'Scheduled Evaluations',
+    category: 'flowyml-evals',
+    description: 'Run evaluations on a schedule for continuous monitoring',
+    tags: ['schedule', 'eval', 'continuous', 'monitoring'],
+    builtin: true,
+    docs: 'EvalSchedule runs your evaluation suites on a cron schedule and alerts you when scores drop below thresholds.',
+    source: `from flowyml import EvalSchedule, EvalSuite, configure_notifications
+
+# Define eval suite
+suite = EvalSuite("production_checks", cases=[
+    {"input": "What is 2+2?", "expected": "4"},
+    {"input": "Capital of France?", "expected": "Paris"},
+])
+
+# Schedule to run every 6 hours
+schedule = EvalSchedule(
+    name="prod_eval_monitor",
+    suite=suite,
+    model_fn=lambda x: production_model.predict(x),
+    cron="0 */6 * * *",
+    alert_threshold=0.8,  # Alert if score drops below 80%
+)
+
+schedule.enable()
+print(f"⏰ Eval schedule active: {schedule.cron}")
+print(f"   Alert threshold: {schedule.alert_threshold}")
+
+# Check last results
+last_run = schedule.last_result()
+if last_run:
+    print(f"   Last score: {last_run.score:.2%}")
+    print(f"   Last run: {last_run.timestamp}")`,
+  },
+  {
+    id: 'fml-generic-span',
+    name: 'Custom Observability Span',
+    category: 'flowyml-observe',
+    description: 'Wrap any code block in a named observability span',
+    tags: ['span', 'observability', 'tracing', 'custom'],
+    builtin: true,
+    docs: 'The @span decorator wraps any function in a named trace span, giving you fine-grained observability over custom code sections.',
+    source: `from flowyml import span
+
+# Decorator style
+@span("data_preprocessing")
+def preprocess(df):
+    """This function is tracked as a named span."""
+    df = df.dropna()
+    df = df.drop_duplicates()
+    return df
+
+# Context manager style
+from flowyml import trace_genai
+
+@trace_genai("recommendation_pipeline")
+def get_recommendations(user_id):
+    with span("fetch_user_profile"):
+        profile = db.get_user(user_id)
+
+    with span("generate_candidates"):
+        candidates = model.predict(profile)
+
+    with span("rerank_results"):
+        ranked = reranker.score(candidates)
+
+    return ranked[:10]
+
+results = get_recommendations("user_123")
+print(f"✅ {len(results)} recommendations generated")`,
+  },
   // ═══════════════════════════════════════
   //  DATA PREP
   // ═══════════════════════════════════════
@@ -1105,6 +1615,7 @@ plt.show()`,
 
 function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onShare, isFavorite, usageCount }) {
   const [expanded, setExpanded] = useState(false);
+  const [ratingHover, setRatingHover] = useState(0);
   const cat = CATEGORIES.find(c => c.id === recipe.category) || CATEGORIES[4];
   const CatIcon = cat.icon;
 
@@ -1117,6 +1628,23 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
     }));
     e.dataTransfer.effectAllowed = 'copy';
   };
+
+  const handleRate = async (score) => {
+    try {
+      await fetch(`/api/recipes/${recipe.id}/rate?rating=${score}`, { method: 'POST' });
+    } catch (e) { console.error('Rate failed', e); }
+  };
+
+  const handleFork = async () => {
+    try {
+      const res = await fetch(`/api/recipes/${recipe.id}/fork`, { method: 'POST' });
+      const data = await res.json();
+      if (data.forked) alert(`Forked as: ${data.name}`);
+    } catch (e) { console.error('Fork failed', e); }
+  };
+
+  const avgRating = recipe.avg_rating || 0;
+  const totalRatings = recipe.ratings ? Object.keys(recipe.ratings).length : 0;
 
   return (
     <div className="recipe-card" draggable onDragStart={handleDragStart}>
@@ -1136,6 +1664,28 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
           </div>
 
           <div className="recipe-card-right">
+            {/* Version badge */}
+            {recipe.version && recipe.version > 1 && (
+              <span style={{
+                fontSize: 8, padding: '1px 4px', borderRadius: 4,
+                background: 'var(--accent-muted)', color: 'var(--accent)',
+                fontWeight: 600,
+              }} title={`Version ${recipe.version}`}>
+                v{recipe.version}
+              </span>
+            )}
+
+            {/* Fork count */}
+            {recipe.fork_count > 0 && (
+              <span style={{
+                fontSize: 8, padding: '1px 4px', borderRadius: 4,
+                background: 'rgba(168,85,247,0.12)', color: '#a855f7',
+                display: 'flex', alignItems: 'center', gap: 2, fontWeight: 600,
+              }} title={`${recipe.fork_count} forks`}>
+                <GitBranch size={8} /> {recipe.fork_count}
+              </span>
+            )}
+
             {/* Usage badge */}
             {usageCount > 0 && (
               <div className="recipe-usage-badge" title={`Used ${usageCount} times`}>
@@ -1168,6 +1718,18 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
           </div>
         </div>
 
+        {/* Forked-from attribution */}
+        {recipe.forked_from && (
+          <div style={{
+            fontSize: 9, padding: '2px 8px', color: 'var(--fg-tertiary)',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            <GitBranch size={9} style={{ color: '#a855f7' }} />
+            Forked from <span style={{ fontWeight: 600, color: 'var(--fg-secondary)' }}>{recipe.forked_from.name}</span>
+            {recipe.forked_from.author && <span> by {recipe.forked_from.author}</span>}
+          </div>
+        )}
+
         {/* Tags */}
         {recipe.tags && recipe.tags.length > 0 && (
           <div className="recipe-tags">
@@ -1177,10 +1739,41 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
           </div>
         )}
 
+        {/* Star rating (for shared recipes) */}
+        {recipe.shared && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '2px 8px',
+            fontSize: 10, color: 'var(--fg-secondary)',
+          }}>
+            {[1, 2, 3, 4, 5].map(s => (
+              <button
+                key={s}
+                onClick={(e) => { e.stopPropagation(); handleRate(s); }}
+                onMouseEnter={() => setRatingHover(s)}
+                onMouseLeave={() => setRatingHover(0)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: 0, fontSize: 12, lineHeight: 1,
+                  color: s <= (ratingHover || avgRating) ? '#fbbf24' : 'var(--fg-dim)',
+                }}
+              >
+                ★
+              </button>
+            ))}
+            {totalRatings > 0 && (
+              <span style={{ fontSize: 9, color: 'var(--fg-tertiary)', marginLeft: 2 }}>
+                {avgRating.toFixed(1)} ({totalRatings})
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Expanded preview */}
         {expanded && (
           <div className="recipe-preview">
-            <pre className="recipe-code">{recipe.source}</pre>
+            <pre className="recipe-code">
+              <code dangerouslySetInnerHTML={{ __html: highlightPython(recipe.source) }} />
+            </pre>
             <div className="recipe-preview-actions">
               <button className="recipe-insert-btn" onClick={() => onInsert?.(recipe)}>
                 <Plus size={10} /> Insert Cell
@@ -1188,6 +1781,12 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
               <button className="recipe-copy-btn" onClick={() => navigator.clipboard.writeText(recipe.source)}>
                 <Copy size={10} /> Copy
               </button>
+              {/* Fork button (for shared recipes) */}
+              {recipe.shared && (
+                <button className="recipe-edit-btn" onClick={(e) => { e.stopPropagation(); handleFork(); }}>
+                  <GitBranch size={10} /> Fork
+                </button>
+              )}
               {!recipe.builtin && (
                 <>
                   <button className="recipe-edit-btn" onClick={() => onEdit?.(recipe)}>
@@ -1583,11 +2182,84 @@ export default function CellRecipes({ onInsertRecipe }) {
         )}
       </div>
 
+      {/* Leaderboard (shared tab) */}
+      {activeCategory === 'shared' && <RecipeLeaderboard />}
+
       {/* Footer hint */}
       <div className="recipe-hint">
         <GripVertical size={9} />
         <span>Drag recipes into notebook or click + to insert</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * RecipeLeaderboard — Shows top-rated and most-forked recipes.
+ */
+function RecipeLeaderboard() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/recipes/leaderboard')
+      .then(r => r.json())
+      .then(setData)
+      .catch(() => {});
+  }, []);
+
+  if (!data || (data.top_rated?.length === 0 && data.most_forked?.length === 0)) {
+    return null;
+  }
+
+  return (
+    <div style={{
+      margin: '6px 8px', padding: '8px', borderRadius: 8,
+      background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-primary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+        🏆 Recipe Leaderboard
+        <span style={{ fontSize: 9, color: 'var(--fg-tertiary)', fontWeight: 400 }}>
+          ({data.total_shared} shared)
+        </span>
+      </div>
+
+      {/* Top Rated */}
+      {data.top_rated?.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, marginBottom: 3 }}>⭐ Top Rated</div>
+          {data.top_rated.slice(0, 5).map((r, i) => (
+            <div key={r.id} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0',
+              fontSize: 10, color: 'var(--fg-secondary)',
+            }}>
+              <span style={{ width: 12, fontWeight: 700, color: i < 3 ? '#fbbf24' : 'var(--fg-dim)' }}>{i + 1}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.name}
+              </span>
+              <span style={{ fontSize: 9, color: '#fbbf24' }}>★ {r.avg_rating?.toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Most Forked */}
+      {data.most_forked?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 9, color: '#a855f7', fontWeight: 600, marginBottom: 3 }}>🔀 Most Forked</div>
+          {data.most_forked.slice(0, 5).map((r, i) => (
+            <div key={r.id} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0',
+              fontSize: 10, color: 'var(--fg-secondary)',
+            }}>
+              <span style={{ width: 12, fontWeight: 700, color: i < 3 ? '#a855f7' : 'var(--fg-dim)' }}>{i + 1}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.name}
+              </span>
+              <span style={{ fontSize: 9, color: '#a855f7' }}>{r.fork_count} forks</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

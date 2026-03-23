@@ -207,7 +207,9 @@ export default function App() {
       <NotebookHeader
         metadata={notebook.metadata}
         executing={notebook.executing}
+        staleCellCount={notebook.staleCellIds?.length || 0}
         onRunAll={notebook.executeAll}
+        onRunStale={notebook.runStaleCells}
         onSave={() => notebook.saveNotebook()}
         onResetKernel={notebook.resetKernel}
         onLoadDemo={notebook.loadDemo}

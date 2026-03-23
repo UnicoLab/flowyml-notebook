@@ -3,7 +3,7 @@
  * Manages cells, execution state, WebSocket kernel, reactive graph,
  * and auto-save functionality.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
 const API = '/api';
 const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
@@ -246,7 +246,8 @@ export function useNotebook() {
           }));
         }
       }
-      if (data.graph) setGraph(prev => ({ ...data.graph, cells: { ...data.graph.cells, ...prev.cells } }));
+      // Server graph is authoritative — it has correct states after reactive cascade
+      if (data.graph) setGraph(data.graph);
       if (data.variables) setVariables(data.variables);
       markDirty();
     } catch (err) {
@@ -306,6 +307,25 @@ export function useNotebook() {
     setGraph({ cells: {}, var_producers: {} });
     setCells(prev => prev.map(c => ({ ...c, outputs: [], execution_count: 0 })));
   }, []);
+
+  // --- Reactive: stale cell tracking ---
+  const staleCellIds = useMemo(() => {
+    if (!graph?.cells) return [];
+    return Object.entries(graph.cells)
+      .filter(([, info]) => info.state === 'stale')
+      .map(([id]) => id);
+  }, [graph]);
+
+  const runStaleCells = useCallback(async () => {
+    if (staleCellIds.length === 0) return;
+    // Execute stale cells in sequence (each will cascade reactively)
+    for (const cellId of staleCellIds) {
+      // Re-check state since previous execution may have resolved staleness
+      const currentState = graph?.cells?.[cellId]?.state;
+      if (currentState !== 'stale') continue;
+      await executeCell(cellId);
+    }
+  }, [staleCellIds, graph, executeCell]);
 
   const saveNotebook = useCallback(async (path) => {
     setSaveStatus('saving');
@@ -543,6 +563,8 @@ export function useNotebook() {
     addCell, updateCell, deleteCell,
     executeCell, executeAll, resetKernel, saveNotebook, uploadCSV,
     insertRecipe, insertCellWithSource, loadNotebookState, renameNotebook, loadDemo,
+    // Reactive DAG
+    staleCellIds, runStaleCells,
     // Collaboration
     comments, addComment, resolveComment, deleteComment, replyToComment,
     reviews, requestReview, updateReview,

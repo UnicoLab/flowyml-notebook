@@ -22,19 +22,45 @@ logger = logging.getLogger(__name__)
 _FLOWYML_AUTO_IMPORTS = """
 import flowyml
 from flowyml import (
+    # Core
     Pipeline, step, context, Context,
+    # Assets
     Dataset, Model, Metrics, Artifact, FeatureSet, Report, Prompt, Checkpoint,
+    AssetRegistry,
+    # Tracking
     Experiment, Run,
+    # Registry
     ModelRegistry, ModelVersion, ModelStage,
+    # Catalog
     ArtifactCatalog,
+    # Scheduling
     PipelineScheduler,
+    # Evaluations
     evaluate, EvalDataset, EvalSuite, EvalResult,
+    EvalRun, EvalSchedule,
+    make_scorer, make_judge, get_scorer, TraceBridge,
+    # Monitoring
     detect_drift, compute_stats,
+    configure_notifications,
+    # Parallel & Dynamic
     parallel_map, map_task, dynamic,
+    sub_pipeline,
+    # Workflow Control
+    approval, ApprovalStep,
+    # Versioning & Projects
+    VersionedPipeline, freeze_pipeline,
+    Project, ProjectManager,
+    # Advanced Caching
+    SmartCache, memoize,
+    # Debugging
+    debug_step, trace_step, profile_step,
+    # GenAI Observability
+    trace_genai, observe_genai, span,
 )
 import pandas as pd
 import numpy as np
 """
+
 
 
 @dataclass

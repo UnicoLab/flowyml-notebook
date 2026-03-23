@@ -1629,6 +1629,144 @@ Dataset profile:
                     pass
             return {"completions": completions}
 
+        # --- FlowyML Session Introspection ---
+
+        @app.get("/api/flowyml/session-info")
+        async def flowyml_session_info():
+            """Introspect the current notebook session for FlowyML objects.
+
+            Scans the live namespace for registered steps, pipelines, assets,
+            experiments, and active tracking — letting users see what
+            FlowyML objects they've created during this session.
+            """
+            ns = self.notebook.session._namespace if self.notebook.session else {}
+            info: dict = {
+                "steps": [],
+                "pipelines": [],
+                "assets": [],
+                "experiments": [],
+                "registries": [],
+                "has_tracking": False,
+            }
+
+            for name, obj in ns.items():
+                if name.startswith("_"):
+                    continue
+                obj_type = type(obj).__name__
+                obj_module = type(obj).__module__ or ""
+
+                # Registered steps (via @step decorator)
+                if obj_type == "Step" or (hasattr(obj, "_flowyml_step") and obj._flowyml_step):
+                    inputs = getattr(obj, "inputs", []) or []
+                    outputs = getattr(obj, "outputs", []) or []
+                    info["steps"].append({
+                        "name": name,
+                        "inputs": list(inputs)[:10],
+                        "outputs": list(outputs)[:10],
+                    })
+
+                # Pipelines
+                elif obj_type == "Pipeline":
+                    step_names = []
+                    if hasattr(obj, "steps"):
+                        step_names = [
+                            getattr(s, "name", str(s))
+                            for s in (obj.steps or [])
+                        ][:20]
+                    info["pipelines"].append({
+                        "name": getattr(obj, "name", name),
+                        "steps": step_names,
+                        "variable": name,
+                    })
+
+                # Assets (Dataset, Model, Metrics, etc.)
+                elif "flowyml.assets" in obj_module or obj_type in (
+                    "Dataset", "Model", "Metrics", "Artifact",
+                    "FeatureSet", "Report", "Prompt", "Checkpoint",
+                ):
+                    asset_info = {"name": getattr(obj, "name", name), "type": obj_type, "variable": name}
+                    if hasattr(obj, "shape"):
+                        asset_info["shape"] = str(obj.shape)
+                    elif hasattr(obj, "data") and hasattr(obj.data, "shape"):
+                        asset_info["shape"] = str(obj.data.shape)
+                    info["assets"].append(asset_info)
+
+                # Experiments & Runs
+                elif obj_type in ("Experiment", "Run"):
+                    exp_info = {"name": getattr(obj, "name", name), "type": obj_type, "variable": name}
+                    if hasattr(obj, "status"):
+                        exp_info["status"] = str(obj.status)
+                    info["experiments"].append(exp_info)
+                    info["has_tracking"] = True
+
+                # Model Registry
+                elif obj_type == "ModelRegistry":
+                    info["registries"].append({"variable": name})
+
+            # Also check StepRegistry for globally registered steps
+            try:
+                from flowyml import get_registered_steps
+                registered = get_registered_steps()
+                existing_names = {s["name"] for s in info["steps"]}
+                for s in registered:
+                    sname = getattr(s, "name", str(s))
+                    if sname not in existing_names:
+                        info["steps"].append({
+                            "name": sname,
+                            "inputs": list(getattr(s, "inputs", []))[:10],
+                            "outputs": list(getattr(s, "outputs", []))[:10],
+                        })
+            except Exception:
+                pass
+
+            info["total"] = (
+                len(info["steps"]) + len(info["pipelines"])
+                + len(info["assets"]) + len(info["experiments"])
+            )
+            return info
+
+        @app.get("/api/flowyml/pipeline-graph")
+        async def flowyml_pipeline_graph(variable: str = "pipe"):
+            """Get the step DAG for a Pipeline object in the session.
+
+            Returns the graph structure for rendering a mini pipeline
+            visualization — reads from the live session, does not reimplement
+            any FlowyML logic.
+            """
+            ns = self.notebook.session._namespace if self.notebook.session else {}
+            obj = ns.get(variable)
+            if obj is None:
+                return {"error": f"Variable '{variable}' not found in session"}
+
+            obj_type = type(obj).__name__
+            if obj_type != "Pipeline":
+                return {"error": f"'{variable}' is a {obj_type}, not a Pipeline"}
+
+            nodes = []
+            edges = []
+            steps = getattr(obj, "steps", []) or []
+            for i, s in enumerate(steps):
+                sname = getattr(s, "name", f"step_{i}")
+                outputs = list(getattr(s, "outputs", []))[:10]
+                inputs = list(getattr(s, "inputs", []))[:10]
+                nodes.append({"id": sname, "inputs": inputs, "outputs": outputs, "index": i})
+
+            # Build edges from output → input matching
+            output_map = {}
+            for node in nodes:
+                for out in node["outputs"]:
+                    output_map[out] = node["id"]
+            for node in nodes:
+                for inp in node["inputs"]:
+                    if inp in output_map and output_map[inp] != node["id"]:
+                        edges.append({"from": output_map[inp], "to": node["id"], "artifact": inp})
+
+            return {
+                "name": getattr(obj, "name", variable),
+                "nodes": nodes,
+                "edges": edges,
+            }
+
         # --- GitHub Sync Endpoints ---
 
         @app.post("/api/github/init")
@@ -1656,19 +1794,29 @@ Dataset profile:
             experiment: str = "main",
             message: str | None = None,
         ):
-            """Push current notebook to GitHub."""
+            """Push current notebook to GitHub. Also syncs comments and reviews."""
             state = self.notebook.get_state()
             nb_data = state.get("notebook", {})
             result = self.github_sync.push_notebook(project, experiment, nb_data, message)
+            # Auto-sync comments and reviews on push
+            if self._comments:
+                self.github_sync.push_comments(project, experiment, self._comments)
+            if self._reviews:
+                for review in self._reviews:
+                    self.github_sync.push_review(project, experiment, review)
             return result
 
         @app.post("/api/github/pull")
         async def github_pull(project: str = "default", experiment: str = "main"):
-            """Pull notebook from GitHub."""
+            """Pull notebook from GitHub. Also syncs comments and reviews."""
             data = self.github_sync.pull_notebook(project, experiment)
             if not data:
                 raise HTTPException(404, "Notebook not found in repository")
             self.notebook.load_from_dict(data)
+            # Auto-sync comments and reviews on pull
+            remote_comments = self.github_sync.pull_comments(project, experiment)
+            self._comments = self.github_sync.merge_comments(self._comments, remote_comments)
+            self._reviews = self.github_sync.pull_reviews(project, experiment)
             return self.notebook.get_state()
 
         @app.get("/api/github/branches")
@@ -1686,24 +1834,83 @@ Dataset profile:
             """Switch to an existing branch."""
             return self.github_sync.switch_branch(name)
 
+        @app.delete("/api/github/branch")
+        async def github_delete_branch(name: str, force: bool = False):
+            """Delete a local branch."""
+            return self.github_sync.delete_branch(name, force)
+
         @app.get("/api/github/projects")
         async def github_projects():
             """List projects in the repository."""
             return {"projects": self.github_sync.list_projects()}
 
-        # --- Comments & Collaboration ---
+        # --- GitHub: Merge & Conflict Resolution ---
+
+        @app.get("/api/github/merge-status")
+        async def github_merge_status():
+            """Check for upstream changes before push (ahead/behind/conflict)."""
+            return self.github_sync.check_merge_status()
+
+        @app.post("/api/github/pull-rebase")
+        async def github_pull_rebase():
+            """Pull with rebase — safe for collaboration."""
+            return self.github_sync.pull_with_rebase()
+
+        @app.post("/api/github/stash")
+        async def github_stash(message: str | None = None):
+            """Stash local changes (work-in-progress)."""
+            return self.github_sync.stash_changes(message)
+
+        @app.post("/api/github/stash/pop")
+        async def github_stash_pop():
+            """Pop the most recent stash."""
+            return self.github_sync.pop_stash()
+
+        @app.get("/api/github/stash/list")
+        async def github_stash_list():
+            """List all stashes."""
+            return {"stashes": self.github_sync.list_stashes()}
+
+        # --- GitHub: Rich History & Activity ---
+
+        @app.get("/api/github/log")
+        async def github_commit_log(limit: int = 30):
+            """Get rich commit history with author avatars and stats."""
+            return {"commits": self.github_sync.get_commit_log(limit)}
+
+        @app.get("/api/github/activity")
+        async def github_activity_feed(limit: int = 50):
+            """Get unified team activity feed (commits + comments + reviews)."""
+            return {"feed": self.github_sync.get_activity_feed(limit)}
+
+        @app.get("/api/github/diff-summary/{commit_sha}")
+        async def github_diff_summary(commit_sha: str):
+            """Get cell-level change summary for a commit."""
+            return self.github_sync.get_commit_diff_summary(commit_sha)
+
+        # --- GitHub: Team Presence ---
+
+        @app.get("/api/github/presence")
+        async def github_get_presence():
+            """Get list of active editors."""
+            return {"editors": self.github_sync.get_active_editors()}
+
+        @app.post("/api/github/presence")
+        async def github_set_presence(notebook: str = "default", editing: bool = True):
+            """Set editing status for the current user."""
+            return self.github_sync.set_editing_status(notebook, editing)
+
+        # --- Comments & Collaboration (Git-Persisted) ---
 
         @app.get("/api/comments")
         async def list_comments():
             """List all comments for the current notebook."""
-            return {"comments": getattr(self, '_comments', [])}
+            return {"comments": self._comments}
 
         @app.post("/api/comments")
         async def add_comment(comment: dict):
-            """Add a comment (cell-level or notebook-level)."""
+            """Add a comment (cell-level or notebook-level) with rich features."""
             import uuid
-            if not hasattr(self, '_comments'):
-                self._comments = []
             git_user = self.github_sync._get_git_user(
                 str(self.github_sync.repo_path)
             ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
@@ -1715,6 +1922,11 @@ Dataset profile:
                 "created_at": datetime.now().isoformat(),
                 "resolved": False,
                 "replies": [],
+                "reactions": {},
+                "priority": comment.get("priority", "normal"),
+                "line_range": comment.get("line_range"),
+                "mentions": comment.get("mentions", []),
+                "synced": False,
             }
             self._comments.append(new_comment)
             return new_comment
@@ -1722,7 +1934,7 @@ Dataset profile:
         @app.put("/api/comments/{comment_id}/resolve")
         async def resolve_comment(comment_id: str):
             """Toggle resolved status on a comment."""
-            for c in getattr(self, '_comments', []):
+            for c in self._comments:
                 if c["id"] == comment_id:
                     c["resolved"] = not c["resolved"]
                     return c
@@ -1731,8 +1943,7 @@ Dataset profile:
         @app.delete("/api/comments/{comment_id}")
         async def delete_comment(comment_id: str):
             """Delete a comment."""
-            comments = getattr(self, '_comments', [])
-            self._comments = [c for c in comments if c["id"] != comment_id]
+            self._comments = [c for c in self._comments if c["id"] != comment_id]
             return {"deleted": True}
 
         @app.post("/api/comments/{comment_id}/reply")
@@ -1741,29 +1952,59 @@ Dataset profile:
             git_user = self.github_sync._get_git_user(
                 str(self.github_sync.repo_path)
             ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
-            for c in getattr(self, '_comments', []):
+            for c in self._comments:
                 if c["id"] == comment_id:
                     c["replies"].append({
+                        "id": str(__import__("uuid").uuid4())[:8],
                         "text": reply.get("text", ""),
                         "author": git_user,
                         "created_at": datetime.now().isoformat(),
+                        "reactions": {},
                     })
                     return c
             raise HTTPException(404, "Comment not found")
 
-        # --- Reviews ---
+        @app.post("/api/comments/{comment_id}/react")
+        async def react_to_comment(comment_id: str, emoji: str = "👍"):
+            """Add an emoji reaction to a comment."""
+            git_user = self.github_sync._get_git_user(
+                str(self.github_sync.repo_path)
+            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            user_name = git_user.get("name", "Local User")
+            for c in self._comments:
+                if c["id"] == comment_id:
+                    reactions = c.get("reactions", {})
+                    if emoji not in reactions:
+                        reactions[emoji] = []
+                    if user_name in reactions[emoji]:
+                        reactions[emoji].remove(user_name)
+                    else:
+                        reactions[emoji].append(user_name)
+                    c["reactions"] = reactions
+                    return c
+            raise HTTPException(404, "Comment not found")
+
+        @app.post("/api/comments/sync")
+        async def sync_comments(project: str = "default", experiment: str = "main"):
+            """Sync comments to/from Git repository."""
+            remote = self.github_sync.pull_comments(project, experiment)
+            self._comments = self.github_sync.merge_comments(self._comments, remote)
+            result = self.github_sync.push_comments(project, experiment, self._comments)
+            for c in self._comments:
+                c["synced"] = True
+            return {"synced": result.get("synced", False), "count": len(self._comments)}
+
+        # --- Reviews (Git-Persisted) ---
 
         @app.get("/api/reviews")
         async def list_reviews():
             """List all reviews for the current notebook."""
-            return {"reviews": getattr(self, '_reviews', [])}
+            return {"reviews": self._reviews}
 
         @app.post("/api/reviews")
         async def request_review(review: dict):
-            """Request a review for the current notebook."""
+            """Request a review for the current notebook (PR-like workflow)."""
             import uuid
-            if not hasattr(self, '_reviews'):
-                self._reviews = []
             git_user = self.github_sync._get_git_user(
                 str(self.github_sync.repo_path)
             ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
@@ -1772,9 +2013,14 @@ Dataset profile:
                 "requested_by": git_user,
                 "reviewers": review.get("reviewers", []),
                 "status": "pending",
+                "title": review.get("title", "Notebook Review"),
+                "description": review.get("description", ""),
                 "comments": review.get("comments", ""),
                 "created_at": datetime.now().isoformat(),
                 "resolved_at": None,
+                "branch": review.get("branch"),
+                "cell_ids": review.get("cell_ids", []),
+                "review_comments": [],
             }
             self._reviews.append(new_review)
             return new_review
@@ -1782,15 +2028,34 @@ Dataset profile:
         @app.put("/api/reviews/{review_id}")
         async def update_review(review_id: str, update: dict):
             """Approve, request changes, or close a review."""
-            for r in getattr(self, '_reviews', []):
+            git_user = self.github_sync._get_git_user(
+                str(self.github_sync.repo_path)
+            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            for r in self._reviews:
                 if r["id"] == review_id:
                     r["status"] = update.get("status", r["status"])
                     if update.get("comments"):
                         r["comments"] = update["comments"]
-                    if r["status"] in ("approved", "rejected"):
+                    if update.get("review_comment"):
+                        r.setdefault("review_comments", []).append({
+                            "author": git_user,
+                            "text": update["review_comment"],
+                            "status": update.get("status", "comment"),
+                            "created_at": datetime.now().isoformat(),
+                        })
+                    if r["status"] in ("approved", "rejected", "changes_requested"):
                         r["resolved_at"] = datetime.now().isoformat()
+                        r["reviewer"] = git_user
                     return r
             raise HTTPException(404, "Review not found")
+
+        @app.post("/api/reviews/sync")
+        async def sync_reviews(project: str = "default", experiment: str = "main"):
+            """Sync reviews to/from Git repository."""
+            for review in self._reviews:
+                self.github_sync.push_review(project, experiment, review)
+            self._reviews = self.github_sync.pull_reviews(project, experiment)
+            return {"synced": True, "count": len(self._reviews)}
 
         # --- User Profile ---
 
@@ -1807,10 +2072,11 @@ Dataset profile:
                 "name": name,
                 "email": git_user.get("email", ""),
                 "avatar_color": f"hsl({hue}, 60%, 45%)",
+                "avatar_hue": hue,
                 "initials": name[0].upper() if name else "U",
             }
 
-        # --- Recipe Endpoints ---
+        # --- Recipe Endpoints (Enhanced with Ratings, Forking, Leaderboard) ---
 
         @app.get("/api/recipes")
         async def list_recipes():
@@ -1856,6 +2122,26 @@ Dataset profile:
                 raise HTTPException(404, "Recipe not found")
             result = self.github_sync.push_recipe(recipe)
             return result
+
+        @app.post("/api/recipes/{recipe_id}/rate")
+        async def rate_recipe(recipe_id: str, rating: int = 5):
+            """Rate a shared recipe (1-5 stars)."""
+            return self.github_sync.rate_recipe(recipe_id, rating)
+
+        @app.post("/api/recipes/{recipe_id}/fork")
+        async def fork_recipe(recipe_id: str, new_name: str | None = None):
+            """Fork a shared recipe to create a variant with attribution."""
+            return self.github_sync.fork_recipe(recipe_id, new_name)
+
+        @app.get("/api/recipes/{recipe_id}/history")
+        async def recipe_history(recipe_id: str):
+            """Get version history for a recipe."""
+            return {"history": self.github_sync.get_recipe_history(recipe_id)}
+
+        @app.get("/api/recipes/leaderboard")
+        async def recipe_leaderboard():
+            """Get top-rated and most-forked recipes."""
+            return self.github_sync.get_recipe_leaderboard()
 
         @app.post("/api/recipes/import")
         async def import_recipes(recipes: list[dict], overwrite: bool = False):

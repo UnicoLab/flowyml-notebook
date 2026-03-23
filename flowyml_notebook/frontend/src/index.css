@@ -193,6 +193,18 @@ body {
 .btn-ghost { background: transparent; color: var(--fg-secondary); }
 .btn-ghost:hover { background: var(--accent-glow); color: var(--fg-primary); }
 
+.btn-stale {
+  background: linear-gradient(135deg, rgba(245,158,11,0.2), rgba(217,119,6,0.15));
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.3);
+  font-weight: 600;
+}
+.btn-stale:hover {
+  background: linear-gradient(135deg, rgba(245,158,11,0.35), rgba(217,119,6,0.25));
+  box-shadow: 0 2px 12px rgba(245,158,11,0.2);
+  transform: translateY(-1px);
+}
+
 .btn-danger { background: var(--error-glow); color: var(--error); border: 1px solid rgba(244,63,94,0.2); }
 .btn-danger:hover { background: rgba(244,63,94,0.2); }
 
@@ -553,7 +565,50 @@ body {
 /* Cell state indicators */
 .cell.state-success { border-left: 3px solid var(--success); }
 .cell.state-error { border-left: 3px solid var(--error); }
-.cell.state-stale { border-left: 3px solid var(--warning); }
+.cell.state-stale {
+  border-left: 3px solid var(--warning);
+  background: linear-gradient(90deg, rgba(245,158,11,0.04), transparent 50%);
+}
+
+/* Stale cell banner — reactive upstream changed */
+.cell-stale-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: linear-gradient(90deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04));
+  border-bottom: 1px solid rgba(245,158,11,0.15);
+  color: #f59e0b;
+  font-size: 0.65rem;
+  font-weight: 600;
+  animation: stale-slide-in 0.3s ease;
+}
+@keyframes stale-slide-in {
+  from { opacity: 0; max-height: 0; padding: 0 12px; }
+  to { opacity: 1; max-height: 40px; }
+}
+.cell-stale-banner span {
+  flex: 1;
+  color: rgba(245,158,11,0.9);
+}
+.cell-stale-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  background: #f59e0b;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cell-stale-run:hover {
+  background: #d97706;
+  transform: scale(1.04);
+}
 .cell.state-running {
   border-left: 3px solid var(--purple);
   animation: cell-running 2s infinite;
@@ -1540,6 +1595,15 @@ body {
   line-height: 1.5; white-space: pre-wrap;
   max-height: 200px; overflow-y: auto; margin: 0;
 }
+.recipe-code code { font-family: inherit; font-size: inherit; }
+/* Python syntax highlighting tokens */
+.syn-kw { color: #c792ea; font-weight: 600; }       /* Keywords */
+.syn-str { color: #c3e88d; }                          /* Strings */
+.syn-cmt { color: #546e7a; font-style: italic; }      /* Comments */
+.syn-dec { color: #f78c6c; font-weight: 600; }        /* Decorators */
+.syn-bi { color: #82aaff; }                            /* Builtins */
+.syn-fml { color: #89ddff; font-weight: 600; }        /* FlowyML types */
+.syn-num { color: #f78c6c; }                           /* Numbers */
 .recipe-preview-actions {
   display: flex; gap: 4px; padding: 4px 8px;
   border-top: 1px solid var(--border-subtle);
