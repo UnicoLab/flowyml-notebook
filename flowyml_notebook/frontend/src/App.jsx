@@ -12,6 +12,7 @@ import PipelineDAG from './components/PipelineDAG';
 import CommentsPanel from './components/CommentsPanel';
 import ReportGenerator from './components/ReportGenerator';
 import AppPublisher from './components/AppPublisher';
+import AnalysisPatternsPanel from './components/AnalysisPatternsPanel';
 import PipelineWizard from './components/PipelineWizard';
 import { FLOWYML_SNIPPETS } from './data/flowymlSnippets';
 import { wrapInStep } from './data/flowymlSnippets';
@@ -57,6 +58,7 @@ export default function App() {
       case 'comments': setRightPanel(p => p === 'comments' ? null : 'comments'); break;
       case 'report': setRightPanel(p => p === 'report' ? null : 'report'); break;
       case 'publish-app': setRightPanel(p => p === 'app' ? null : 'app'); break;
+      case 'patterns': setRightPanel(p => p === 'patterns' ? null : 'patterns'); break;
       case 'find': break;
     }
 
@@ -221,6 +223,7 @@ export default function App() {
         onToggleComments={() => setRightPanel(p => p === 'comments' ? null : 'comments')}
         onToggleReport={() => setRightPanel(p => p === 'report' ? null : 'report')}
         onToggleApp={() => setRightPanel(p => p === 'app' ? null : 'app')}
+        onTogglePatterns={() => setRightPanel(p => p === 'patterns' ? null : 'patterns')}
         onOpenPalette={() => setPaletteOpen(true)}
         onRequestReview={notebook.requestReview}
         sidebarOpen={sidebarOpen}
@@ -330,6 +333,16 @@ export default function App() {
                   onClose={() => setRightPanel(null)}
                   cells={notebook.cells}
                   metadata={notebook.metadata}
+                />
+              )}
+              {rightPanel === 'patterns' && (
+                <AnalysisPatternsPanel
+                  cells={notebook.cells}
+                  onInsertCells={async (patternCells) => {
+                    for (const cell of patternCells) {
+                      await notebook.insertCellWithSource(cell.source, cell.name);
+                    }
+                  }}
                 />
               )}
             </Panel>

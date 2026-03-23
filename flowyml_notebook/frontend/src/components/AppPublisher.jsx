@@ -3,7 +3,9 @@ import {
   Globe, X, Layout, Grid3X3, ColumnsIcon, PanelTop,
   BarChart3, Eye, EyeOff, Code, Sun, Moon, Monitor,
   CheckCircle, Loader, ExternalLink, Settings,
-  Columns2, Columns3, Columns4
+  Columns2, Columns3, Columns4,
+  SlidersHorizontal, RefreshCw, Share2, Copy, Link, Mail,
+  Zap, Play, Clock
 } from 'lucide-react';
 
 const LAYOUTS = [
@@ -33,6 +35,10 @@ export default function AppPublisher({ onClose, cells = [], metadata }) {
   });
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(null);
+  const [interactive, setInteractive] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState('off');
+  const [shareCopied, setShareCopied] = useState(false);
+  const [snapshotSending, setSnapshotSending] = useState(false);
 
   const toggleCell = (cellId) => {
     setCellVisibility(prev => ({ ...prev, [cellId]: !prev[cellId] }));
@@ -47,6 +53,7 @@ export default function AppPublisher({ onClose, cells = [], metadata }) {
         body: JSON.stringify({
           title, layout, theme, show_code: showCode,
           grid_columns: gridColumns, cell_visibility: cellVisibility,
+          interactive, refresh_interval: refreshInterval !== 'off' ? parseInt(refreshInterval) : null,
         }),
       });
       if (res.ok) {
@@ -212,6 +219,143 @@ export default function AppPublisher({ onClose, cells = [], metadata }) {
           </div>
         </div>
 
+        {/* Interactive Widgets Section */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>
+            <SlidersHorizontal size={10} style={{ marginRight: 4, display: 'inline', verticalAlign: -1 }} />
+            Interactive Dashboard
+          </label>
+          <div style={{
+            padding: '10px 12px', borderRadius: 8,
+            background: 'var(--bg-primary)', border: '1px solid var(--border)',
+          }}>
+            {/* Enable interactivity */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 10,
+            }}>
+              <input
+                type="checkbox" checked={interactive}
+                onChange={e => setInteractive(e.target.checked)}
+                style={{ accentColor: '#8b5cf6' }}
+              />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                  <Zap size={11} style={{ display: 'inline', verticalAlign: -1, marginRight: 4, color: '#f59e0b' }} />
+                  Enable Interactive Widgets
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--fg-dim)', marginTop: 2 }}>
+                  Auto-detect DataFrames and add filters, sliders, and dropdowns for stakeholders
+                </div>
+              </div>
+            </label>
+
+            {interactive && (
+              <>
+                {/* Auto-refresh */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
+                  borderTop: '1px solid var(--border)',
+                }}>
+                  <RefreshCw size={11} style={{ color: 'var(--fg-dim)' }} />
+                  <span style={{ fontSize: 11, color: 'var(--fg-muted)', flex: 1 }}>Auto-refresh</span>
+                  <select
+                    value={refreshInterval}
+                    onChange={e => setRefreshInterval(e.target.value)}
+                    style={{
+                      fontSize: 10, padding: '3px 6px', borderRadius: 6,
+                      background: 'var(--bg-secondary)', color: 'var(--fg-primary)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <option value="off">Off</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="300">5 minutes</option>
+                    <option value="900">15 minutes</option>
+                  </select>
+                </div>
+
+                {/* Widget types */}
+                <div style={{
+                  padding: '8px 0', borderTop: '1px solid var(--border)',
+                  display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4,
+                }}>
+                  {['Date Range', 'Category Dropdown', 'Numeric Slider', 'Text Search'].map(w => (
+                    <span key={w} style={{
+                      padding: '3px 8px', borderRadius: 10, fontSize: 9, fontWeight: 600,
+                      background: 'rgba(139,92,246,0.1)', color: '#c4b5fd',
+                      border: '1px solid rgba(139,92,246,0.2)',
+                    }}>
+                      {w}
+                    </span>
+                  ))}
+                  <span style={{ fontSize: 9, color: 'var(--fg-dim)', alignSelf: 'center', marginLeft: 4 }}>
+                    Auto-detected from data columns
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Sharing Section */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>
+            <Share2 size={10} style={{ marginRight: 4, display: 'inline', verticalAlign: -1 }} />
+            Sharing Options
+          </label>
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/api/app/preview?state=${btoa(JSON.stringify({ title, layout, theme }))}#shared`;
+                navigator.clipboard.writeText(url);
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              }}
+              style={{
+                padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                background: 'var(--bg-primary)', border: '1px solid var(--border)',
+                color: 'var(--fg-primary)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
+              }}
+            >
+              {shareCopied ? <CheckCircle size={13} style={{ color: '#10b981' }} /> : <Link size={13} style={{ color: '#8b5cf6' }} />}
+              <div style={{ flex: 1 }}>
+                <div>{shareCopied ? 'Link Copied!' : 'Copy Shareable Link'}</div>
+                <div style={{ fontSize: 9, color: 'var(--fg-dim)', marginTop: 1 }}>URL with embedded filter state</div>
+              </div>
+            </button>
+
+            <button
+              onClick={async () => {
+                setSnapshotSending(true);
+                try {
+                  await fetch('/api/app/snapshot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, format: 'png' }),
+                  });
+                } catch (e) { /* ignore */ }
+                setSnapshotSending(false);
+              }}
+              style={{
+                padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                background: 'var(--bg-primary)', border: '1px solid var(--border)',
+                color: 'var(--fg-primary)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
+              }}
+            >
+              <Mail size={13} style={{ color: '#f59e0b' }} />
+              <div style={{ flex: 1 }}>
+                <div>{snapshotSending ? 'Sending...' : 'Email Snapshot'}</div>
+                <div style={{ fontSize: 9, color: 'var(--fg-dim)', marginTop: 1 }}>Render current state as PNG and send</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
@@ -226,7 +370,7 @@ export default function AppPublisher({ onClose, cells = [], metadata }) {
             }}
           >
             {publishing ? <Loader size={14} className="animate-spin" /> : <Globe size={14} />}
-            {publishing ? 'Publishing...' : 'Publish App'}
+            {publishing ? 'Publishing...' : interactive ? 'Publish Interactive Dashboard' : 'Publish App'}
           </button>
 
           {published && (
@@ -253,7 +397,9 @@ export default function AppPublisher({ onClose, cells = [], metadata }) {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <CheckCircle size={14} style={{ color: '#4ade80' }} />
-              <span style={{ fontWeight: 600, fontSize: 12, color: '#4ade80' }}>App Published!</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: '#4ade80' }}>
+                {interactive ? 'Interactive Dashboard Published!' : 'App Published!'}
+              </span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--fg-muted)', wordBreak: 'break-all' }}>
               Saved: {published.path}

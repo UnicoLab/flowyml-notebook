@@ -6,14 +6,15 @@ import {
   AlertTriangle, Info, Columns, Grid3X3, Sparkles,
   CheckCircle, XCircle, Shield, Loader2, Upload,
   Brain, ScatterChart, Zap, Target, Scale, Box,
-  Database, Activity, HardDrive
+  Database, Activity, HardDrive, Wrench, Cpu, Play,
+  Code, ArrowRight, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
 
 const PAGE_SIZE = 25;
-const TABS = ['table', 'stats', 'charts', 'correlations', 'quality', 'insights', 'compare'];
+const TABS = ['table', 'stats', 'charts', 'correlations', 'quality', 'insights', 'compare', 'smartprep', 'algorithms'];
 
 export default function DataFrameExplorer({ data, metadata, variableName }) {
   const [expanded, setExpanded] = useState(true);
@@ -215,6 +216,7 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
     table: Table, stats: BarChart3, charts: PieChart,
     correlations: Grid3X3, quality: Shield,
     insights: Brain, compare: ScatterChart,
+    smartprep: Wrench, algorithms: Cpu,
   };
 
   const numericCols = useMemo(() => columns.filter(c => stats[c]?.type === 'numeric'), [columns, stats]);
@@ -614,6 +616,20 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
                 setScatterY={setScatterY}
                 setScatterColor={setScatterColor}
               />
+            </div>
+          )}
+
+          {/* SmartPrep Advisor Tab */}
+          {activeTab === 'smartprep' && (
+            <div className="df-stats-panel">
+              <SmartPrepPanel variableName={variableName} columns={columns} />
+            </div>
+          )}
+
+          {/* Algorithm Matchmaker Tab */}
+          {activeTab === 'algorithms' && (
+            <div className="df-stats-panel">
+              <AlgorithmMatchPanel variableName={variableName} columns={columns} />
             </div>
           )}
         </motion.div>
@@ -1339,6 +1355,434 @@ function ScatterPlotPanel({ rows, columns, numericCols, stats, scatterX, scatter
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/* ===== SmartPrep Advisor Panel ===== */
+function SmartPrepPanel({ variableName, columns }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [target, setTarget] = useState('');
+  const [appliedSet, setAppliedSet] = useState(new Set());
+
+  const fetchSuggestions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = `/api/smartprep/${variableName}${target ? `?target=${target}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      setData(await res.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [variableName, target]);
+
+  useEffect(() => { fetchSuggestions(); }, [fetchSuggestions]);
+
+  const handleApplyCode = useCallback((code, index) => {
+    // Dispatch event to insert code cell
+    window.dispatchEvent(new CustomEvent('flowyml:insert-cell', {
+      detail: { code, below: true },
+    }));
+    setAppliedSet(prev => new Set([...prev, index]));
+  }, []);
+
+  const severityColors = {
+    high: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', text: '#ef4444', icon: '🔴' },
+    medium: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', text: '#f59e0b', icon: '🟡' },
+    low: { bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.2)', text: '#6366f1', icon: '🔵' },
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 }}>
+        <Loader2 size={16} className="animate-spin" style={{ color: '#6366f1' }} />
+        <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted)' }}>Analyzing data quality...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 20, textAlign: 'center', color: '#ef4444', fontSize: '0.75rem' }}>
+        <AlertCircle size={16} style={{ marginBottom: 4 }} />
+        <div>{error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Wrench size={16} style={{ color: '#6366f1' }} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--fg-primary)' }}>
+            SmartPrep Advisor
+          </span>
+          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: '0.65rem', fontWeight: 600,
+            background: data.total_issues > 5 ? 'rgba(239,68,68,0.15)' : data.total_issues > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
+            color: data.total_issues > 5 ? '#ef4444' : data.total_issues > 0 ? '#f59e0b' : '#10b981',
+          }}>
+            {data.total_issues} {data.total_issues === 1 ? 'issue' : 'issues'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <select value={target} onChange={e => setTarget(e.target.value)}
+            style={{ fontSize: '0.65rem', padding: '3px 6px', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--fg-primary)', border: '1px solid var(--border-subtle)' }}>
+            <option value="">No target column</option>
+            {columns.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={fetchSuggestions} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+            <Loader2 size={12} style={{ color: 'var(--fg-dim)' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Suggestions */}
+      {data.suggestions.length === 0 ? (
+        <div style={{ padding: 30, textAlign: 'center' }}>
+          <CheckCircle size={24} style={{ color: '#10b981', margin: '0 auto 8px' }} />
+          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>Data looks clean!</div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--fg-dim)', marginTop: 4 }}>
+            No major preprocessing issues detected.
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {data.suggestions.map((s, i) => {
+            const sev = severityColors[s.severity] || severityColors.low;
+            const applied = appliedSet.has(i);
+            return (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: applied ? 0.5 : 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                style={{
+                  padding: '10px 12px', borderRadius: 10,
+                  background: sev.bg, border: `1px solid ${sev.border}`,
+                  opacity: applied ? 0.5 : 1,
+                }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ fontSize: '0.8rem', lineHeight: 1, flexShrink: 0 }}>{sev.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--fg-primary)', marginBottom: 2 }}>
+                      {s.title}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--fg-muted)', lineHeight: 1.4 }}>
+                      {s.reason}
+                    </div>
+                    {/* Code Preview */}
+                    <pre style={{
+                      marginTop: 8, padding: '6px 10px', borderRadius: 6,
+                      background: 'rgba(0,0,0,0.3)', fontSize: '0.6rem',
+                      color: '#a5b4fc', fontFamily: "'JetBrains Mono', monospace",
+                      overflowX: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                    }}>
+                      {s.code}
+                    </pre>
+                    {/* Action */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                      <button
+                        onClick={() => handleApplyCode(s.code, i)}
+                        disabled={applied}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          padding: '4px 10px', borderRadius: 6, fontSize: '0.65rem', fontWeight: 600,
+                          background: applied ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+                          color: applied ? '#10b981' : '#6366f1',
+                          border: `1px solid ${applied ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)'}`,
+                          cursor: applied ? 'default' : 'pointer',
+                        }}>
+                        {applied ? <><CheckCircle size={11} /> Applied</> : <><Play size={11} /> Generate Cell</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Apply All Button */}
+      {data.suggestions.length > 1 && appliedSet.size < data.suggestions.length && (
+        <button
+          onClick={() => {
+            data.suggestions.forEach((s, i) => {
+              if (!appliedSet.has(i)) handleApplyCode(s.code, i);
+            });
+          }}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: '8px 16px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
+            background: 'rgba(99,102,241,0.12)', color: '#6366f1',
+            border: '1px solid rgba(99,102,241,0.25)', cursor: 'pointer',
+          }}>
+          <Zap size={13} /> Apply All Fixes ({data.suggestions.length - appliedSet.size} remaining)
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ===== Algorithm Matchmaker Panel ===== */
+function AlgorithmMatchPanel({ variableName, columns }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [target, setTarget] = useState('');
+  const [expandedAlgo, setExpandedAlgo] = useState(null);
+
+  const fetchRecommendations = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = `/api/algorithm-match/${variableName}${target ? `?target=${target}` : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      setData(await res.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [variableName, target]);
+
+  useEffect(() => { fetchRecommendations(); }, [fetchRecommendations]);
+
+  const handleGeneratePipeline = useCallback((code) => {
+    window.dispatchEvent(new CustomEvent('flowyml:insert-cell', {
+      detail: { code, below: true },
+    }));
+  }, []);
+
+  const taskTypeConfig = {
+    classification: { color: '#10b981', icon: '🎯', label: 'Classification' },
+    regression: { color: '#6366f1', icon: '📈', label: 'Regression' },
+    clustering: { color: '#f59e0b', icon: '🔮', label: 'Clustering' },
+  };
+
+  const speedColors = { fast: '#10b981', medium: '#f59e0b', slow: '#ef4444' };
+  const interpretColors = { high: '#10b981', medium: '#f59e0b', low: '#ef4444' };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, gap: 8 }}>
+        <Loader2 size={16} className="animate-spin" style={{ color: '#6366f1' }} />
+        <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted)' }}>Analyzing data characteristics...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 20, textAlign: 'center', color: '#ef4444', fontSize: '0.75rem' }}>
+        <AlertCircle size={16} style={{ marginBottom: 4 }} />
+        <div>{error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const tc = taskTypeConfig[data.task_type] || taskTypeConfig.clustering;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Cpu size={16} style={{ color: '#6366f1' }} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--fg-primary)' }}>
+            Algorithm Matchmaker
+          </span>
+        </div>
+        <select value={target} onChange={e => setTarget(e.target.value)}
+          style={{ fontSize: '0.65rem', padding: '3px 6px', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--fg-primary)', border: '1px solid var(--border-subtle)' }}>
+          <option value="">Select target column</option>
+          {columns.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Task Type Detection */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10,
+        background: `${tc.color}10`, border: `1px solid ${tc.color}25`,
+      }}>
+        <span style={{ fontSize: '1.2rem' }}>{tc.icon}</span>
+        <div>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: tc.color }}>{tc.label} Task Detected</div>
+          <div style={{ fontSize: '0.6rem', color: 'var(--fg-dim)', marginTop: 2 }}>
+            {data.data_characteristics.n_samples.toLocaleString()} samples × {data.data_characteristics.n_features} features
+            {data.target_info?.classes && ` · ${data.target_info.classes} classes`}
+            {data.target_info?.balanced !== undefined && (
+              <span style={{ color: data.target_info.balanced ? '#10b981' : '#f59e0b' }}>
+                {' '}· {data.target_info.balanced ? 'Balanced' : 'Imbalanced'}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {!target && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8, fontSize: '0.65rem',
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+          color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <Info size={12} /> Select a target column above for supervised learning recommendations
+        </div>
+      )}
+
+      {/* Algorithm Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.recommendations.map((algo, i) => {
+          const isExpanded = expandedAlgo === i;
+          return (
+            <motion.div key={algo.name}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              style={{
+                borderRadius: 10, overflow: 'hidden',
+                background: i === 0 ? 'rgba(99,102,241,0.06)' : 'var(--bg-secondary)',
+                border: `1px solid ${i === 0 ? 'rgba(99,102,241,0.2)' : 'var(--border-subtle)'}`,
+              }}>
+              {/* Card Header */}
+              <div
+                onClick={() => setExpandedAlgo(isExpanded ? null : i)}
+                style={{
+                  padding: '10px 12px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                {/* Rank badge */}
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800,
+                  background: i === 0 ? '#6366f1' : i === 1 ? '#8b5cf6' : 'var(--bg-primary)',
+                  color: i < 2 ? '#fff' : 'var(--fg-muted)',
+                  border: i >= 2 ? '1px solid var(--border-subtle)' : 'none',
+                  flexShrink: 0,
+                }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--fg-primary)' }}>{algo.name}</span>
+                    {i === 0 && (
+                      <span style={{ padding: '1px 6px', borderRadius: 8, fontSize: '0.55rem', fontWeight: 700,
+                        background: 'rgba(99,102,241,0.2)', color: '#6366f1' }}>
+                        Best Match
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 3 }}>
+                    <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: 6,
+                      background: `${speedColors[algo.speed]}15`, color: speedColors[algo.speed] }}>
+                      ⚡ {algo.speed}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: 6,
+                      background: `${interpretColors[algo.interpretability]}15`, color: interpretColors[algo.interpretability] }}>
+                      👁 {algo.interpretability}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: 6,
+                      background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                      {algo.category.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                </div>
+                {/* Score bar */}
+                <div style={{ width: 60, textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: algo.score >= 90 ? '#10b981' : algo.score >= 80 ? '#6366f1' : '#f59e0b' }}>
+                    {algo.score}%
+                  </div>
+                  <div style={{ height: 4, borderRadius: 2, background: 'var(--border-subtle)', marginTop: 3 }}>
+                    <div style={{
+                      height: '100%', borderRadius: 2, width: `${algo.score}%`,
+                      background: algo.score >= 90 ? '#10b981' : algo.score >= 80 ? '#6366f1' : '#f59e0b',
+                    }} />
+                  </div>
+                </div>
+                <ChevronDown size={14} style={{
+                  color: 'var(--fg-dim)', transform: isExpanded ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                }} />
+              </div>
+
+              {/* Expanded Details */}
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    style={{ overflow: 'hidden' }}>
+                    <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Why this algorithm */}
+                      <div>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                          Why this algorithm?
+                        </div>
+                        {algo.reasons.map((r, j) => (
+                          <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.65rem', color: 'var(--fg-primary)', padding: '2px 0' }}>
+                            <CheckCircle size={10} style={{ color: '#10b981', flexShrink: 0, marginTop: 2 }} />
+                            <span>{r}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Caveats */}
+                      {algo.caveats && algo.caveats.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                            Watch out for
+                          </div>
+                          {algo.caveats.map((c, j) => (
+                            <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.65rem', color: '#f59e0b', padding: '2px 0' }}>
+                              <AlertTriangle size={10} style={{ flexShrink: 0, marginTop: 2 }} />
+                              <span>{c}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Code Preview */}
+                      {algo.code && (
+                        <>
+                          <pre style={{
+                            padding: '8px 10px', borderRadius: 6,
+                            background: 'rgba(0,0,0,0.3)', fontSize: '0.6rem',
+                            color: '#a5b4fc', fontFamily: "'JetBrains Mono', monospace",
+                            overflowX: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                          }}>
+                            {algo.code}
+                          </pre>
+                          <button
+                            onClick={() => handleGeneratePipeline(algo.code)}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              padding: '6px 12px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600,
+                              background: 'rgba(99,102,241,0.15)', color: '#6366f1',
+                              border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer',
+                            }}>
+                            <Play size={12} /> Generate Pipeline Cell
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

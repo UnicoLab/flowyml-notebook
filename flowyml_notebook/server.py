@@ -611,6 +611,376 @@ class NotebookServer:
                 "method": method,
             }
 
+        # ===== SmartPrep Advisor =====
+        @app.get("/api/smartprep/{var_name}")
+        async def smartprep_advisor(var_name: str, target: str | None = None):
+            """Analyze a DataFrame and return actionable preprocessing suggestions with code."""
+            try:
+                import pandas as pd
+                import numpy as np
+            except ImportError:
+                raise HTTPException(400, "pandas and numpy required")
+
+            self.notebook.session._ensure_kernel()
+            ns = self.notebook.session._namespace
+            if var_name not in ns:
+                raise HTTPException(404, f"Variable '{var_name}' not found")
+            df = ns[var_name]
+            if type(df).__name__ != "DataFrame":
+                raise HTTPException(400, "Not a DataFrame")
+
+            suggestions: list[dict] = []
+            n_rows = len(df)
+
+            # --- 1. Missing values ---
+            for col in df.columns:
+                null_count = int(df[col].isnull().sum())
+                null_pct = round(null_count / n_rows * 100, 1) if n_rows > 0 else 0
+                if null_count == 0:
+                    continue
+                is_numeric = pd.api.types.is_numeric_dtype(df[col])
+                if null_pct > 60:
+                    suggestions.append({
+                        "type": "drop_column", "severity": "high", "column": col,
+                        "title": f"Drop '{col}' — {null_pct}% missing",
+                        "reason": f"Column has {null_pct}% missing values ({null_count}/{n_rows}). Too sparse to impute reliably.",
+                        "code": f"{var_name} = {var_name}.drop(columns=['{col}'])",
+                    })
+                elif is_numeric:
+                    median_val = round(float(df[col].median()), 4)
+                    suggestions.append({
+                        "type": "impute_numeric", "severity": "medium", "column": col,
+                        "title": f"Impute '{col}' — {null_pct}% missing",
+                        "reason": f"Numeric column with {null_count} missing values. Median imputation preserves distribution shape.",
+                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna({var_name}['{col}'].median())",
+                    })
+                else:
+                    mode_val = df[col].mode().iloc[0] if len(df[col].mode()) > 0 else "unknown"
+                    suggestions.append({
+                        "type": "impute_categorical", "severity": "medium", "column": col,
+                        "title": f"Impute '{col}' — {null_pct}% missing",
+                        "reason": f"Categorical column with {null_count} missing values. Mode imputation is safest.",
+                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna('{mode_val}')",
+                    })
+
+            # --- 2. Skewed distributions ---
+            for col in df.select_dtypes(include=[np.number]).columns:
+                clean = df[col].dropna()
+                if len(clean) < 10:
+                    continue
+                skew = float(clean.skew())
+                if abs(skew) > 1.5 and (clean > 0).all():
+                    suggestions.append({
+                        "type": "fix_skew", "severity": "medium", "column": col,
+                        "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
+                        "reason": f"Heavily {'right' if skew > 0 else 'left'}-skewed. Log transform normalizes the distribution for better model performance.",
+                        "code": f"import numpy as np\n{var_name}['{col}'] = np.log1p({var_name}['{col}'])",
+                    })
+                elif abs(skew) > 1.5:
+                    suggestions.append({
+                        "type": "fix_skew", "severity": "low", "column": col,
+                        "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
+                        "reason": f"Skewed distribution with negative values. Power transform handles both positive and negative values.",
+                        "code": f"from sklearn.preprocessing import PowerTransformer\npt = PowerTransformer(method='yeo-johnson')\n{var_name}['{col}'] = pt.fit_transform({var_name}[['{col}']])",
+                    })
+
+            # --- 3. Outliers ---
+            for col in df.select_dtypes(include=[np.number]).columns:
+                clean = df[col].dropna()
+                if len(clean) < 10:
+                    continue
+                q1 = float(clean.quantile(0.25))
+                q3 = float(clean.quantile(0.75))
+                iqr = q3 - q1
+                if iqr == 0:
+                    continue
+                n_outliers = int(((clean < q1 - 1.5 * iqr) | (clean > q3 + 1.5 * iqr)).sum())
+                outlier_pct = round(n_outliers / len(clean) * 100, 1)
+                if outlier_pct > 5:
+                    lower = round(q1 - 1.5 * iqr, 4)
+                    upper = round(q3 + 1.5 * iqr, 4)
+                    suggestions.append({
+                        "type": "clip_outliers", "severity": "medium", "column": col,
+                        "title": f"Clip outliers in '{col}' — {outlier_pct}% ({n_outliers} values)",
+                        "reason": f"IQR method detected {n_outliers} outliers. Clipping to [{lower}, {upper}] preserves data while limiting extreme values.",
+                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].clip(lower={lower}, upper={upper})",
+                    })
+
+            # --- 4. High cardinality ---
+            for col in df.select_dtypes(include=["object", "category"]).columns:
+                n_unique = int(df[col].nunique())
+                if n_unique > 50:
+                    suggestions.append({
+                        "type": "reduce_cardinality", "severity": "medium", "column": col,
+                        "title": f"Reduce cardinality of '{col}' ({n_unique} unique values)",
+                        "reason": f"High cardinality makes one-hot encoding impractical. Frequency encoding preserves information compactly.",
+                        "code": f"freq = {var_name}['{col}'].value_counts()\n{var_name}['{col}_encoded'] = {var_name}['{col}'].map(freq)",
+                    })
+                elif 2 < n_unique <= 50:
+                    suggestions.append({
+                        "type": "encode_categorical", "severity": "low", "column": col,
+                        "title": f"Encode '{col}' ({n_unique} categories)",
+                        "reason": f"Categorical column suitable for one-hot encoding.",
+                        "code": f"{var_name} = pd.get_dummies({var_name}, columns=['{col}'], prefix='{col}')",
+                    })
+
+            # --- 5. Class imbalance (if target specified) ---
+            if target and target in df.columns:
+                vc = df[target].value_counts()
+                if len(vc) >= 2:
+                    majority = int(vc.iloc[0])
+                    minority = int(vc.iloc[-1])
+                    ratio = round(majority / minority, 1) if minority > 0 else 999
+                    if ratio > 3:
+                        suggestions.append({
+                            "type": "class_imbalance", "severity": "high", "column": target,
+                            "title": f"Class imbalance in '{target}' — {ratio}:1 ratio",
+                            "reason": f"Majority class has {majority} samples vs {minority} for minority. Models will be biased toward majority.",
+                            "code": f"# Option 1: Class weights (no data modification)\n# In your model: class_weight='balanced'\n\n# Option 2: SMOTE oversampling\nfrom imblearn.over_sampling import SMOTE\nsmote = SMOTE(random_state=42)\nX_resampled, y_resampled = smote.fit_resample(X_train, y_train)",
+                        })
+
+            # --- 6. Feature scaling suggestion ---
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            if len(numeric_cols) >= 2:
+                ranges = {col: float(df[col].max() - df[col].min()) for col in numeric_cols if df[col].notna().sum() > 0}
+                if ranges:
+                    max_range = max(ranges.values())
+                    min_range = min(v for v in ranges.values() if v > 0) if any(v > 0 for v in ranges.values()) else 1
+                    if max_range / min_range > 100:
+                        cols_str = ", ".join(f"'{c}'" for c in numeric_cols[:8])
+                        suggestions.append({
+                            "type": "scale_features", "severity": "medium", "column": "__all_numeric__",
+                            "title": f"Scale features — {round(max_range/min_range, 0)}x range difference",
+                            "reason": f"Numeric features have very different scales. StandardScaler ensures equal contribution to distance-based models.",
+                            "code": f"from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\ncols_to_scale = [{cols_str}]\n{var_name}[cols_to_scale] = scaler.fit_transform({var_name}[cols_to_scale])",
+                        })
+
+            # Sort by severity
+            severity_order = {"high": 0, "medium": 1, "low": 2}
+            suggestions.sort(key=lambda s: severity_order.get(s.get("severity", "low"), 2))
+
+            return {
+                "variable": var_name,
+                "rows": n_rows,
+                "columns": len(df.columns),
+                "total_issues": len(suggestions),
+                "suggestions": suggestions,
+            }
+
+        # ===== Algorithm Matchmaker =====
+        @app.get("/api/algorithm-match/{var_name}")
+        async def algorithm_matchmaker(var_name: str, target: str | None = None):
+            """Analyze data characteristics and recommend ML algorithms with reasoning."""
+            try:
+                import pandas as pd
+                import numpy as np
+            except ImportError:
+                raise HTTPException(400, "pandas and numpy required")
+
+            self.notebook.session._ensure_kernel()
+            ns = self.notebook.session._namespace
+            if var_name not in ns:
+                raise HTTPException(404, f"Variable '{var_name}' not found")
+            df = ns[var_name]
+            if type(df).__name__ != "DataFrame":
+                raise HTTPException(400, "Not a DataFrame")
+
+            n_rows, n_cols = df.shape
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+            n_nulls = int(df.isnull().sum().sum())
+
+            # Detect task type
+            task_type = "clustering"  # default
+            target_info = {}
+            if target and target in df.columns:
+                t = df[target]
+                n_unique = int(t.nunique())
+                if pd.api.types.is_numeric_dtype(t) and n_unique > 20:
+                    task_type = "regression"
+                    target_info = {"dtype": "numeric", "unique": n_unique, "mean": round(float(t.mean()), 4)}
+                else:
+                    task_type = "classification"
+                    vc = t.value_counts()
+                    target_info = {
+                        "dtype": "categorical" if not pd.api.types.is_numeric_dtype(t) else "numeric",
+                        "classes": n_unique,
+                        "class_distribution": {str(k): int(v) for k, v in vc.head(10).items()},
+                        "balanced": bool(vc.max() / vc.min() < 3) if vc.min() > 0 else False,
+                    }
+
+            # Data characteristics
+            chars = {
+                "n_samples": n_rows,
+                "n_features": n_cols - (1 if target else 0),
+                "n_numeric": len(numeric_cols),
+                "n_categorical": len(cat_cols),
+                "has_nulls": n_nulls > 0,
+                "high_dimensional": n_cols > 50,
+                "large_dataset": n_rows > 100_000,
+                "small_dataset": n_rows < 500,
+            }
+
+            # Build recommendations
+            recommendations: list[dict] = []
+
+            if task_type == "classification":
+                # Always recommend
+                recommendations.append({
+                    "name": "Random Forest",
+                    "category": "ensemble",
+                    "score": 90 if not chars["high_dimensional"] else 75,
+                    "speed": "medium",
+                    "interpretability": "medium",
+                    "reasons": [
+                        "Handles mixed feature types (numeric + categorical)",
+                        "Robust to outliers and missing values",
+                        f"Works well with {n_rows} samples",
+                        "Built-in feature importance",
+                    ],
+                    "caveats": ["Can overfit on noisy data", "Slower than linear models"],
+                    "code": f"from sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
+                })
+
+                if n_rows > 1000:
+                    recommendations.append({
+                        "name": "XGBoost",
+                        "category": "gradient_boosting",
+                        "score": 95 if n_rows > 5000 else 85,
+                        "speed": "medium",
+                        "interpretability": "medium",
+                        "reasons": [
+                            "State-of-the-art for tabular data",
+                            f"Excellent with your {n_rows} samples",
+                            "Handles missing values natively",
+                            "GPU acceleration available",
+                        ],
+                        "caveats": ["Requires hyperparameter tuning", "Can overfit small datasets"],
+                        "code": f"from xgboost import XGBClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=6, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
+                    })
+
+                if chars["small_dataset"] or chars["high_dimensional"]:
+                    recommendations.append({
+                        "name": "Logistic Regression",
+                        "category": "linear",
+                        "score": 80 if chars["high_dimensional"] else 70,
+                        "speed": "fast",
+                        "interpretability": "high",
+                        "reasons": [
+                            "Fast training and inference",
+                            "Highly interpretable coefficients",
+                            "Works well with small datasets",
+                            "Good baseline model",
+                        ],
+                        "caveats": ["Assumes linear decision boundary", "Needs feature scaling"],
+                        "code": f"from sklearn.linear_model import LogisticRegression\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('lr', LogisticRegression(max_iter=1000))])\npipe.fit(X_train, y_train)\nprint(f'Accuracy: {{pipe.score(X_test, y_test):.4f}}')",
+                    })
+
+                recommendations.append({
+                    "name": "LightGBM",
+                    "category": "gradient_boosting",
+                    "score": 88,
+                    "speed": "fast",
+                    "interpretability": "medium",
+                    "reasons": [
+                        "Faster than XGBoost on large datasets",
+                        "Handles categorical features natively",
+                        "Memory efficient",
+                    ],
+                    "caveats": ["Can overfit with too many leaves"],
+                    "code": f"from lightgbm import LGBMClassifier\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = LGBMClassifier(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\nprint(f'Accuracy: {{model.score(X_test, y_test):.4f}}')",
+                })
+
+            elif task_type == "regression":
+                recommendations.append({
+                    "name": "XGBoost Regressor",
+                    "category": "gradient_boosting",
+                    "score": 92,
+                    "speed": "medium",
+                    "interpretability": "medium",
+                    "reasons": [
+                        "Best overall for tabular regression",
+                        "Handles non-linear relationships",
+                        "Built-in regularization",
+                    ],
+                    "caveats": ["Cannot extrapolate beyond training range"],
+                    "code": f"from xgboost import XGBRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBRegressor(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')\nprint(f'R²:   {{r2_score(y_test, y_pred):.4f}}')",
+                })
+
+                recommendations.append({
+                    "name": "Random Forest Regressor",
+                    "category": "ensemble",
+                    "score": 85,
+                    "speed": "medium",
+                    "interpretability": "medium",
+                    "reasons": [
+                        "Robust to outliers",
+                        "No feature scaling needed",
+                        "Good out-of-the-box performance",
+                    ],
+                    "caveats": ["Predictions bounded by training range", "Can be slow for large datasets"],
+                    "code": f"from sklearn.ensemble import RandomForestRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestRegressor(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')",
+                })
+
+                if not chars["high_dimensional"]:
+                    recommendations.append({
+                        "name": "Ridge Regression",
+                        "category": "linear",
+                        "score": 72,
+                        "speed": "fast",
+                        "interpretability": "high",
+                        "reasons": [
+                            "Fast and interpretable baseline",
+                            "Handles multicollinearity well",
+                            "Good when features have linear relationships",
+                        ],
+                        "caveats": ["Cannot capture non-linear patterns"],
+                        "code": f"from sklearn.linear_model import Ridge\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('ridge', Ridge(alpha=1.0))])\npipe.fit(X_train, y_train)\nprint(f'R²: {{pipe.score(X_test, y_test):.4f}}')",
+                    })
+
+            else:  # clustering
+                recommendations.append({
+                    "name": "K-Means",
+                    "category": "clustering",
+                    "score": 85,
+                    "speed": "fast",
+                    "interpretability": "high",
+                    "reasons": [
+                        "Simple, fast, and widely understood",
+                        "Good for spherical clusters",
+                        "Scalable to large datasets",
+                    ],
+                    "caveats": ["Must specify k", "Sensitive to outliers", "Assumes spherical clusters"],
+                    "code": f"from sklearn.cluster import KMeans\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.metrics import silhouette_score\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\nscores = {{}}\nfor k in range(2, 11):\n    km = KMeans(n_clusters=k, random_state=42, n_init=10)\n    labels = km.fit_predict(X_scaled)\n    scores[k] = silhouette_score(X_scaled, labels)\n    print(f'k={{k}}: silhouette={{scores[k]:.3f}}')\n\nbest_k = max(scores, key=scores.get)\nprint(f'\\nBest k={{best_k}} (silhouette={{scores[best_k]:.3f}}')",
+                })
+
+                recommendations.append({
+                    "name": "DBSCAN",
+                    "category": "clustering",
+                    "score": 78,
+                    "speed": "medium",
+                    "interpretability": "medium",
+                    "reasons": [
+                        "Finds clusters of arbitrary shape",
+                        "Detects outliers automatically",
+                        "No need to specify number of clusters",
+                    ],
+                    "caveats": ["Sensitive to eps parameter", "Struggles with varying densities"],
+                    "code": f"from sklearn.cluster import DBSCAN\nfrom sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\ndb = DBSCAN(eps=0.5, min_samples=5)\nlabels = db.fit_predict(X_scaled)\nprint(f'Clusters found: {{len(set(labels)) - (1 if -1 in labels else 0)}}')\nprint(f'Noise points: {{(labels == -1).sum()}}')",
+                })
+
+            # Sort by score descending
+            recommendations.sort(key=lambda r: r["score"], reverse=True)
+
+            return {
+                "variable": var_name,
+                "task_type": task_type,
+                "target": target,
+                "target_info": target_info,
+                "data_characteristics": chars,
+                "recommendations": recommendations,
+            }
+
         @app.get("/api/graph")
         async def get_graph():
             """Get reactive dependency graph."""
@@ -2153,6 +2523,102 @@ Dataset profile:
         async def export_recipes():
             """Export all custom recipes as JSON."""
             return {"recipes": self.recipe_store.export_all()}
+
+        # ===== Analysis Patterns (Collaborative Knowledge Base) =====
+
+        @app.get("/api/patterns")
+        async def list_patterns():
+            """List all saved analysis patterns."""
+            patterns_file = Path(self.notebook.file_path or ".").parent / ".flowyml_patterns.json"
+            if not patterns_file.exists():
+                return {"patterns": []}
+            try:
+                data = json.loads(patterns_file.read_text(encoding="utf-8"))
+                return {"patterns": data.get("patterns", [])}
+            except Exception:
+                return {"patterns": []}
+
+        @app.post("/api/patterns")
+        async def save_pattern(pattern: dict):
+            """Save a new analysis pattern (bookmarked cell sequence)."""
+            import uuid
+            from datetime import datetime
+
+            patterns_file = Path(self.notebook.file_path or ".").parent / ".flowyml_patterns.json"
+            data = {"patterns": []}
+            if patterns_file.exists():
+                try:
+                    data = json.loads(patterns_file.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            new_pattern = {
+                "id": str(uuid.uuid4())[:8],
+                "name": pattern.get("name", "Untitled Pattern"),
+                "description": pattern.get("description", ""),
+                "tags": pattern.get("tags", []),
+                "cells": pattern.get("cells", []),
+                "data_type": pattern.get("data_type", "any"),
+                "problem_type": pattern.get("problem_type", "any"),
+                "author": pattern.get("author", "local"),
+                "created_at": datetime.now().isoformat(),
+                "uses": 0,
+            }
+            data.setdefault("patterns", []).append(new_pattern)
+            patterns_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return {"pattern": new_pattern}
+
+        @app.delete("/api/patterns/{pattern_id}")
+        async def delete_pattern(pattern_id: str):
+            """Delete an analysis pattern."""
+            patterns_file = Path(self.notebook.file_path or ".").parent / ".flowyml_patterns.json"
+            if not patterns_file.exists():
+                raise HTTPException(404, "No patterns file")
+            data = json.loads(patterns_file.read_text(encoding="utf-8"))
+            data["patterns"] = [p for p in data.get("patterns", []) if p.get("id") != pattern_id]
+            patterns_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return {"deleted": pattern_id}
+
+        @app.post("/api/patterns/{pattern_id}/apply")
+        async def apply_pattern(pattern_id: str):
+            """Apply a pattern by inserting its cells into the notebook."""
+            patterns_file = Path(self.notebook.file_path or ".").parent / ".flowyml_patterns.json"
+            if not patterns_file.exists():
+                raise HTTPException(404, "No patterns file")
+            data = json.loads(patterns_file.read_text(encoding="utf-8"))
+            pattern = next((p for p in data.get("patterns", []) if p.get("id") == pattern_id), None)
+            if not pattern:
+                raise HTTPException(404, f"Pattern '{pattern_id}' not found")
+            # Increment usage counter
+            pattern["uses"] = pattern.get("uses", 0) + 1
+            patterns_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return {"pattern": pattern, "cells": pattern.get("cells", [])}
+
+        @app.post("/api/patterns/search")
+        async def search_patterns(query: dict):
+            """Search patterns by tags, data type, or problem type."""
+            patterns_file = Path(self.notebook.file_path or ".").parent / ".flowyml_patterns.json"
+            if not patterns_file.exists():
+                return {"patterns": []}
+            data = json.loads(patterns_file.read_text(encoding="utf-8"))
+            patterns = data.get("patterns", [])
+
+            q = query.get("query", "").lower()
+            data_type = query.get("data_type")
+            problem_type = query.get("problem_type")
+
+            results = []
+            for p in patterns:
+                if q and q not in p.get("name", "").lower() and q not in p.get("description", "").lower():
+                    if not any(q in t.lower() for t in p.get("tags", [])):
+                        continue
+                if data_type and data_type != "any" and p.get("data_type") not in (data_type, "any"):
+                    continue
+                if problem_type and problem_type != "any" and p.get("problem_type") not in (problem_type, "any"):
+                    continue
+                results.append(p)
+
+            return {"patterns": results}
 
         # --- WebSocket for real-time kernel ---
 
