@@ -127,7 +127,7 @@ class NotebookServer:
         """Create the FastAPI application."""
         app = FastAPI(
             title="FlowyML Notebook",
-            version="0.1.0",
+            version="1.1.0",
             description="Production-grade reactive notebook for ML pipelines",
         )
 

@@ -107,7 +107,7 @@ class NotebookManager:
                 "created_at": now,
                 "modified_at": now,
                 "kernel": "python3",
-                "version": "0.1.0",
+                "version": "1.1.0",
             },
             "cells": [],
         }

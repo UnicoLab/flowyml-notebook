@@ -12,13 +12,17 @@ import PipelineDAG from './components/PipelineDAG';
 import CommentsPanel from './components/CommentsPanel';
 import ReportGenerator from './components/ReportGenerator';
 import AppPublisher from './components/AppPublisher';
+import PipelineWizard from './components/PipelineWizard';
+import { FLOWYML_SNIPPETS } from './data/flowymlSnippets';
+import { wrapInStep } from './data/flowymlSnippets';
 
 export default function App() {
   const notebook = useNotebook();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [rightPanel, setRightPanel] = useState(null); // 'ai' | 'flowyml' | 'dag' | 'comments' | 'report' | 'app' | null
+  const [rightPanel, setRightPanel] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusedCellId, setFocusedCellId] = useState(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('fml-theme') || 'dark');
 
   // Apply theme to document
@@ -54,6 +58,39 @@ export default function App() {
       case 'report': setRightPanel(p => p === 'report' ? null : 'report'); break;
       case 'publish-app': setRightPanel(p => p === 'app' ? null : 'app'); break;
       case 'find': break;
+    }
+
+    // FlowyML snippet insertion commands from CommandPalette
+    const snippetMap = {
+      'insert-step': 'fml-step',
+      'insert-pipeline': 'fml-pipeline',
+      'insert-branch': 'fml-branch',
+      'insert-context': 'fml-context',
+      'insert-dataset': 'fml-dataset',
+      'insert-model': 'fml-model',
+      'insert-metrics': 'fml-metrics',
+      'insert-parallel': 'fml-parallel',
+      'insert-experiment': 'fml-experiment',
+      'insert-registry': 'fml-registry',
+    };
+    if (snippetMap[cmd]) {
+      const snippet = FLOWYML_SNIPPETS.find(s => s.id === snippetMap[cmd]);
+      if (snippet) notebook.insertCellWithSource(snippet.source, snippet.name);
+      return;
+    }
+    if (cmd === 'pipeline-wizard') {
+      setWizardOpen(true);
+      return;
+    }
+    if (cmd === 'wrap-in-step') {
+      if (focusedCellId) {
+        const cell = notebook.cells.find(c => c.id === focusedCellId);
+        if (cell && cell.source) {
+          const wrapped = wrapInStep(cell.source, cell.name);
+          notebook.updateCell(focusedCellId, wrapped);
+        }
+      }
+      return;
     }
   }, [notebook, focusedCellId]);
 
@@ -233,6 +270,7 @@ export default function App() {
             onExecuteCell={notebook.executeCell}
             onDeleteCell={notebook.deleteCell}
             onAddCell={notebook.addCell}
+            onInsertSnippet={(source, name, index) => notebook.insertCellWithSource(source, name, 'code', index ?? null)}
             theme={theme}
           />
         </Panel>
@@ -315,6 +353,18 @@ export default function App() {
         onClose={() => setPaletteOpen(false)}
         onCommand={handleCommand}
       />
+
+      {/* Pipeline Builder Wizard */}
+      {wizardOpen && (
+        <PipelineWizard
+          onClose={() => setWizardOpen(false)}
+          onGenerateCells={async (cells) => {
+            for (const cell of cells) {
+              await notebook.insertCellWithSource(cell.source, cell.name);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

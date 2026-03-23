@@ -1,10 +1,10 @@
 [project]
 name = "flowyml-notebook"
-version = "1.0.0"
+version = "1.1.0"
 description = "Production-grade reactive notebook for FlowyML — the Jupyter replacement for ML pipelines"
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.10"
+requires-python = ">=3.10,<4.0"
 authors = [{name = "UnicoLab", email = "support@unicolab.ai"}]
 classifiers = [
     "Development Status :: 3 - Alpha",

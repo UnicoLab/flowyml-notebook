@@ -374,6 +374,26 @@ export function useNotebook() {
     return cell;
   }, [markDirty]);
 
+  // Insert a cell with pre-filled source code at a specific position
+  const insertCellWithSource = useCallback(async (source, name = '', cellType = 'code', index = null) => {
+    const res = await fetch(`${API}/cells`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cell_type: cellType, source, name, index }),
+    });
+    const cell = await res.json();
+    setCells(prev => {
+      if (index !== null) {
+        const next = [...prev];
+        next.splice(index, 0, cell);
+        return next;
+      }
+      return [...prev, cell];
+    });
+    markDirty();
+    return cell;
+  }, [markDirty]);
+
   // Load a full notebook state (from open-notebook API response)
   const loadNotebookState = useCallback((state) => {
     if (!state) return;
@@ -522,7 +542,7 @@ export function useNotebook() {
     dirty, saveStatus, lastSaved,
     addCell, updateCell, deleteCell,
     executeCell, executeAll, resetKernel, saveNotebook, uploadCSV,
-    insertRecipe, loadNotebookState, renameNotebook, loadDemo,
+    insertRecipe, insertCellWithSource, loadNotebookState, renameNotebook, loadDemo,
     // Collaboration
     comments, addComment, resolveComment, deleteComment, replyToComment,
     reviews, requestReview, updateReview,

@@ -19,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="fml-notebook",
         description="🌊 FlowyML Notebook — Production-grade reactive notebook",
     )
-    parser.add_argument("--version", action="version", version="flowyml-notebook 0.1.0")
+    parser.add_argument("--version", action="version", version="flowyml-notebook 1.1.0")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

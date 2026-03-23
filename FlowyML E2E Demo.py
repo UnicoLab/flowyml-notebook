@@ -3,14 +3,14 @@
 # version: 1
 # ///
 
-# %% [code] id=4f3ec0ca "imports"
+# %% [code] id=77569c60 "imports"
 # FlowyML Notebook — E2E Demo
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 print('\u2705 Libraries loaded successfully')
 
-# %% [code] id=041a3983 "data_generation"
+# %% [code] id=97142584 "data_generation"
 # Generate ML experiment dataset
 np.random.seed(42)
 n = 100
@@ -32,7 +32,7 @@ df = pd.DataFrame({
 print(f'Generated {len(df)} experiments with {len(df.columns)} features')
 df
 
-# %% [code] id=90342531 "analysis"
+# %% [code] id=ce88e615 "analysis"
 # Analysis: Best models by accuracy
 summary = df.groupby('model').agg(
     avg_accuracy=('accuracy', 'mean'),
@@ -45,7 +45,7 @@ summary = df.groupby('model').agg(
 print('\U0001f3c6 Model Performance Summary:')
 summary
 
-# %% [code] id=5218f349 "exploration"
+# %% [code] id=4e1d8106 "exploration"
 # Filter and explore: high-performance experiments
 top_experiments = df[
     (df['accuracy'] > 0.90) &
@@ -55,6 +55,25 @@ top_experiments = df[
 print(f'\U0001f680 Found {len(top_experiments)} high-performance experiments (accuracy > 90%)')
 top_experiments[['experiment_id', 'model', 'accuracy', 'f1_score', 'training_time_s', 'memory_mb']]
 
-# %% [markdown] id=4700ae65 "summary"
+# %% [markdown] id=849e7ddc "summary"
 # ## \U0001f4ca Results Summary\n\nThis demo notebook shows end-to-end FlowyML Notebook capabilities:\n\n- **DataFrame display** with interactive exploration\n- **Cell execution metrics** (duration, memory)\n- **Reactive execution** — downstream cells auto-update\n- **Variable inspector** — track all variables in the session\n\n> Click **Run All** to execute all cells and see results!
+
+# %% [code] id=86b993d9 "Step with Inputs/Outputs"
+from flowyml import step
+
+@step(
+    inputs=["data/train", "data/val"],
+    outputs=["model/trained"],
+    cache=True,
+    execution_group="training",
+)
+def train_model(train_data, val_data, learning_rate=0.01, epochs=100):
+    """Train model with automatic dependency tracking."""
+    print(f"🎯 Training: lr={learning_rate}, epochs={epochs}")
+    print(f"   Train: {len(train_data)} samples")
+    print(f"   Val: {len(val_data)} samples")
+    
+    # Your training code here
+    model = {"weights": "trained", "lr": learning_rate}
+    return model
 

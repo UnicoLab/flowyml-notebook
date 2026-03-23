@@ -3,7 +3,8 @@ import {
   Play, Save, RotateCcw, Download, Upload, Search, FileCode,
   BarChart3, Rocket, Clock, Zap, Sparkles, GitBranch,
   Plus, Code, Type, Database, Trash2, Settings, Moon, Sun, Layout,
-  Command, FileText, Globe
+  Command, FileText, Globe, Workflow, Box, Activity, Cpu, ToggleLeft,
+  FlaskConical, Package
 } from 'lucide-react';
 
 const ALL_COMMANDS = [
@@ -23,6 +24,18 @@ const ALL_COMMANDS = [
   { id: 'schedule', label: 'Schedule Pipeline', icon: Clock, group: 'FlowyML' },
   { id: 'show-dag', label: 'View Dependency Graph', icon: GitBranch, group: 'FlowyML' },
   { id: 'connect', label: 'Connect to FlowyML Server', icon: Zap, group: 'FlowyML' },
+  { id: 'insert-step', label: 'Insert @step', icon: Workflow, group: 'FlowyML Insert' },
+  { id: 'insert-pipeline', label: 'Insert Pipeline', icon: GitBranch, group: 'FlowyML Insert' },
+  { id: 'insert-branch', label: 'Insert Branch (If/Switch)', icon: Activity, group: 'FlowyML Insert' },
+  { id: 'insert-context', label: 'Insert Context Config', icon: ToggleLeft, group: 'FlowyML Insert' },
+  { id: 'insert-dataset', label: 'Insert Dataset Asset', icon: Database, group: 'FlowyML Insert' },
+  { id: 'insert-model', label: 'Insert Model Asset', icon: Cpu, group: 'FlowyML Insert' },
+  { id: 'insert-metrics', label: 'Insert Metrics Asset', icon: BarChart3, group: 'FlowyML Insert' },
+  { id: 'insert-parallel', label: 'Insert Parallel Execution', icon: Box, group: 'FlowyML Insert' },
+  { id: 'insert-experiment', label: 'Insert Experiment Tracking', icon: FlaskConical, group: 'FlowyML Insert' },
+  { id: 'insert-registry', label: 'Insert Model Registry', icon: Package, group: 'FlowyML Insert' },
+  { id: 'pipeline-wizard', label: 'Open Pipeline Builder Wizard', icon: Workflow, group: 'FlowyML Insert' },
+  { id: 'wrap-in-step', label: 'Wrap Current Cell in @step', icon: Zap, group: 'FlowyML Insert' },
   { id: 'report', label: 'Generate Report', icon: FileText, group: 'Publish' },
   { id: 'publish-app', label: 'Publish as App', icon: Globe, group: 'Publish' },
   { id: 'ai-assist', label: 'Open AI Assistant', shortcut: ['⌘', 'J'], icon: Sparkles, group: 'Tools' },

@@ -6,8 +6,10 @@ import {
   Play, Trash2, Copy, ChevronDown, ChevronRight,
   Code, Type, Database, GripVertical, Eye, EyeOff,
   MoreHorizontal, Clock, ArrowUpDown, Check,
-  Cpu, HardDrive, Activity, Gauge, Zap
+  Cpu, HardDrive, Activity, Gauge, Zap, Workflow,
+  Plus, ToggleLeft, Tag, FileCode
 } from 'lucide-react';
+import { detectFlowyML, wrapInStep, DETECTION_BADGES, extractAllArtifacts, getArtifactType } from '../data/flowymlSnippets';
 
 const CELL_TYPE_CONFIG = {
   code: { icon: Code, label: 'Python', language: 'python', badge: 'code' },
@@ -15,16 +17,39 @@ const CELL_TYPE_CONFIG = {
   sql: { icon: Database, label: 'SQL', language: 'sql', badge: 'sql' },
 };
 
+// Use shared DETECTION_BADGES from flowymlSnippets.js
+
 export default function CellEditor({
   cell, state, focused, executing, theme,
   upstream, downstream,
-  onFocus, onUpdate, onExecute, onDelete,
+  onFocus, onUpdate, onExecute, onDelete, onWrapInStep,
 }) {
   const editorRef = useRef(null);
   const [collapsed, setCollapsed] = useState(false);
   const [outputVisible, setOutputVisible] = useState(true);
   const [copied, setCopied] = useState(false);
   const config = CELL_TYPE_CONFIG[cell.cell_type] || CELL_TYPE_CONFIG.code;
+
+  // Detect FlowyML constructs in this cell
+  const flowymlDetections = useMemo(() => {
+    if (cell.cell_type !== 'code') return null;
+    return detectFlowyML(cell.source);
+  }, [cell.source, cell.cell_type]);
+
+  // Extract artifact I/O for pill badges
+  const cellArtifacts = useMemo(() => {
+    if (cell.cell_type !== 'code') return null;
+    const arts = extractAllArtifacts(cell.source);
+    if (arts.inputs.length === 0 && arts.outputs.length === 0 && arts.assets.length === 0) return null;
+    return arts;
+  }, [cell.source, cell.cell_type]);
+
+  const canWrapInStep = useMemo(() => {
+    return cell.cell_type === 'code'
+      && cell.source?.trim()
+      && !flowymlDetections?.includes('step')
+      && onWrapInStep;
+  }, [cell.cell_type, cell.source, flowymlDetections, onWrapInStep]);
 
   const stateClass = state === 'idle' ? '' :
     state === 'success' ? 'state-success' :
@@ -50,6 +75,54 @@ export default function CellEditor({
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [cell.source]);
+
+  const handleWrapInStep = useCallback(() => {
+    if (!onWrapInStep) return;
+    const wrapped = wrapInStep(cell.source, cell.name);
+    onWrapInStep(wrapped);
+  }, [cell.source, cell.name, onWrapInStep]);
+
+  // --- Step-specific quick actions ---
+  const handleAddStepInput = useCallback(() => {
+    const src = cell.source || '';
+    const updated = src.replace(
+      /@step\(([^)]*)\)/,
+      (match, args) => {
+        if (args.includes('inputs=')) return match;
+        const newArg = args ? `, inputs=["data/input"]` : `inputs=["data/input"]`;
+        return `@step(${args}${newArg})`;
+      }
+    );
+    onUpdate(updated);
+  }, [cell.source, onUpdate]);
+
+  const handleAddStepOutput = useCallback(() => {
+    const src = cell.source || '';
+    const updated = src.replace(
+      /@step\(([^)]*)\)/,
+      (match, args) => {
+        if (args.includes('outputs=')) return match;
+        const newArg = args ? `, outputs=["data/output"]` : `outputs=["data/output"]`;
+        return `@step(${args}${newArg})`;
+      }
+    );
+    onUpdate(updated);
+  }, [cell.source, onUpdate]);
+
+  const handleToggleCache = useCallback(() => {
+    const src = cell.source || '';
+    const hasCache = /cache\s*=\s*True/.test(src);
+    let updated;
+    if (hasCache) {
+      updated = src.replace(/,?\s*cache\s*=\s*True/, '');
+    } else {
+      updated = src.replace(
+        /@step\(([^)]*)\)/,
+        (match, args) => `@step(${args}${args ? ', ' : ''}cache=True)`
+      );
+    }
+    onUpdate(updated);
+  }, [cell.source, onUpdate]);
 
   // Format duration nicely
   const fmtDuration = (s) => {
@@ -119,6 +192,22 @@ export default function CellEditor({
               <ArrowUpDown size={9} /> {upstream.length}
             </span>
           )}
+
+          {/* FlowyML detection badges */}
+          {flowymlDetections && flowymlDetections.map(detection => {
+            const badge = DETECTION_BADGES[detection];
+            if (!badge) return null;
+            return (
+              <span
+                key={detection}
+                className="flowyml-cell-badge"
+                style={{ '--badge-color': badge.color }}
+              >
+                <Zap size={8} />
+                {badge.label}
+              </span>
+            );
+          })}
         </div>
 
         <div className="cell-toolbar-right">
@@ -128,6 +217,18 @@ export default function CellEditor({
               <Zap size={9} />
               {fmtDuration(cell.duration_seconds)}
             </span>
+          )}
+
+          {/* Wrap in Step button */}
+          {canWrapInStep && (
+            <button
+              className="flowyml-wrap-btn"
+              onClick={(e) => { e.stopPropagation(); handleWrapInStep(); }}
+              title="Wrap in FlowyML @step"
+            >
+              <Workflow size={11} />
+              <span>Wrap in Step</span>
+            </button>
           )}
 
           {cell.outputs?.length > 0 && (
@@ -161,6 +262,114 @@ export default function CellEditor({
           </button>
         </div>
       </div>
+
+      {/* FlowyML Contextual Actions Bar (for detected constructs) */}
+      {!collapsed && flowymlDetections && flowymlDetections.length > 0 && focused && (
+        <div className="flowyml-actions-bar">
+          {flowymlDetections.includes('step') && (
+            <>
+              <button className="flowyml-action-btn" onClick={handleAddStepInput} title="Add input declaration">
+                <Plus size={10} /> Input
+              </button>
+              <button className="flowyml-action-btn" onClick={handleAddStepOutput} title="Add output declaration">
+                <Plus size={10} /> Output
+              </button>
+              <button className="flowyml-action-btn" onClick={handleToggleCache} title="Toggle @step cache">
+                <ToggleLeft size={10} /> Cache
+              </button>
+            </>
+          )}
+          {flowymlDetections.includes('pipeline') && (
+            <>
+              <button className="flowyml-action-btn" onClick={() => {
+                const src = cell.source || '';
+                onUpdate(src + '\n# pipeline.add_step(my_step)  # TODO: add your step');
+              }}>
+                <Plus size={10} /> Add Step
+              </button>
+            </>
+          )}
+          {flowymlDetections.includes('context') && (
+            <button className="flowyml-action-btn" onClick={() => {
+              const src = cell.source || '';
+              // Insert a new param line before the closing paren
+              const updated = src.replace(
+                /(\n\s*\))/,
+                '\n    new_param="value",  # TODO: update$1'
+              );
+              onUpdate(updated);
+            }}>
+              <Plus size={10} /> Add Param
+            </button>
+          )}
+          <span className="flowyml-actions-label">
+            <Zap size={9} /> FlowyML
+          </span>
+        </div>
+      )}
+
+      {/* ── Premium Artifact I/O Panel ── */}
+      {!collapsed && cellArtifacts && (
+        <div className="cell-artifact-panel">
+          {cellArtifacts.inputs.length > 0 && (
+            <div className="artifact-io-group inputs">
+              <span className="io-group-label">
+                <span className="io-arrow">↓</span> INPUTS
+              </span>
+              <div className="io-group-items">
+                {cellArtifacts.inputs.map(art => {
+                  const t = getArtifactType(art);
+                  return (
+                    <span key={`in-${art}`} className="artifact-chip" style={{ '--chip-color': t.color }}>
+                      <span className="chip-icon">{t.icon}</span>
+                      <span className="chip-name">{art}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {cellArtifacts.inputs.length > 0 && cellArtifacts.outputs.length > 0 && (
+            <div className="io-flow-arrow">
+              <svg width="20" height="14" viewBox="0 0 20 14"><path d="M0 7h14m0 0l-4-4m4 4l-4 4" stroke="var(--fg-dim)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          )}
+          {cellArtifacts.outputs.length > 0 && (
+            <div className="artifact-io-group outputs">
+              <span className="io-group-label">
+                <span className="io-arrow">↑</span> OUTPUTS
+              </span>
+              <div className="io-group-items">
+                {cellArtifacts.outputs.map(art => {
+                  const t = getArtifactType(art);
+                  return (
+                    <span key={`out-${art}`} className="artifact-chip" style={{ '--chip-color': t.color }}>
+                      <span className="chip-icon">{t.icon}</span>
+                      <span className="chip-name">{art}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {cellArtifacts.assets.length > 0 && (
+            <div className="artifact-io-group assets">
+              <span className="io-group-label">
+                <span className="io-arrow">◆</span> ASSETS
+              </span>
+              <div className="io-group-items">
+                {cellArtifacts.assets.map((asset, i) => (
+                  <span key={`asset-${i}`} className="artifact-chip asset-chip" style={{ '--chip-color': asset.color }}>
+                    <span className="chip-icon">{asset.icon}</span>
+                    <span className="chip-name">{asset.name}</span>
+                    <span className="chip-badge">{asset.type}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Editor (collapsible) */}
       {!collapsed && (
