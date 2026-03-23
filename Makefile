@@ -1,4 +1,4 @@
-.PHONY: help setup dev start test build clean install docs docs-serve lint format
+.PHONY: help setup dev start test build clean install docs docs-serve lint format pre-commit pre-commit-install release-dry-run docs-deploy
 
 # ── Auto-detect Python (prefer poetry if in parent project, else system) ──
 POETRY_CHECK := $(shell command -v poetry 2>/dev/null)
@@ -101,4 +101,21 @@ lint: ## Run linter (Ruff)
 format: ## Auto-format code (Ruff)
 	$(PYTHON) -m ruff format flowyml_notebook/ tests/
 	$(PYTHON) -m ruff check --fix flowyml_notebook/ tests/
+
+# ── 🔒 Pre-commit ───────────────────────────────────────────────────────────
+
+pre-commit-install: ## Install pre-commit hooks
+	$(PYTHON) -m pre_commit install --install-hooks
+	$(PYTHON) -m pre_commit install --hook-type commit-msg
+
+pre-commit: ## Run pre-commit on all files
+	$(PYTHON) -m pre_commit run --all-files
+
+# ── 🚀 Release ──────────────────────────────────────────────────────────────
+
+release-dry-run: ## Dry-run semantic release (no changes)
+	$(PYTHON) -m semantic_release version --print
+
+docs-deploy: ## Deploy versioned docs with mike (e.g. make docs-deploy VERSION=0.1.0)
+	mike deploy --push --update-aliases $(VERSION) latest
 

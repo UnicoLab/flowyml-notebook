@@ -1,60 +1,117 @@
 site_name: FlowyML Notebook
-site_url: https://docs.flowyml.ai/notebook
+site_url: https://unicolab.github.io/flowyml-notebook/
 site_description: Production-grade reactive notebook for FlowyML
+repo_url: https://github.com/UnicoLab/flowyml-notebook
+repo_name: flowyml-notebook
 
 theme:
   name: material
   logo: assets/logo.png
   favicon: assets/logo.png
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    admonition:
+      note: octicons/info-16
+      tip: octicons/light-bulb-16
+      warning: octicons/alert-16
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
       accent: indigo
       toggle:
-        icon: material/brightness-7
+        icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
       accent: indigo
       toggle:
-        icon: material/brightness-4
+        icon: material/weather-sunny
         name: Switch to light mode
   features:
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.indexes
+    - navigation.footer
     - search.suggest
     - search.highlight
+    - search.share
     - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - toc.follow
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      linenums: true
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.mark
+  - pymdownx.keys
+  - def_list
+  - tables
+  - footnotes
+  - pymdownx.tasklist:
+      custom_checkbox: true
 
 plugins:
   - search
   - mkdocstrings:
       handlers:
         python:
-          paths: [.]
+          options:
+            show_root_heading: true
+            show_source: true
+            show_signature_annotations: true
+            docstring_style: google
+            merge_init_into_class: true
+            show_category_heading: true
 
 nav:
-  - Introduction: index.md
-  - Getting Started: getting-started.md
-  - Features: features.md
-  - Architecture: architecture.md
-  - Recipes: recipes.md
-  - Collaboration: collaboration.md
-  - Integration: integration.md
-  - Data Exploration: exploration.md
-  - API Reference: api.md
+  - 🏠 Introduction: index.md
+  - 🚀 Getting Started: getting-started.md
+  - ✨ Features: features.md
+  - 🏗️ Architecture: architecture.md
+  - 🍳 Recipes: recipes.md
+  - 🤝 Collaboration: collaboration.md
+  - 🔌 Integration: integration.md
+  - 🔬 Data Exploration: exploration.md
+  - 📚 API Reference: api.md
 
+extra_css: []
 
-
-markdown_extensions:
-  - admonition
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/UnicoLab/flowyml-notebook
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/flowyml-notebook/
