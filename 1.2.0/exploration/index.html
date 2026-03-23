@@ -781,6 +781,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#smartprep-advisor-new-in-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SmartPrep Advisor — NEW in v1.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#algorithm-matchmaker-new-in-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Algorithm Matchmaker — NEW in v1.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#built-in-visualization-libraries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -919,6 +941,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#smartprep-advisor-new-in-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SmartPrep Advisor — NEW in v1.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#algorithm-matchmaker-new-in-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Algorithm Matchmaker — NEW in v1.2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#built-in-visualization-libraries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -964,7 +1008,7 @@
 <p>FlowyML Notebook provides a <strong>premium data exploration experience</strong> — every DataFrame gets automatic, multi-tab visual profiling with zero extra code.</p>
 <hr />
 <h2 id="rich-context-display">Rich Context Display</h2>
-<p>When you return a DataFrame (Pandas or Polars), FlowyML Notebook automatically generates a <strong>Rich Context Display</strong> with 8 interactive tabs:</p>
+<p>When you return a DataFrame (Pandas or Polars), FlowyML Notebook automatically generates a <strong>Rich Context Display</strong> with 10 interactive tabs:</p>
 <table>
 <thead>
 <tr>
@@ -1005,6 +1049,14 @@
 <td><img alt="🤖" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" title=":robot:" /> <strong>AI</strong></td>
 <td>AI-powered data analysis</td>
 </tr>
+<tr>
+<td><img alt="🔧" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f527.svg" title=":wrench:" /> <strong>SmartPrep</strong></td>
+<td>Actionable preprocessing suggestions with code</td>
+</tr>
+<tr>
+<td><img alt="🧠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f9e0.svg" title=":brain:" /> <strong>Algorithms</strong></td>
+<td>ML algorithm recommendations with pipeline code</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -1044,6 +1096,30 @@
   </p>
 <figcaption>training_time_s has 6% outliers, n_estimators needs log transform, model and status identified as targets</figcaption>
 </figure>
+<hr />
+<h2 id="smartprep-advisor-new-in-v12"><img alt="🔧" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f527.svg" title=":wrench:" /> SmartPrep Advisor — NEW in v1.2</h2>
+<p>Go beyond insights — get <strong>actionable preprocessing suggestions</strong> with severity-ranked cards and ready-to-run Python code.</p>
+<p>The SmartPrep tab detects 6 categories of data quality issues:</p>
+<ul>
+<li><strong>Missing Values</strong> — Per-column null analysis with imputation strategy (median for numeric, mode for categorical, drop for &gt;60% missing)</li>
+<li><strong>Skewed Distributions</strong> — Skewness detection with <code>log1p</code> or Yeo-Johnson power transform suggestions</li>
+<li><strong>Outliers</strong> — IQR-based detection with <code>clip()</code> code</li>
+<li><strong>High Cardinality</strong> — Categorical columns &gt;50 unique values flagged for frequency encoding</li>
+<li><strong>Class Imbalance</strong> — Target variable ratio analysis with SMOTE and class weight suggestions</li>
+<li><strong>Feature Scaling</strong> — Cross-feature range analysis (&gt;100x difference triggers <code>StandardScaler</code> suggestion)</li>
+</ul>
+<p>Each card includes a <strong>"Generate Cell"</strong> button that inserts the fix directly into your notebook. Use <strong>"Apply All Fixes"</strong> to insert all suggestions at once.</p>
+<hr />
+<h2 id="algorithm-matchmaker-new-in-v12"><img alt="🧠" class="twemoji" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f9e0.svg" title=":brain:" /> Algorithm Matchmaker — NEW in v1.2</h2>
+<p>Select a target column and get <strong>ranked ML algorithm recommendations</strong> with reasoning, caveats, and complete pipeline code.</p>
+<p>The Matchmaker analyzes:</p>
+<ul>
+<li><strong>Task type</strong> — Automatically detects classification (≤20 unique), regression (&gt;20), or clustering (no target)</li>
+<li><strong>Data characteristics</strong> — Sample size, feature counts, dimensionality, null presence</li>
+<li><strong>Algorithm fit</strong> — Scores each algorithm 0-100 based on your specific data profile</li>
+</ul>
+<p>Supported algorithms include Random Forest, XGBoost, LightGBM, Logistic/Linear Regression, SVM, KNN, ElasticNet, KMeans, DBSCAN, and Hierarchical Clustering.</p>
+<p>Click <strong>"Generate Pipeline Cell"</strong> to insert a complete sklearn pipeline — train/test split, model fitting, and evaluation metrics — directly into your notebook.</p>
 <hr />
 <h2 id="built-in-visualization-libraries">Built-in Visualization Libraries</h2>
 <p>In addition to the automatic profiling, FlowyML Notebook includes:</p>
