@@ -105,7 +105,8 @@ nav:
   - 🔬 Data Exploration: exploration.md
   - 📚 API Reference: api.md
 
-extra_css: []
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   version:

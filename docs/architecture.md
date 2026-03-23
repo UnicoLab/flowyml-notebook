@@ -2,6 +2,11 @@
 
 FlowyML Notebook is a full-stack application with a Python backend, React frontend, and a reactive execution engine at its core.
 
+<figure markdown>
+  ![Pipeline DAG View](screenshots/dag.png){ width="60%" }
+  <figcaption>Live DAG visualization of cell dependencies with execution state indicators</figcaption>
+</figure>
+
 ## System Overview
 
 ```

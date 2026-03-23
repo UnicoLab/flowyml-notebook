@@ -37,7 +37,6 @@ env/
 
 # Frontend
 node_modules/
-/flowyml_notebook/frontend/dist/
 /flowyml_notebook/frontend/npm-debug.log*
 
 # Documentation

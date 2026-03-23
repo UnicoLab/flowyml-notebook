@@ -36,7 +36,7 @@ class TestNotebookSession:
         result = session.execute_cell(cell)
         assert not result.success
         assert result.error is not None
-        assert "ZeroDivisionError" in result.error
+        assert "division by zero" in result.error
 
     def test_execute_syntax_error(self):
         session = NotebookSession()
