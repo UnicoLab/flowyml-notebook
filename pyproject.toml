@@ -60,10 +60,15 @@ docs = [
     "mike>=2.0.0",
 ]
 all = [
-    "flowyml-notebook[ai]",
-    "flowyml-notebook[sql]",
-    "flowyml-notebook[exploration]",
-    "flowyml-notebook[docs]",
+    "openai>=1.0",
+    "google-generativeai>=0.3",
+    "sqlalchemy>=2.0", "duckdb>=0.9",
+    "scipy>=1.11", "scikit-learn>=1.3",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocs-material-extensions>=1.3.1",
+    "mkdocstrings[python]>=0.23.0",
+    "mike>=2.0.0",
 ]
 
 [project.scripts]
