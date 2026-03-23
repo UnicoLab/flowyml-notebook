@@ -69,6 +69,18 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 
     Full GitHub integration — branch, version, collaborate. No proprietary cloud. No database. Just Git.
 
+-   :material-wrench-outline:{ .lg .middle } **SmartPrep Advisor**
+
+    ---
+
+    Auto-detects missing values, skew, outliers, cardinality, and class imbalance — with ready-to-run code fixes.
+
+-   :material-brain:{ .lg .middle } **Algorithm Matchmaker**
+
+    ---
+
+    Ranks the best ML algorithms for your data with reasoning, caveats, and complete sklearn pipeline code.
+
 </div>
 
 ---
@@ -128,7 +140,9 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 | Collaboration | None built-in | GitHub-native branching & versioning |
 | Deployment | Copy-paste to scripts | One-click pipeline, API, or app |
 | Data exploration | Raw text output | Rich profiling, charts, ML insights |
-| Code reuse | Copy between notebooks | 39 built-in recipes + shared hub |
+| Preprocessing help | None | SmartPrep Advisor with code generation |
+| Algorithm selection | Trial and error | Algorithm Matchmaker with ranked recommendations |
+| Code reuse | Copy between notebooks | 39 recipes + Collaborative Analysis Patterns |
 
 ---
 

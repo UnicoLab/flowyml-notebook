@@ -156,6 +156,90 @@ Manages the kernel, namespace, and execution state for a live session.
 
 ---
 
+### REST API — Data Intelligence (v1.2)
+
+#### SmartPrep Advisor
+
+```
+GET /api/smartprep/{var_name}?target={target_col}
+```
+
+Analyzes a DataFrame variable and returns severity-ranked preprocessing suggestions with ready-to-run code.
+
+**Response:**
+
+```json
+{
+  "variable": "df",
+  "rows": 1000,
+  "columns": 12,
+  "total_issues": 5,
+  "suggestions": [
+    {
+      "type": "impute_numeric",
+      "severity": "medium",
+      "column": "age",
+      "title": "Impute 'age' — 3.2% missing",
+      "reason": "Numeric column with 32 missing values...",
+      "code": "df['age'] = df['age'].fillna(df['age'].median())"
+    }
+  ]
+}
+```
+
+#### Algorithm Matchmaker
+
+```
+GET /api/algorithm-match/{var_name}?target={target_col}
+```
+
+Detects task type and returns ranked ML algorithm recommendations with pipeline code.
+
+**Response:**
+
+```json
+{
+  "variable": "df",
+  "task_type": "classification",
+  "data_characteristics": {"n_samples": 5000, "n_features": 12},
+  "recommendations": [
+    {
+      "name": "XGBoost",
+      "score": 95,
+      "speed": "medium",
+      "interpretability": "medium",
+      "reasons": ["State-of-the-art for tabular data", "..."],
+      "code": "from xgboost import XGBClassifier\n..."
+    }
+  ]
+}
+```
+
+#### Analysis Patterns
+
+```
+GET    /api/patterns                    # List all patterns
+POST   /api/patterns                    # Save a new pattern
+DELETE /api/patterns/{pattern_id}       # Delete a pattern
+POST   /api/patterns/{pattern_id}/apply # Apply pattern (insert cells)
+POST   /api/patterns/search             # Search by query, tags, type
+```
+
+**Create pattern body:**
+
+```json
+{
+  "name": "EDA Starter",
+  "description": "Basic exploratory data analysis",
+  "tags": ["eda", "pandas"],
+  "cells": [{"source": "import pandas as pd", "cell_type": "code"}],
+  "problem_type": "eda",
+  "data_type": "tabular"
+}
+```
+
+---
+
 ### Supporting Modules
 
 | Module | Purpose |
@@ -171,3 +255,4 @@ Manages the kernel, namespace, and execution state for a live session.
 | `flowyml_notebook.sql` | SQL cell engine (DuckDB, SQLAlchemy) |
 | `flowyml_notebook.ai` | AI assistant integration |
 | `flowyml_notebook.ui` | App mode and widget system |
+

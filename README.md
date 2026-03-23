@@ -40,6 +40,10 @@
 | **Rich Data Explorer** | ❌ | ✅ | ✅ | ✅ |
 | **App Mode** | ❌ | ❌ | ✅ | ✅ |
 | **Self-Hosted** | ✅ | ❌ | ✅ | ✅ |
+| **SmartPrep Advisor** | ❌ | ❌ | ❌ | ✅ |
+| **Algorithm Matchmaker** | ❌ | ❌ | ❌ | ✅ |
+| **Interactive Dashboards** | ❌ | ❌ | ❌ | ✅ |
+| **Analysis Patterns** | ❌ | ❌ | ❌ | ✅ |
 
 ---
 

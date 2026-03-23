@@ -67,6 +67,145 @@ See [Data Exploration](exploration.md) for the full breakdown.
 
 ---
 
+## :wrench: SmartPrep Advisor — NEW in v1.2
+
+Stop guessing what preprocessing to apply. The **SmartPrep Advisor** analyzes your DataFrame and generates actionable, ready-to-run suggestions — automatically.
+
+### What It Detects
+
+| Issue | Detection | Fix |
+|-------|-----------|-----|
+| **Missing Values** | Per-column null counts and percentages | Drop column (>60% missing) or impute (median/mode) |
+| **Skewed Distributions** | Skewness > 1.5 with positive/negative handling | `np.log1p()` or `PowerTransformer(yeo-johnson)` |
+| **Outliers** | IQR method with percentage thresholds | `df.clip(lower, upper)` |
+| **High Cardinality** | >50 unique categorical values | Frequency encoding |
+| **Class Imbalance** | Majority/minority ratio > 3:1 | `class_weight='balanced'` or SMOTE |
+| **Feature Scaling** | >100x range difference across features | `StandardScaler` |
+
+Each suggestion includes a **severity badge** (high/medium/low), a clear explanation, and a **"Generate Cell"** button that inserts ready-to-run code directly into your notebook.
+
+### Usage
+
+Access the SmartPrep tab in the DataFrameExplorer — no code needed. Just click on a DataFrame output and switch to the :wrench: **SmartPrep** tab.
+
+```python
+# Behind the scenes, the API analyzes your DataFrame:
+# GET /api/smartprep/{var_name}?target=y
+# Returns severity-ranked suggestions with code snippets
+```
+
+---
+
+## :brain: Algorithm Matchmaker — NEW in v1.2
+
+Don't know which ML algorithm to use? The **Algorithm Matchmaker** analyzes your data characteristics, detects the task type, and ranks the best algorithms — with full pipeline code.
+
+### How It Works
+
+1. **Detects task type** — Classification (≤20 unique target values), Regression (>20), or Clustering (no target)
+2. **Analyzes data** — Sample size, feature types, dimensionality, nulls, class balance
+3. **Ranks algorithms** — Score (0-100), speed, interpretability, with reasoning and caveats
+4. **Generates code** — Complete `sklearn` pipeline: train/test split, fit, evaluate
+
+### Supported Algorithms
+
+| Task | Algorithms |
+|------|------------|
+| **Classification** | Random Forest, XGBoost, Logistic Regression, SVM, LightGBM, KNN |
+| **Regression** | Random Forest, XGBoost, Linear Regression, SVR, LightGBM, ElasticNet |
+| **Clustering** | KMeans, DBSCAN, Hierarchical |
+
+### Usage
+
+Access the :brain: **Algorithms** tab in the DataFrameExplorer. Select a target column and get instant recommendations:
+
+```python
+# Example generated pipeline:
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+
+X = df.drop(columns=['target'])
+y = df['target']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+print(classification_report(y_test, model.predict(X_test)))
+```
+
+---
+
+## :chart_with_upwards_trend: Live Interactive Dashboards — NEW in v1.2
+
+Transform any notebook into a **stakeholder-ready interactive dashboard** — with auto-detected widgets, auto-refresh, shareable URLs, and email snapshots.
+
+### Dashboard Features
+
+| Feature | Description |
+|---------|------------|
+| **Interactive Widgets** | Auto-detects DataFrame columns and creates filters, sliders, and dropdowns |
+| **Auto-Refresh** | Configurable interval (30s, 1min, 5min, 15min) for live data |
+| **Shareable URLs** | Generate links with embedded dashboard state (filters, selections) |
+| **Email Snapshots** | Send a screenshot of the current dashboard state via email |
+
+### Widget Types
+
+- :calendar: **Date Range** — For datetime columns
+- :bookmark_tabs: **Category Dropdown** — For categorical columns
+- :control_knobs: **Numeric Slider** — For numeric columns
+- :mag: **Text Search** — For text/string columns
+
+Access via the **App Publisher** panel → enable "Interactive Widgets" toggle.
+
+---
+
+## :bookmark: Collaborative Analysis Patterns — NEW in v1.2
+
+Bookmark reusable cell sequences as **Analysis Patterns** — share them across notebooks, search by tags, and apply with one click.
+
+### Pattern Features
+
+- **Create** — Select cells from your notebook, add tags and metadata, save as a pattern
+- **Search** — Filter by name, tags, problem type (classification, regression, clustering, EDA), or data type
+- **Apply** — One-click inserts all pattern cells into your notebook
+- **Usage tracking** — See how many times each pattern has been applied
+
+### Creating a Pattern
+
+1. Open the **Analysis Patterns** panel (right panel)
+2. Click **New Pattern**
+3. Select which cells to include
+4. Add name, description, tags, problem type, and data type
+5. Click **Save Pattern**
+
+### Example Patterns
+
+| Pattern | Tags | Problem Type |
+|---------|------|--------------|
+| EDA Starter | `eda`, `pandas`, `visualization` | EDA |
+| Feature Engineering Pipeline | `features`, `sklearn`, `preprocessing` | Any |
+| Binary Classification Baseline | `classification`, `xgboost`, `metrics` | Classification |
+| Time Series Analysis | `time_series`, `decomposition`, `stationarity` | Regression |
+
+### API
+
+```python
+# List patterns
+GET /api/patterns
+
+# Save new pattern
+POST /api/patterns  {name, description, tags, cells, problem_type, data_type}
+
+# Apply pattern
+POST /api/patterns/{id}/apply
+
+# Search patterns
+POST /api/patterns/search  {query, tags, problem_type, data_type}
+```
+
+---
+
 ## :robot: AI Assistant
 
 Integrated AI assistant (`⌘J`) with deep FlowyML ecosystem knowledge. The assistant is **context-aware** — it sees your notebook state, cell outputs, variable values, and error tracebacks.
