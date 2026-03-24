@@ -8,6 +8,7 @@ on:
     paths:
       - "**.py"
       - "pyproject.toml"
+      - "poetry.lock"
       - "tests/**"
   pull_request:
     branches:
@@ -20,6 +21,7 @@ on:
     paths:
       - "**.py"
       - "pyproject.toml"
+      - "poetry.lock"
       - "tests/**"
   workflow_dispatch:
     inputs:
