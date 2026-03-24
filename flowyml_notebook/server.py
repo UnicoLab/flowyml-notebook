@@ -28,6 +28,8 @@ from flowyml_notebook.cells import CellType
 from flowyml_notebook.notebook_manager import NotebookManager
 from flowyml_notebook.github_sync import GitHubSync
 from flowyml_notebook.recipes_store import RecipeStore
+from flowyml_notebook.integrations.ecosystem import UnicoLabEcosystem
+from flowyml_notebook.integrations import builtin_recipes as _builtin_recipes
 
 logger = logging.getLogger(__name__)
 
@@ -756,8 +758,39 @@ class NotebookServer:
                         })
 
             # Sort by severity
-            severity_order = {"high": 0, "medium": 1, "low": 2}
+            severity_order = {"high": 0, "medium": 1, "low": 2, "recommended": 0}
             suggestions.sort(key=lambda s: severity_order.get(s.get("severity", "low"), 2))
+
+            # ── UnicoLab Ecosystem: KDP Preprocessing ──
+            try:
+                if UnicoLabEcosystem.is_available("kdp"):
+                    from flowyml_notebook.integrations.kdp_adapter import (
+                        generate_preprocessing_suggestion,
+                    )
+
+                    # Build feature types from SmartPrep analysis
+                    _feature_types: dict[str, str] = {}
+                    for col in df.columns:
+                        s = df[col]
+                        _n_unique = int(s.nunique())
+                        if pd.api.types.is_numeric_dtype(s):
+                            _feature_types[col] = "binary" if _n_unique == 2 else "continuous"
+                        elif pd.api.types.is_datetime64_any_dtype(s):
+                            _feature_types[col] = "temporal"
+                        else:
+                            _feature_types[col] = "nominal" if _n_unique <= 20 else "high_cardinality"
+
+                    kdp_suggestion = generate_preprocessing_suggestion(
+                        var_name=var_name,
+                        feature_types=_feature_types,
+                        n_rows=n_rows,
+                        n_cols=len(df.columns),
+                        target=target,
+                    )
+                    if kdp_suggestion:
+                        suggestions.insert(0, kdp_suggestion)
+            except Exception as _kdp_err:
+                logger.debug(f"KDP suggestion skipped: {_kdp_err}")
 
             return {
                 "variable": var_name,
@@ -968,6 +1001,73 @@ class NotebookServer:
                     "caveats": ["Sensitive to eps parameter", "Struggles with varying densities"],
                     "code": f"from sklearn.cluster import DBSCAN\nfrom sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\ndb = DBSCAN(eps=0.5, min_samples=5)\nlabels = db.fit_predict(X_scaled)\nprint(f'Clusters found: {{len(set(labels)) - (1 if -1 in labels else 0)}}')\nprint(f'Noise points: {{(labels == -1).sum()}}')",
                 })
+
+            # ── UnicoLab Ecosystem: KerasFactory + MLPotion ──
+            if target and task_type in ("classification", "regression"):
+                try:
+                    if UnicoLabEcosystem.is_available("kerasfactory"):
+                        from flowyml_notebook.integrations.kerasfactory_adapter import (
+                            generate_model_recommendation,
+                            generate_advanced_model_recommendation,
+                        )
+                        _feature_names = [c for c in df.columns if c != target]
+                        kf_rec = generate_model_recommendation(
+                            var_name=var_name, task_type=task_type,
+                            target=target, feature_names=_feature_names,
+                            n_rows=n_rows, n_features=len(_feature_names),
+                            has_categorical=len(cat_cols) > 0,
+                        )
+                        recommendations.append(kf_rec)
+                        kf_adv = generate_advanced_model_recommendation(
+                            var_name=var_name, task_type=task_type,
+                            target=target, feature_names=_feature_names,
+                            n_rows=n_rows, n_features=len(_feature_names),
+                        )
+                        recommendations.append(kf_adv)
+                except Exception as _kf_err:
+                    logger.debug(f"KerasFactory suggestion skipped: {_kf_err}")
+
+                try:
+                    if UnicoLabEcosystem.is_available("mlpotion"):
+                        from flowyml_notebook.integrations.mlpotion_adapter import (
+                            generate_training_pipeline,
+                        )
+                        _feature_names_ml = [c for c in df.columns if c != target]
+                        mlp_rec = generate_training_pipeline(
+                            var_name=var_name, task_type=task_type,
+                            target=target, n_rows=n_rows,
+                            n_features=len(_feature_names_ml),
+                        )
+                        recommendations.append(mlp_rec)
+                except Exception as _mlp_err:
+                    logger.debug(f"MLPotion suggestion skipped: {_mlp_err}")
+
+                # Full ecosystem pipeline (requires all 3)
+                try:
+                    avail = UnicoLabEcosystem.available_packages()
+                    if all(avail.values()):
+                        from flowyml_notebook.integrations.mlpotion_adapter import (
+                            generate_full_ecosystem_pipeline,
+                        )
+                        _feature_names_e2e = [c for c in df.columns if c != target]
+                        _ftypes: dict[str, str] = {}
+                        for col in df.columns:
+                            s = df[col]
+                            _n_u = int(s.nunique())
+                            if pd.api.types.is_numeric_dtype(s):
+                                _ftypes[col] = "binary" if _n_u == 2 else "continuous"
+                            elif pd.api.types.is_datetime64_any_dtype(s):
+                                _ftypes[col] = "temporal"
+                            else:
+                                _ftypes[col] = "nominal" if _n_u <= 20 else "high_cardinality"
+                        e2e_rec = generate_full_ecosystem_pipeline(
+                            var_name=var_name, task_type=task_type,
+                            target=target, feature_types=_ftypes,
+                            n_rows=n_rows, n_features=len(_feature_names_e2e),
+                        )
+                        recommendations.append(e2e_rec)
+                except Exception as _e2e_err:
+                    logger.debug(f"E2E pipeline suggestion skipped: {_e2e_err}")
 
             # Sort by score descending
             recommendations.sort(key=lambda r: r["score"], reverse=True)
@@ -2446,11 +2546,18 @@ Dataset profile:
                 "initials": name[0].upper() if name else "U",
             }
 
+        # --- Ecosystem Status Endpoint ---
+
+        @app.get("/api/ecosystem/status")
+        async def ecosystem_status():
+            """Return installed UnicoLab ecosystem packages and versions."""
+            return UnicoLabEcosystem.get_ecosystem_status()
+
         # --- Recipe Endpoints (Enhanced with Ratings, Forking, Leaderboard) ---
 
         @app.get("/api/recipes")
         async def list_recipes():
-            """List all recipes (local custom + shared from GitHub)."""
+            """List all recipes (local custom + shared from GitHub + builtin ecosystem)."""
             local = self.recipe_store.list_recipes()
             shared = []
             try:
@@ -2460,6 +2567,15 @@ Dataset profile:
             # Merge, avoiding duplicates by id
             seen_ids = {r["id"] for r in local}
             combined = local + [r for r in shared if r.get("id") not in seen_ids]
+            # Add builtin ecosystem recipes
+            try:
+                builtin = _builtin_recipes.get_builtin_recipes()
+                for recipe in builtin:
+                    if recipe["id"] not in seen_ids:
+                        combined.append(recipe)
+                        seen_ids.add(recipe["id"])
+            except Exception:
+                pass
             return {
                 "recipes": combined,
                 "usage": self.recipe_store.get_all_usage(),

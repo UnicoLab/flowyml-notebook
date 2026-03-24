@@ -81,6 +81,12 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 
     Ranks the best ML algorithms for your data with reasoning, caveats, and complete sklearn pipeline code.
 
+-   :material-puzzle-outline:{ .lg .middle } **UnicoLab Ecosystem**
+
+    ---
+
+    Native Keras integration with KDP, KerasFactory, and MLPotion. End-to-end deep learning pipelines from preprocessing to training.
+
 </div>
 
 ---
@@ -142,7 +148,7 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 | Data exploration | Raw text output | Rich profiling, charts, ML insights |
 | Preprocessing help | None | SmartPrep Advisor with code generation |
 | Algorithm selection | Trial and error | Algorithm Matchmaker with ranked recommendations |
-| Code reuse | Copy between notebooks | 39 recipes + Collaborative Analysis Patterns |
+| Code reuse | Copy between notebooks | 43 recipes + Collaborative Analysis Patterns + Ecosystem recipes |
 
 ---
 

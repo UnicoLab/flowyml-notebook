@@ -1,88 +1,133 @@
-# 🌊 FlowyML Notebook — LinkedIn Announcement Post
+# 🌊 FlowyML Notebook — LinkedIn Posts
 
 ## 📸 Image
 Use the generated announcement banner: `assets/linkedin_announcement.png`
 
 ---
 
-## 📝 Main LinkedIn Post
+## 📝 Main LinkedIn Post (Announcement)
 
 ---
 
-For years, I kept telling my AI teams: **stop using notebooks in production**.
+Notebooks are great for exploration.
+They're terrible for production.
 
-Use proper software engineering practices. Write testable code. Embrace version control. Build real pipelines.
+That trade-off has been accepted for too long.
 
-But here's the truth I had to accept — they kept coming back to notebooks. Not because they were lazy. Because notebooks are genuinely great for **data exploration**, **quick experiments**, and **rapid prototyping**.
+Today, we're launching 𝗙𝗹𝗼𝘄𝘆𝗠𝗟 𝗡𝗼𝘁𝗲𝗯𝗼𝗼𝗸 — a reactive notebook built to take you from data exploration to production-ready ML workflows in one environment. 🚀
 
-And they were right.
+━━━━━━━━━━━━━━━━
+𝗪𝗵𝘆 𝗙𝗹𝗼𝘄𝘆𝗠𝗟 𝗡𝗼𝘁𝗲𝗯𝗼𝗼𝗸?
+━━━━━━━━━━━━━━━━
 
-So instead of fighting it, I asked a different question:
+📊 𝗘𝘅𝗽𝗹𝗼𝗿𝗲 𝗳𝗮𝘀𝘁𝗲𝗿
+Automatic profiling, statistics, charts, correlations, and data quality checks — without spending hours writing setup code.
 
-**What if we could make notebooks as rigorous as software engineering — but keep the ease of use that data scientists love?**
+🔧 𝗣𝗿𝗲𝗽𝗮𝗿𝗲 𝗱𝗮𝘁𝗮 𝗶𝗻𝘁𝗲𝗹𝗹𝗶𝗴𝗲𝗻𝘁𝗹𝘆
+SmartPrep Advisor detects missing values, skew, and outliers — then suggests ready-to-run fixes you can apply immediately.
 
-What if your notebook:
-→ Saved as pure `.py` files (Git-friendly, lintable, reviewable)
-→ Tracked cell dependencies in a reactive DAG (change one variable, everything downstream re-executes)
-→ Had GitHub-native collaboration (branches, PRs, comments, code review — in the notebook)
-→ Could ship directly to production (pipelines, APIs, Docker containers — one click)
+🧠 𝗖𝗵𝗼𝗼𝘀𝗲 𝗯𝗲𝘁𝘁𝗲𝗿 𝗺𝗼𝗱𝗲𝗹𝘀
+Algorithm Matchmaker recommends the best ML algorithms for your dataset and generates full scikit-learn pipeline code.
 
-That's exactly what we built.
+🔄 𝗘𝗹𝗶𝗺𝗶𝗻𝗮𝘁𝗲 𝘀𝘁𝗮𝗹𝗲 𝘀𝘁𝗮𝘁𝗲
+Reactive DAG engine — change one variable, dependent cells re-execute automatically. No more blind "Restart & Run All."
 
-Introducing **FlowyML Notebook** — the reactive notebook that ships to production. 🚀
+📄 𝗪𝗼𝗿𝗸 𝘄𝗶𝘁𝗵 𝗿𝗲𝗮𝗹 𝗰𝗼𝗱𝗲
+Pure .py files — clean diffs, easier reviews, lintable, importable. No notebook JSON noise.
 
-Here's what makes it different:
+━━━━━━━━━━━━━━━━
+𝗕𝘂𝗶𝗹𝘁 𝗳𝗼𝗿 𝘁𝗲𝗮𝗺𝘀, 𝗻𝗼𝘁 𝗷𝘂𝘀𝘁 𝗶𝗻𝗱𝗶𝘃𝗶𝗱𝘂𝗮𝗹𝘀
+━━━━━━━━━━━━━━━━
 
-🔄 **Reactive DAG Engine** — Cells are nodes in a dependency graph. No more "Restart & Run All" nightmares.
+🤝 𝗚𝗶𝘁𝗛𝘂𝗯-𝗻𝗮𝘁𝗶𝘃𝗲 𝗰𝗼𝗹𝗹𝗮𝗯𝗼𝗿𝗮𝘁𝗶𝗼𝗻
+Branches, code reviews, inline comments, and shared workflows — aligned with how modern teams actually build software.
 
-📊 **SmartPrep Advisor** — Analyzes your DataFrame and tells you exactly what preprocessing to apply. Missing values, skew, outliers, scaling — with ready-to-run code.
+🧾 𝟯𝟵 𝗯𝘂𝗶𝗹𝘁-𝗶𝗻 𝗿𝗲𝗰𝗶𝗽𝗲𝘀
+Standardize common workflows with reusable templates your team can share and evolve together.
 
-🧠 **Algorithm Matchmaker** — Drop in your data, select a target, and get ranked ML algorithm recommendations with full sklearn pipeline code.
+📑 𝗔𝗻𝗮𝗹𝘆𝘀𝗶𝘀 𝗽𝗮𝘁𝘁𝗲𝗿𝗻𝘀
+Save cell sequences as reusable patterns — turn repeated analysis work into team knowledge.
 
-📈 **Live Interactive Dashboards** — Turn notebooks into stakeholder-ready dashboards with auto-detected filters, sliders, and shareable URLs.
+📈 𝗢𝗻𝗲-𝗰𝗹𝗶𝗰𝗸 𝗱𝗮𝘀𝗵𝗯𝗼𝗮𝗿𝗱𝘀
+Convert notebooks into shareable interactive apps for stakeholders in a few clicks.
 
-🧾 **39 Built-in Recipes** — Stop rewriting boilerplate. Templates for FlowyML Steps, Pipelines, Branching, Parallel Execution, and more.
+🚀 𝗡𝗮𝘁𝗶𝘃𝗲 𝗙𝗹𝗼𝘄𝘆𝗠𝗟 𝗶𝗻𝘁𝗲𝗴𝗿𝗮𝘁𝗶𝗼𝗻
+Move from experimentation to production-grade ML pipelines — without rebuilding everything from scratch.
 
-🤝 **Git-Native Collaboration** — Comments, reviews, branches, versioning — all through GitHub. No proprietary cloud lock-in.
+🤖 𝗔𝗜 𝗔𝘀𝘀𝗶𝘀𝘁𝗮𝗻𝘁 + 𝗦𝗤𝗟
+Context-aware code generation with built-in DuckDB and SQLAlchemy support.
 
-📱 **Publish as App** — Turn any notebook into a web application with one click. Choose layout, theme, visibility.
+━━━━━━━━━━━━━━━━
 
-🤖 **AI Assistant** — Context-aware code generation right in the notebook.
+FlowyML Notebook is built for teams that want the speed of notebooks without giving up engineering discipline.
 
-🗄️ **SQL First-Class** — Write SQL cells, get DataFrames back. DuckDB and SQLAlchemy built-in.
+Free · Open Source · Apache 2.0 · Community-Driven
 
-📑 **Analysis Patterns** — Bookmark and reuse cell sequences across projects. Build your team's knowledge base.
+👉 pip install flowyml-notebook
 
-And the best part? It's **completely free and open source**. Apache 2.0 licensed.
+⭐ GitHub → https://github.com/UnicoLab/flowyml-notebook
+📖 Docs → https://unicolab.github.io/flowyml-notebook/latest/
 
-We believe this should be a **community-driven project**. We've integrated everything FlowyML has to offer — so any AI team can develop, explore, and design production-grade ML pipelines with great ease.
-
-No more choosing between "notebook convenience" and "engineering rigor". You get both.
-
-```
-pip install flowyml-notebook
-fml-notebook start
-```
-
-⭐ Star on GitHub: https://github.com/UnicoLab/flowyml-notebook
-📖 Documentation: https://unicolab.github.io/flowyml-notebook/latest/
-
-#MLOps #MachineLearning #DataScience #OpenSource #AI #Python #FlowyML #Notebooks #SoftwareEngineering #DevTools #DataEngineering #ArtificialIntelligence
-
----
-
-## 🔄 Repost / Share Text
+#MachineLearning #MLOps #DataScience #OpenSource #Python #AI #DeveloperTools #FlowyML
 
 ---
 
-This is what happens when you stop fighting your data science team's love for notebooks — and start reinventing them instead.
+## 🔄 Repost / Share Text (Personal)
 
-FlowyML Notebook = reactive cells + Git-native collaboration + one-click production deploy.
+---
 
-Pure `.py` files. No hidden state. No "Restart & Run All".
+For years, I kept telling AI teams the same thing:
 
-Free, open source, and ready to replace your Jupyter workflow.
+💬 "Stop using notebooks like production software."
 
-`pip install flowyml-notebook` 🚀
+And yet notebooks never disappeared — because for exploration, iteration, and rapid experimentation, they're still one of the best tools we have.
+
+So instead of fighting that reality, we asked a better question:
+
+🤔 What would a notebook look like if it were designed for real software engineering from day one?
+
+That question led to 𝗙𝗹𝗼𝘄𝘆𝗠𝗟 𝗡𝗼𝘁𝗲𝗯𝗼𝗼𝗸.
+
+It keeps what people love about notebooks — fast exploration, flexibility, low friction — and adds what teams actually need to ship reliable work:
+
+→ Pure `.py` files instead of opaque notebook JSON
+→ Reactive execution instead of stale state
+→ GitHub-native collaboration instead of isolated experimentation
+→ Production integration with FlowyML instead of copy-paste handoffs
+
+The result is a notebook experience built not just for prototyping, but for collaboration, reproducibility, and production-ready ML development.
+
+Free · Open Source · Community-Driven
+
+👉 pip install flowyml-notebook 🚀
+
+---
+
+## 🔄 Repost / Share Text (Punchy Founder-Style)
+
+---
+
+I used to tell teams: "Don't build serious ML work in notebooks."
+
+The problem is — notebooks are still unmatched for exploration and fast iteration.
+
+So the real issue was never the notebook itself.
+It was everything notebooks were 𝗺𝗶𝘀𝘀𝗶𝗻𝗴.
+
+That's why we built 𝗙𝗹𝗼𝘄𝘆𝗠𝗟 𝗡𝗼𝘁𝗲𝗯𝗼𝗼𝗸.
+
+A notebook that behaves more like software:
+
+🔄 Reactive execution
+📄 Pure .py files
+🤝 GitHub-native collaboration
+🚀 Built-in ML workflow support
+
+You keep the speed of exploration — without the chaos that usually comes after.
+
+FlowyML Notebook is now live.
+Free, open source, and built with the community in mind.
+
+👉 pip install flowyml-notebook 🚀
 
 ---

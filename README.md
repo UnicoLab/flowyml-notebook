@@ -44,6 +44,7 @@
 | **Algorithm Matchmaker** | ❌ | ❌ | ❌ | ✅ |
 | **Interactive Dashboards** | ❌ | ❌ | ❌ | ✅ |
 | **Analysis Patterns** | ❌ | ❌ | ❌ | ✅ |
+| **Keras Ecosystem** | ❌ | ❌ | ❌ | ✅ UnicoLab |
 
 ---
 
@@ -55,6 +56,9 @@ pip install flowyml-notebook
 
 # Or install with all ML & AI extensions
 pip install "flowyml-notebook[all]"
+
+# Or install with Keras ecosystem (KDP + KerasFactory + MLPotion)
+pip install "flowyml-notebook[keras]"
 ```
 
 ```bash
@@ -110,9 +114,30 @@ Cells are nodes in a **dependency graph**. Change a variable, and only dependent
 
 ---
 
+### 🦄 UnicoLab Keras Ecosystem — NEW in v1.3
+
+Native integration with the **UnicoLab ML ecosystem** — [KDP](https://github.com/UnicoLab/keras-data-processor), [KerasFactory](https://github.com/UnicoLab/KerasFactory), and [MLPotion](https://github.com/UnicoLab/MLPotion). All packages are optional and auto-detected.
+
+| Package | What It Does | Integration Point |
+|---------|-------------|-------------------|
+| **KDP** | Keras preprocessing layers with distribution-aware encoding | SmartPrep Advisor |
+| **KerasFactory** | 38+ reusable Keras layers and production-ready model architectures | Algorithm Matchmaker |
+| **MLPotion** | Managed training pipelines with type-safe configuration | Algorithm Matchmaker |
+
+When all three are installed, the **Algorithm Matchmaker** surfaces a flagship end-to-end pipeline: **KDP → KerasFactory → MLPotion** — preprocessing, model building, and training in a single deployable Keras model.
+
+```bash
+# Install the full ecosystem
+pip install "flowyml-notebook[keras]"
+```
+
+**4 new builtin recipes** are also included: KDP Smart Preprocessing, KerasFactory Quick Model, MLPotion Training Pipeline, and the UnicoLab End-to-End Pipeline.
+
+---
+
 ### 🧾 Recipes — Reusable Code Templates
 
-Stop rewriting boilerplate. **39 built-in recipes** across Core, Assets, Parallel, Observability, Evals, Data, ML, and Visualization categories. Drag into your notebook or click to insert.
+Stop rewriting boilerplate. **43 built-in recipes** across Core, Assets, Parallel, Observability, Evals, Data, ML, Visualization, and **Ecosystem** categories. Drag into your notebook or click to insert.
 
 <p align="center">
   <img src="docs/screenshots/recipies.png" alt="Recipes Panel" width="60%"/>
@@ -241,6 +266,7 @@ Visit **[FlowyML Notebook Docs](https://unicolab.github.io/flowyml-notebook/late
 - **[Recipes](https://unicolab.github.io/flowyml-notebook/latest/recipes)** — Reusable cell templates
 - **[Collaboration](https://unicolab.github.io/flowyml-notebook/latest/collaboration)** — GitHub-based team workflows
 - **[Integration](https://unicolab.github.io/flowyml-notebook/latest/integration)** — FlowyML instance connections
+- **[Ecosystem](https://unicolab.github.io/flowyml-notebook/latest/ecosystem)** — UnicoLab Keras ecosystem (KDP, KerasFactory, MLPotion)
 - **[Data Exploration](https://unicolab.github.io/flowyml-notebook/latest/exploration)** — Rich DataFrame profiling
 - **[API Reference](https://unicolab.github.io/flowyml-notebook/latest/api)** — CLI & Python API docs
 

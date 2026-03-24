@@ -8,7 +8,7 @@ FlowyML Notebook includes a powerful **Recipe System** — pre-configured, reusa
 
 <figure markdown>
   ![Recipes Panel](screenshots/recipies.png){ width="60%" }
-  <figcaption>39 built-in recipes organized by category, with search, sort, and one-click insertion</figcaption>
+  <figcaption>43 built-in recipes organized by category, with search, sort, and one-click insertion</figcaption>
 </figure>
 
 ### Built-in Categories
@@ -23,6 +23,7 @@ FlowyML Notebook includes a powerful **Recipe System** — pre-configured, reusa
 | :floppy_disk: **Data** | 3 | Data loading, SQL connectors, Parquet I/O |
 | :brain: **ML** | 3 | XGBoost/LightGBM baselines, Feature engineering |
 | :bar_chart: **Visualization** | 4 | Plotly charts, SHAP/LIME, Dashboard templates |
+| :unicorn: **Ecosystem** | 4 | KDP preprocessing, KerasFactory model, MLPotion training, E2E pipeline |
 
 ---
 
@@ -159,3 +160,26 @@ When a teammate pushes a recipe, it appears in the **Shared** tab for everyone w
     - **Keep focused** — One recipe = one task. Don't mix data loading with model training
     - **Document parameters** — Use comments to explain what to customize
     - **Share to Hub** — If it helped you, it'll help your team
+
+---
+
+## :unicorn: UnicoLab Ecosystem Recipes — NEW in v1.3
+
+FlowyML Notebook v1.3 adds **4 builtin ecosystem recipes** that provide ready-to-use workflows for the UnicoLab ML stack:
+
+| Recipe | Package | What It Does |
+|--------|---------|-------------|
+| :test_tube: **KDP Smart Preprocessing** | `kdp` | Auto-configure Keras preprocessing layers — feature types, distribution-aware encoding, tabular attention |
+| :building_construction: **KerasFactory Quick Model** | `kerasfactory` | Build tabular models with `BaseFeedForwardModel` or custom GRN/attention architectures |
+| :alembic: **MLPotion Training Pipeline** | `mlpotion` | Managed training with `ModelTrainer` and type-safe `ModelTrainingConfig` |
+| :unicorn: **UnicoLab End-to-End Pipeline** | All 3 | Complete KDP → KerasFactory → MLPotion workflow in one recipe |
+
+Ecosystem recipes appear alongside your custom and shared recipes in the **Snips** panel. They are tagged with `unicolab` for easy search.
+
+### Installing Ecosystem Packages
+
+```bash
+pip install "flowyml-notebook[keras]"
+```
+
+See [Ecosystem](ecosystem.md) for the full integration guide.

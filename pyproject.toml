@@ -1,6 +1,6 @@
 [project]
 name = "flowyml-notebook"
-version = "1.2.0"
+version = "1.3.0"
 description = "Production-grade reactive notebook for FlowyML — the Jupyter replacement for ML pipelines"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -45,6 +45,7 @@ ai = [
 ]
 sql = ["sqlalchemy>=2.0", "duckdb>=0.9"]
 exploration = ["scipy>=1.11", "scikit-learn>=1.3"]
+keras = ["mlpotion>=0.1", "kerasfactory>=0.1", "kdp>=1.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -64,6 +65,7 @@ all = [
     "google-generativeai>=0.3",
     "sqlalchemy>=2.0", "duckdb>=0.9",
     "scipy>=1.11", "scikit-learn>=1.3",
+    "mlpotion>=0.1", "kerasfactory>=0.1", "kdp>=1.0",
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",
     "mkdocs-material-extensions>=1.3.1",

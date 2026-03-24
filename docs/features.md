@@ -136,6 +136,40 @@ print(classification_report(y_test, model.predict(X_test)))
 
 ---
 
+## :unicorn: UnicoLab Keras Ecosystem — NEW in v1.3
+
+Native integration with the **UnicoLab ML ecosystem** — [KDP](https://github.com/UnicoLab/keras-data-processor), [KerasFactory](https://github.com/UnicoLab/KerasFactory), and [MLPotion](https://github.com/UnicoLab/MLPotion). Install the full stack with:
+
+```bash
+pip install "flowyml-notebook[keras]"
+```
+
+### Ecosystem Integration Points
+
+| Package | Integration | What It Adds |
+|---------|------------|-------------|
+| **KDP** | SmartPrep Advisor | Auto-configured Keras preprocessing with distribution-aware encoding and tabular attention |
+| **KerasFactory** | Algorithm Matchmaker | `BaseFeedForwardModel` + advanced `GatedResidualNetwork` / `TabularAttention` model recommendations |
+| **MLPotion** | Algorithm Matchmaker | Managed `ModelTrainer` + `ModelTrainingConfig` training pipelines |
+| **All 3** | Algorithm Matchmaker | Flagship end-to-end pipeline: KDP → KerasFactory → MLPotion |
+
+### Ecosystem Status API
+
+Check installed ecosystem packages and versions:
+
+```
+GET /api/ecosystem/status
+→ { packages: [...], installed_count: 3, fully_integrated: true, install_all: "pip install 'flowyml-notebook[keras]'" }
+```
+
+### Builtin Ecosystem Recipes
+
+4 new multi-cell recipes available in the recipe library — KDP Smart Preprocessing, KerasFactory Quick Model, MLPotion Training Pipeline, and the UnicoLab End-to-End Pipeline.
+
+See [Ecosystem](ecosystem.md) for the full guide with code examples.
+
+---
+
 ## :chart_with_upwards_trend: Live Interactive Dashboards — NEW in v1.2
 
 Transform any notebook into a **stakeholder-ready interactive dashboard** — with auto-detected widgets, auto-refresh, shareable URLs, and email snapshots.
@@ -261,7 +295,7 @@ Collaborate directly in the notebook with **inline comments**. Add notebook-leve
 
 ## :cook: Recipes — Reusable Templates
 
-**39 built-in recipes** across Core, Assets, Parallel, Observability, Evals, Data, ML, and Visualization categories. Drag into your notebook or click `+` to insert.
+**43 built-in recipes** across Core, Assets, Parallel, Observability, Evals, Data, ML, Visualization, and **Ecosystem** categories. Drag into your notebook or click `+` to insert.
 
 <figure markdown>
   ![Recipes Panel](screenshots/recipies.png){ width="60%" }

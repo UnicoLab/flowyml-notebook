@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-03-24
+
+### Added
+
+- **UnicoLab Ecosystem Integration**: Native adapter layer for Keras-centric ML workflows using [KDP](https://github.com/UnicoLab/keras-data-processor), [KerasFactory](https://github.com/UnicoLab/KerasFactory), and [MLPotion](https://github.com/UnicoLab/MLPotion). All packages are optional — adapters gracefully degrade when not installed.
+- **KDP Adapter (SmartPrep)**: Auto-detects DataFrame feature types and generates ready-to-use `PreprocessingModel` code with distribution-aware encoding and tabular attention. Surfaces as a top-priority "recommended" suggestion in the SmartPrep Advisor panel.
+- **KerasFactory Adapter (Algorithm Matchmaker)**: Generates `BaseFeedForwardModel` and advanced `GatedResidualNetwork` + `TabularAttention` model recommendations for classification, regression, and unsupervised anomaly detection tasks.
+- **MLPotion Adapter (Algorithm Matchmaker)**: Generates managed `ModelTrainer` + `ModelTrainingConfig` training pipelines with adaptive hyperparameters based on dataset size.
+- **End-to-End Pipeline Recommendation**: When all three ecosystem packages are installed, the Algorithm Matchmaker surfaces a flagship "KDP → KerasFactory → MLPotion" unified pipeline recommendation.
+- **Ecosystem Status API**: New `GET /api/ecosystem/status` endpoint reporting installed packages, versions, install commands, and documentation links.
+- **Builtin Ecosystem Recipes**: 4 new multi-cell recipes — KDP Smart Preprocessing, KerasFactory Quick Model, MLPotion Training Pipeline, and the UnicoLab End-to-End Pipeline.
+- **`[keras]` extras group**: New optional dependency group (`pip install 'flowyml-notebook[keras]'`) that installs `mlpotion`, `kerasfactory`, and `kdp`.
+- **New Tests**: 28 additional tests for the integration module (`test_integrations.py`) — adapters, recipes, and ecosystem detection.
+
 ## [1.2.0] — 2026-03-23
 
 ### Added

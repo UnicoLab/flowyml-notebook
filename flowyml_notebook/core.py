@@ -59,6 +59,27 @@ from flowyml import (
 )
 import pandas as pd
 import numpy as np
+
+# UnicoLab Ecosystem (optional — installed via pip install 'flowyml-notebook[keras]')
+try:
+    from kdp import PreprocessingModel, FeatureType
+except ImportError:
+    pass
+try:
+    import kerasfactory
+    from kerasfactory.layers import (
+        DistributionTransformLayer, GatedFeatureFusion,
+        TabularAttention, GatedResidualNetwork,
+    )
+    from kerasfactory.models import BaseFeedForwardModel
+except ImportError:
+    pass
+try:
+    import mlpotion
+    from mlpotion.frameworks.keras.training import ModelTrainer
+    from mlpotion.frameworks.keras.config import ModelTrainingConfig
+except ImportError:
+    pass
 """
 
 
