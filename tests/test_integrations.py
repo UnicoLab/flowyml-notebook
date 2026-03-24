@@ -196,7 +196,7 @@ class TestKerasFactoryAdapter:
             n_rows=3000,
             n_features=2,
         )
-        assert "GatedResidualNetwork" in result["name"]
+        assert "GRN" in result["name"]
         assert "GatedResidualNetwork" in result["code"]
         assert "DistributionTransformLayer" in result["code"]
 
