@@ -35,6 +35,17 @@ jobs:
         run: |
           pip install ".[all]"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          cd flowyml_notebook/frontend
+          npm install
+          npm run build
+
       - name: Set version for publishing
         run: |
           echo "Setting package version to ${{ inputs.RELEASE_VERSION }}"
@@ -55,6 +66,7 @@ jobs:
         run: |
           echo "First attempt failed, retrying..."
           sleep 10
+          rm -rf dist
           python -m build
           twine upload dist/*
         env:
