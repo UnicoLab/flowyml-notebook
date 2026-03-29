@@ -41,7 +41,9 @@ class TestAnalyzeCellDependencies:
     def test_for_loop(self):
         reads, writes = analyze_cell_dependencies("for i in range(10):\n    print(i)")
         assert "i" in writes
-        assert "range" in reads  # analyzer sees all Name nodes as reads
+        # `range` and `print` are builtins — correctly excluded from reads
+        assert "range" not in reads
+        assert "print" not in reads
 
     def test_self_reference_excluded(self):
         reads, writes = analyze_cell_dependencies("x = 1\ny = x + 1")

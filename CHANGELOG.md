@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-03-29
+
+### Added
+
+- **Position-Aware Reactive DAG**: Order-aware dependency analysis that correctly distinguishes `x = 1; y = x + 1` (x is NOT upstream) from `df = df.dropna()` (df IS upstream). Uses AST position tracking to determine true evaluation order.
+- **Save As / Open Workflows**: Full Save As and Open notebook workflows for improved file management.
+- **Smart Kernel Detection**: Automatic kernel detection for seamless notebook startup.
+- **Cell Folding**: Collapsible cell sections for better notebook organization.
+- **Undo / Redo**: Full undo/redo support for cell operations.
+- **Edge Case Tests**: 9 new pytest tests for reactive engine position-aware analysis.
+
+### Fixed
+
+- **Same-Line Assignment Bug**: Fixed critical bug where `df = df.dropna()` was not detected as an upstream dependency — Python evaluates RHS before LHS store, but column offsets gave a misleading order.
+- **Builtins Filter Bug**: Fixed `__builtins__` context-dependent behavior that incorrectly filtered user variables named `values`, `keys`, `items`, etc. when running in `__main__` context.
+- **Version Sync**: Aligned `__init__.py` version with `pyproject.toml`.
+
 ## [1.3.0] — 2026-03-24
 
 ### Added

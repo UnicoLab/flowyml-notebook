@@ -67,16 +67,31 @@ class _NameExtractor(ast.NodeVisitor):
         self.writes: set[str] = set()
         self.mutations: set[str] = set()  # Variables mutated in-place
         self._in_target = False
+        # Position tracking for order-aware analysis: {name: (line, col)}
+        self.read_positions: dict[str, tuple[int, int]] = {}  # first read position
+        self.write_positions: dict[str, tuple[int, int]] = {}  # first write position
+
+    def _record_read(self, name: str, node: ast.AST) -> None:
+        """Record a read and its position (first occurrence only)."""
+        self.reads.add(name)
+        if name not in self.read_positions:
+            self.read_positions[name] = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
+
+    def _record_write(self, name: str, node: ast.AST) -> None:
+        """Record a write and its position (first occurrence only)."""
+        self.writes.add(name)
+        if name not in self.write_positions:
+            self.write_positions[name] = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
 
     def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
         if isinstance(node.ctx, (ast.Store, ast.Del)):
-            self.writes.add(node.id)
+            self._record_write(node.id, node)
         elif isinstance(node.ctx, ast.Load):
-            self.reads.add(node.id)
+            self._record_read(node.id, node)
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
-        self.writes.add(node.name)
+        self._record_write(node.name, node)
         for decorator in node.decorator_list:
             self.visit(decorator)
         for default in node.args.defaults:
@@ -88,7 +103,7 @@ class _NameExtractor(ast.NodeVisitor):
         self.visit_FunctionDef(node)  # type: ignore[arg-type]
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
-        self.writes.add(node.name)
+        self._record_write(node.name, node)
         for base in node.bases:
             self.visit(base)
         for child in node.body:
@@ -97,14 +112,14 @@ class _NameExtractor(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import) -> None:  # noqa: N802
         for alias in node.names:
             name = alias.asname if alias.asname else alias.name.split(".")[0]
-            self.writes.add(name)
+            self._record_write(name, node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
         for alias in node.names:
             if alias.name == "*":
                 continue
             name = alias.asname if alias.asname else alias.name
-            self.writes.add(name)
+            self._record_write(name, node)
 
     def visit_For(self, node: ast.For) -> None:  # noqa: N802
         self._extract_target_names(node.target)
@@ -132,7 +147,7 @@ class _NameExtractor(ast.NodeVisitor):
             base = self._get_base_name(target)
             if base and isinstance(target, (ast.Subscript, ast.Attribute)):
                 self.mutations.add(base)
-                self.reads.add(base)  # also a read (we access then mutate)
+                self._record_read(base, target)  # also a read (we access then mutate)
             else:
                 self._extract_target_names(target)
         self.visit(node.value)
@@ -141,7 +156,7 @@ class _NameExtractor(ast.NodeVisitor):
         """Track augmented assignments: x += ... marks x as both read and write."""
         base = self._get_base_name(node.target)
         if base:
-            self.reads.add(base)
+            self._record_read(base, node)
             self.mutations.add(base)
         self.visit(node.value)
 
@@ -183,7 +198,7 @@ class _NameExtractor(ast.NodeVisitor):
                 }
                 if always_mutating or has_inplace:
                     self.mutations.add(base)
-                    self.reads.add(base)
+                    self._record_read(base, node)
 
         # Visit all children (arguments, etc.)
         self.generic_visit(node)
@@ -206,7 +221,7 @@ class _NameExtractor(ast.NodeVisitor):
     def _extract_target_names(self, node: ast.AST) -> None:
         """Extract variable names from assignment targets."""
         if isinstance(node, ast.Name):
-            self.writes.add(node.id)
+            self._record_write(node.id, node)
         elif isinstance(node, (ast.Tuple, ast.List)):
             for elt in node.elts:
                 self._extract_target_names(elt)
@@ -216,7 +231,7 @@ class _NameExtractor(ast.NodeVisitor):
             base = self._get_base_name(node)
             if base:
                 self.mutations.add(base)
-                self.reads.add(base)
+                self._record_read(base, node)
 
 
 def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
@@ -226,6 +241,9 @@ def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
     a read (dependency on upstream) AND a write (produces new value). This is
     critical for reactive propagation — the cell depends on whoever defined 'df'
     upstream, and downstream cells depend on this cell's new 'df'.
+
+    However, if a cell has `x = 1; y = x + 1`, then 'x' is NOT an upstream
+    dependency because 'x' is defined before it is read.
 
     Args:
         source: Python source code of the cell.
@@ -245,24 +263,42 @@ def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
     # Combine explicit writes with mutations (in-place modifications count as writes)
     all_writes = extractor.writes | extractor.mutations
 
-    # Order-aware read/write analysis:
-    # Instead of simply doing reads - writes, we need to be smart.
-    # If a variable appears in BOTH reads and writes (e.g. df = df.dropna()),
-    # it IS a true read dependency — the cell needs the upstream value.
-    # Only subtract variables that are DEFINED (written) BEFORE any read usage.
+    # Order-aware read/write analysis using position tracking:
+    # A variable is a TRUE upstream read dependency only if:
+    #   1. It's only read (never written) in this cell, OR
+    #   2. It's read BEFORE its first write (on an earlier statement/line)
+    #   3. It's read and written on the SAME line (e.g. df = df.dropna())
+    #      — in Python the RHS is always evaluated before the LHS store
+    # A variable is NOT an upstream dependency if:
+    #   - It's written on an earlier line than it is first read (e.g. x = 1\ny = x + 1)
     true_reads = set()
     for name in extractor.reads:
-        if name in extractor.writes:
-            # Check if this is a self-referencing assignment (df = df.xxx)
-            # In this case it IS a dependency — keep it as a read
-            # We detect this conservatively: if any AST assignment has the same
-            # name on both LHS and RHS, it's a dependency
+        if name not in extractor.writes and name not in extractor.mutations:
+            # Only read, never written — always a dependency
             true_reads.add(name)
         else:
-            true_reads.add(name)
+            # Both read and written — check order using LINE numbers only.
+            # Column offsets are misleading for same-line assignments because
+            # Python evaluates the RHS before storing to the LHS target.
+            read_line = extractor.read_positions.get(name, (0, 0))[0]
+            write_line = extractor.write_positions.get(name, (float('inf'), 0))[0]
+            # For mutations (augmented assign, in-place), they are always dependencies
+            # because the mutation reads from the current value
+            if name in extractor.mutations:
+                true_reads.add(name)
+            elif read_line <= write_line:
+                # Read occurs on the same line or before write — upstream dependency
+                # Same line: df = df.dropna() → RHS evaluated first → dependency
+                # Earlier line: read before any write → dependency
+                true_reads.add(name)
+            # else: write occurs on an earlier line — NOT an upstream dependency
 
-    # Filter out Python builtins and common imports
-    _BUILTINS = set(dir(__builtins__)) if isinstance(__builtins__, dict) else set(dir(__builtins__))
+    # Filter out Python builtins and common imports.
+    # Use `import builtins` instead of `__builtins__` to avoid context-dependent
+    # behavior: in __main__, __builtins__ is a dict and dir() returns dict methods
+    # like 'values', 'keys', 'items' — incorrectly filtering user variables.
+    import builtins as _builtins_mod
+    _BUILTINS = set(dir(_builtins_mod))
     true_reads -= _BUILTINS
     true_reads -= {"__name__", "__file__", "__doc__"}
 
