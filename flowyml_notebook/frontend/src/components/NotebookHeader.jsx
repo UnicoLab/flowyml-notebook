@@ -3,15 +3,18 @@ import {
   Play, RotateCcw, Save, PanelLeftClose, PanelLeftOpen,
   Sparkles, Zap, Command, ChevronDown, Rocket, Sun, Moon,
   GitBranch, Server, Check, X, FlaskConical, MessageSquare,
-  ClipboardCheck, User, FileText, Globe, AlertTriangle, Eraser
+  ClipboardCheck, User, FileText, Globe, AlertTriangle, Eraser,
+  FolderOpen, Undo2, Redo2, SaveAll
 } from 'lucide-react';
 
 export default function NotebookHeader({
-  metadata, executing, staleCellCount = 0, onRunAll, onRunStale, onSave, onResetKernel, onLoadDemo,
+  metadata, executing, staleCellCount = 0, onRunAll, onRunStale, onSave, onSaveAs, onOpenFile,
+  onResetKernel, onLoadDemo,
   onClearAllOutputs,
   onToggleSidebar, onToggleAI, onToggleFlowyML, onToggleDAG, onToggleComments,
   onToggleReport, onToggleApp,
   onOpenPalette, onRenameNotebook, onRequestReview,
+  onUndo, onRedo,
   sidebarOpen, rightPanel, theme, onToggleTheme,
   userProfile, commentCount = 0,
 }) {
@@ -110,6 +113,29 @@ export default function NotebookHeader({
         <button className="btn btn-ghost" onClick={onSave} title="Save (⌘ S)">
           <Save size={13} />
         </button>
+
+        {onSaveAs && (
+          <button className="btn btn-ghost" onClick={onSaveAs} title="Save As (⌘⇧ S)">
+            <SaveAll size={13} />
+          </button>
+        )}
+
+        {onOpenFile && (
+          <button className="btn btn-ghost" onClick={onOpenFile} title="Open (⌘ O)">
+            <FolderOpen size={13} />
+          </button>
+        )}
+
+        {onUndo && (
+          <button className="btn btn-ghost" onClick={onUndo} title="Undo (⌘ Z)">
+            <Undo2 size={13} />
+          </button>
+        )}
+        {onRedo && (
+          <button className="btn btn-ghost" onClick={onRedo} title="Redo (⌘⇧ Z)">
+            <Redo2 size={13} />
+          </button>
+        )}
 
         <button className="btn btn-ghost" onClick={onClearAllOutputs} title="Clear All Outputs">
           <Eraser size={13} />

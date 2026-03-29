@@ -573,7 +573,8 @@ class Notebook:
 
         This is the core reactive execution model: when you run a cell,
         all cells that depend on it are automatically re-executed in
-        topological order.
+        topological order. Handles diamond dependencies correctly via
+        deduplication.
 
         Args:
             cell_id: Cell to execute.
@@ -582,23 +583,43 @@ class Notebook:
             List of ExecutionResults for all executed cells.
         """
         results: list[ExecutionResult] = []
+        executed: set[str] = set()  # Deduplication for diamond dependencies
 
         # Execute the target cell
         result = self.execute_cell(cell_id)
         results.append(result)
+        executed.add(cell_id)
 
         if not result.success:
             return results  # Don't cascade on error
 
-        # Find and execute stale downstream cells
+        # Find and execute ALL transitively downstream cells
         stale = self.graph.update_cell(cell_id, self.notebook.get_cell(cell_id).source)
         if stale:
             execution_order = self.graph.get_execution_order(stale)
             for downstream_id in execution_order:
+                # Skip already-executed cells (deduplication for diamond deps)
+                if downstream_id in executed:
+                    continue
                 downstream_result = self.execute_cell(downstream_id)
                 results.append(downstream_result)
+                executed.add(downstream_id)
+
+                # Update graph for this cell too (it may have changed)
+                downstream_cell = self.notebook.get_cell(downstream_id)
+                if downstream_cell and downstream_cell.cell_type == CellType.CODE:
+                    self.graph.update_cell(downstream_id, downstream_cell.source)
+
                 if not downstream_result.success:
-                    break  # Stop on first error
+                    # Mark remaining downstream as stale instead of executing
+                    for remaining_id in execution_order:
+                        if remaining_id not in executed:
+                            self.graph.set_cell_state(remaining_id, CellState.STALE)
+                    break
+
+        # Clear stale state for all successfully executed cells
+        for rid in executed:
+            self.graph.set_cell_state(rid, CellState.SUCCESS)
 
         return results
 

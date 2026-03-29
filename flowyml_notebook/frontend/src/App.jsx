@@ -14,6 +14,8 @@ import ReportGenerator from './components/ReportGenerator';
 import AppPublisher from './components/AppPublisher';
 import AnalysisPatternsPanel from './components/AnalysisPatternsPanel';
 import PipelineWizard from './components/PipelineWizard';
+import SaveAsDialog from './components/SaveAsDialog';
+import OpenFileDialog from './components/OpenFileDialog';
 import { FLOWYML_SNIPPETS } from './data/flowymlSnippets';
 import { wrapInStep } from './data/flowymlSnippets';
 
@@ -24,6 +26,8 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusedCellId, setFocusedCellId] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [openFileOpen, setOpenFileOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('fml-theme') || 'dark');
 
   // Apply theme to document
@@ -177,6 +181,32 @@ export default function App() {
         e.preventDefault();
         notebook.clearAllOutputs();
       }
+      // Cmd+Shift+S → Save As
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 's') {
+        e.preventDefault();
+        setSaveAsOpen(true);
+      }
+      // Cmd+O → Open File
+      if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+        e.preventDefault();
+        setOpenFileOpen(true);
+      }
+      // Cmd+Z → Undo
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
+        const isInMonaco = e.target.closest('.monaco-editor');
+        if (!isInMonaco && notebook.undoStack?.length > 0) {
+          e.preventDefault();
+          notebook.undo();
+        }
+      }
+      // Cmd+Shift+Z → Redo
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+        const isInMonaco = e.target.closest('.monaco-editor');
+        if (!isInMonaco && notebook.redoStack?.length > 0) {
+          e.preventDefault();
+          notebook.redo();
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -300,6 +330,8 @@ export default function App() {
         onRunAll={notebook.executeAll}
         onRunStale={notebook.runStaleCells}
         onSave={() => notebook.saveNotebook()}
+        onSaveAs={() => setSaveAsOpen(true)}
+        onOpenFile={() => setOpenFileOpen(true)}
         onResetKernel={notebook.resetKernel}
         onLoadDemo={notebook.loadDemo}
         onClearAllOutputs={notebook.clearAllOutputs}
@@ -314,6 +346,8 @@ export default function App() {
         onTogglePatterns={() => setRightPanel(p => p === 'patterns' ? null : 'patterns')}
         onOpenPalette={() => setPaletteOpen(true)}
         onRequestReview={notebook.requestReview}
+        onUndo={notebook.undoStack?.length > 0 ? notebook.undo : null}
+        onRedo={notebook.redoStack?.length > 0 ? notebook.redo : null}
         sidebarOpen={sidebarOpen}
         rightPanel={rightPanel}
         theme={theme}
@@ -452,6 +486,9 @@ export default function App() {
         dirty={notebook.dirty}
         kernelStatus={notebook.kernelStatus}
         kernelInfo={notebook.kernelInfo}
+        currentFilePath={notebook.currentFilePath}
+        onSwitchKernel={notebook.switchKernel}
+        onRefreshKernels={notebook.refreshKernels}
       />
 
       {/* Command Palette */}
@@ -472,6 +509,22 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Save As Dialog */}
+      <SaveAsDialog
+        open={saveAsOpen}
+        onClose={() => setSaveAsOpen(false)}
+        onSave={notebook.saveAs}
+        currentName={notebook.metadata?.name || 'untitled'}
+      />
+
+      {/* Open File Dialog */}
+      <OpenFileDialog
+        open={openFileOpen}
+        onClose={() => setOpenFileOpen(false)}
+        onOpen={notebook.openFile}
+        recentFiles={notebook.recentFiles}
+      />
     </div>
   );
 }

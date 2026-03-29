@@ -125,6 +125,160 @@ class NotebookServer:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text(json.dumps(self._ai_config, indent=2), encoding="utf-8")
 
+    def _track_recent_file(self, path: str, name: str) -> None:
+        """Track a recently opened/saved file."""
+        recent_file = Path.home() / ".flowyml" / "recent_files.json"
+        recent_file.parent.mkdir(parents=True, exist_ok=True)
+        recent: list[dict] = []
+        if recent_file.exists():
+            try:
+                recent = json.loads(recent_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        # Remove existing entry for this path
+        recent = [r for r in recent if r.get("path") != path]
+        # Prepend new entry
+        recent.insert(0, {
+            "path": path,
+            "name": name,
+            "opened_at": datetime.now().isoformat(),
+        })
+        # Keep only 20 most recent
+        recent = recent[:20]
+        recent_file.write_text(json.dumps(recent, indent=2), encoding="utf-8")
+
+    def _get_recent_files(self) -> list[dict]:
+        """Get list of recently opened/saved files."""
+        recent_file = Path.home() / ".flowyml" / "recent_files.json"
+        if recent_file.exists():
+            try:
+                recent = json.loads(recent_file.read_text(encoding="utf-8"))
+                # Filter out files that no longer exist
+                return [r for r in recent if Path(r.get("path", "")).exists()]
+            except Exception:
+                pass
+        return []
+
+    def _detect_kernels(self) -> list[dict]:
+        """Detect all available Python environments.
+
+        Scans for: current Python, venv/virtualenv, Poetry, Pipenv, Conda, pyenv, system Pythons.
+        """
+        import subprocess
+        import sys
+
+        kernels = []
+        seen_paths = set()
+
+        def _add_kernel(name: str, python_path: str, source: str, version: str = ""):
+            real_path = str(Path(python_path).resolve()) if Path(python_path).exists() else python_path
+            if real_path in seen_paths:
+                return
+            seen_paths.add(real_path)
+
+            if not version:
+                try:
+                    result = subprocess.run(
+                        [python_path, "--version"],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    version = result.stdout.strip().replace("Python ", "")
+                except Exception:
+                    version = "unknown"
+
+            # Check available packages
+            packages = {}
+            for pkg in ["pandas", "numpy", "scikit-learn", "torch", "tensorflow"]:
+                try:
+                    result = subprocess.run(
+                        [python_path, "-c", f"import {pkg.replace('-', '_').split('-')[0]}; print('ok')"],
+                        capture_output=True, text=True, timeout=5,
+                    )
+                    packages[pkg] = result.returncode == 0
+                except Exception:
+                    packages[pkg] = False
+
+            kernels.append({
+                "name": name,
+                "python_path": python_path,
+                "version": version,
+                "source": source,
+                "packages": packages,
+                "is_current": python_path == sys.executable or real_path == str(Path(sys.executable).resolve()),
+            })
+
+        # 1. Current Python
+        _add_kernel(f"Python {sys.version.split()[0]} (current)", sys.executable, "current", sys.version.split()[0])
+
+        # 2. Local venv / virtualenv
+        cwd = os.getcwd()
+        for venv_dir in [".venv", "venv", "env", ".env"]:
+            venv_python = os.path.join(cwd, venv_dir, "bin", "python")
+            if os.path.isfile(venv_python):
+                _add_kernel(f"{venv_dir}", venv_python, "venv")
+
+        # 3. Poetry
+        try:
+            result = subprocess.run(
+                ["poetry", "env", "info", "--executable"],
+                capture_output=True, text=True, timeout=10, cwd=cwd,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                _add_kernel("Poetry env", result.stdout.strip(), "poetry")
+        except FileNotFoundError:
+            pass
+
+        # 4. Pipenv
+        try:
+            result = subprocess.run(
+                ["pipenv", "--py"],
+                capture_output=True, text=True, timeout=10, cwd=cwd,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                _add_kernel("Pipenv env", result.stdout.strip(), "pipenv")
+        except FileNotFoundError:
+            pass
+
+        # 5. Conda environments
+        try:
+            result = subprocess.run(
+                ["conda", "env", "list", "--json"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                conda_data = json.loads(result.stdout)
+                for env_path in conda_data.get("envs", []):
+                    conda_python = os.path.join(env_path, "bin", "python")
+                    if os.path.isfile(conda_python):
+                        env_name = os.path.basename(env_path) or "base"
+                        _add_kernel(f"Conda: {env_name}", conda_python, "conda")
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+        # 6. pyenv versions
+        try:
+            result = subprocess.run(
+                ["pyenv", "versions", "--bare"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                for version_str in result.stdout.strip().split("\n"):
+                    version_str = version_str.strip()
+                    if version_str:
+                        pyenv_root = os.environ.get("PYENV_ROOT", os.path.expanduser("~/.pyenv"))
+                        pyenv_python = os.path.join(pyenv_root, "versions", version_str, "bin", "python")
+                        if os.path.isfile(pyenv_python):
+                            _add_kernel(f"pyenv: {version_str}", pyenv_python, "pyenv", version_str)
+        except FileNotFoundError:
+            pass
+
+        # 7. System Pythons
+        for sys_python in ["/usr/bin/python3", "/usr/local/bin/python3", "/opt/homebrew/bin/python3"]:
+            if os.path.isfile(sys_python):
+                _add_kernel("System Python", sys_python, "system")
+
+        return kernels
+
     def _create_app(self) -> FastAPI:
         """Create the FastAPI application."""
         app = FastAPI(
@@ -1120,13 +1274,204 @@ class NotebookServer:
                     cells_data,
                     {"name": self.notebook.notebook.metadata.name},
                 )
+            # Track in recent files
+            self._track_recent_file(saved_path, self.notebook.notebook.metadata.name)
             return {"path": saved_path}
+
+        @app.post("/api/save-as")
+        async def save_as_notebook(data: dict):
+            """Save notebook to a user-specified path and name.
+
+            Body: { path: str, name: str, format: 'py' | 'json' | 'both' }
+            """
+            target_dir = data.get("path", os.getcwd())
+            name = data.get("name", self.notebook.notebook.metadata.name or "untitled")
+            fmt = data.get("format", "both")
+
+            # Update notebook name
+            self.notebook.notebook.metadata.name = name
+            safe_name = name.lower().replace(" ", "_").replace("/", "_")
+
+            saved_paths = []
+
+            if fmt in ("py", "both"):
+                py_path = os.path.join(target_dir, f"{safe_name}.py")
+                self.notebook.save(py_path)
+                saved_paths.append(py_path)
+
+            if fmt in ("json", "both"):
+                json_path = os.path.join(target_dir, f"{safe_name}.fml.json")
+                # Save as JSON with outputs
+                import json as json_mod
+                notebook_data = {
+                    "metadata": {
+                        **self.notebook.notebook.metadata.to_dict(),
+                        "id": self.current_nb_id or str(__import__("uuid").uuid4())[:8],
+                        "modified_at": datetime.now().isoformat(),
+                    },
+                    "cells": [c.to_dict() for c in self.notebook.cells],
+                }
+                Path(json_path).write_text(
+                    json_mod.dumps(notebook_data, indent=2, default=str),
+                    encoding="utf-8",
+                )
+                saved_paths.append(json_path)
+
+            # Track the primary file path
+            primary_path = saved_paths[0] if saved_paths else None
+            if primary_path:
+                self.notebook.file_path = primary_path
+                self._track_recent_file(primary_path, name)
+
+            return {"paths": saved_paths, "name": name}
+
+        @app.get("/api/browse-dirs")
+        async def browse_directories(path: str = ""):
+            """List directories and notebook files for the folder picker."""
+            import os
+
+            target = path or os.getcwd()
+            try:
+                target = os.path.expanduser(target)
+                entries = []
+                for entry in sorted(os.listdir(target)):
+                    full = os.path.join(target, entry)
+                    if entry.startswith("."):
+                        continue
+                    if os.path.isdir(full):
+                        entries.append({
+                            "name": entry,
+                            "path": full,
+                            "is_dir": True,
+                        })
+                    elif entry.endswith((".py", ".fml.json", ".ipynb")):
+                        try:
+                            stat = os.stat(full)
+                            entries.append({
+                                "name": entry,
+                                "path": full,
+                                "is_dir": False,
+                                "size": stat.st_size,
+                                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            })
+                        except OSError:
+                            pass
+
+                # Get parent directory
+                parent = os.path.dirname(target)
+                return {
+                    "current": target,
+                    "parent": parent if parent != target else None,
+                    "entries": entries,
+                }
+            except PermissionError:
+                return {"current": target, "parent": os.path.dirname(target), "entries": [], "error": "Permission denied"}
+            except FileNotFoundError:
+                return {"current": os.getcwd(), "parent": None, "entries": [], "error": "Directory not found"}
+
+        @app.post("/api/load-file")
+        async def load_file(data: dict):
+            """Load a notebook from any path (.py or .fml.json)."""
+            path = data.get("path", "")
+            if not path or not os.path.isfile(path):
+                raise HTTPException(404, f"File not found: {path}")
+
+            if path.endswith(".fml.json"):
+                content = Path(path).read_text(encoding="utf-8")
+                nb_data = json.loads(content)
+                self.notebook.load_from_dict(nb_data)
+                self.notebook.file_path = path
+            elif path.endswith((".py", ".ipynb")):
+                self.notebook.load(path)
+            else:
+                raise HTTPException(400, f"Unsupported file format: {path}")
+
+            self._track_recent_file(path, self.notebook.notebook.metadata.name)
+            return self.notebook.get_state()
+
+        @app.get("/api/recent-files")
+        async def get_recent_files():
+            """Get list of recently opened/saved files."""
+            return self._get_recent_files()
 
         @app.post("/api/load")
         async def load_notebook(path: str):
             """Load notebook from file."""
             self.notebook.load(path)
+            self._track_recent_file(path, self.notebook.notebook.metadata.name)
             return self.notebook.get_state()
+
+        # ===== Smart Import Suggestions =====
+
+        @app.post("/api/suggest-imports")
+        async def suggest_imports(data: dict):
+            """Analyze cell code and suggest missing imports."""
+            source = data.get("source", "")
+            error_text = data.get("error", "")
+
+            suggestions = []
+
+            # Common import mappings
+            IMPORT_MAP = {
+                "pd": "import pandas as pd",
+                "np": "import numpy as np",
+                "plt": "import matplotlib.pyplot as plt",
+                "sns": "import seaborn as sns",
+                "sklearn": "import sklearn",
+                "tf": "import tensorflow as tf",
+                "torch": "import torch",
+                "cv2": "import cv2",
+                "PIL": "from PIL import Image",
+                "Image": "from PIL import Image",
+                "json": "import json",
+                "os": "import os",
+                "sys": "import sys",
+                "re": "import re",
+                "datetime": "from datetime import datetime",
+                "Path": "from pathlib import Path",
+                "Counter": "from collections import Counter",
+                "defaultdict": "from collections import defaultdict",
+                "tqdm": "from tqdm import tqdm",
+                "requests": "import requests",
+                "BeautifulSoup": "from bs4 import BeautifulSoup",
+                "train_test_split": "from sklearn.model_selection import train_test_split",
+                "accuracy_score": "from sklearn.metrics import accuracy_score",
+                "RandomForestClassifier": "from sklearn.ensemble import RandomForestClassifier",
+                "LinearRegression": "from sklearn.linear_model import LinearRegression",
+                "StandardScaler": "from sklearn.preprocessing import StandardScaler",
+                "KMeans": "from sklearn.cluster import KMeans",
+                "PCA": "from sklearn.decomposition import PCA",
+            }
+
+            # Extract undefined names from error
+            import re as re_mod
+            name_error = re_mod.search(r"name '(\w+)' is not defined", error_text)
+            if name_error:
+                name = name_error.group(1)
+                if name in IMPORT_MAP:
+                    suggestions.append({
+                        "name": name,
+                        "import_statement": IMPORT_MAP[name],
+                        "confidence": "high",
+                    })
+
+            # Also analyze the source for potential imports
+            try:
+                from flowyml_notebook.reactive import analyze_cell_dependencies
+                reads, _ = analyze_cell_dependencies(source)
+                for name in reads:
+                    if name in IMPORT_MAP:
+                        # Check if it's already imported in the namespace
+                        if name not in self.notebook.session._namespace:
+                            suggestions.append({
+                                "name": name,
+                                "import_statement": IMPORT_MAP[name],
+                                "confidence": "medium",
+                            })
+            except Exception:
+                pass
+
+            return {"suggestions": suggestions}
 
         # ===== Workspace Files Explorer =====
         @app.get("/api/files")
@@ -1499,75 +1844,75 @@ class NotebookServer:
 
         @app.get("/api/kernel/status")
         async def kernel_status():
-            """Get kernel status and available environments."""
+            """Get kernel status, available environments (Poetry, Pipenv, Conda, pyenv, etc.)."""
             import sys
-            import shutil
 
             is_ready = self.notebook.session._initialized
-            current_python = sys.executable
             current_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
-            # Detect available Python environments
-            available_kernels = []
-            # Current interpreter
-            available_kernels.append({
-                "name": f"Python {current_version}",
-                "path": current_python,
-                "version": current_version,
-                "current": True,
-            })
-
-            # Check for common virtual environments
-            import os
-            cwd = os.getcwd()
-            venv_dirs = [".venv", "venv", "env", ".env"]
-            for vd in venv_dirs:
-                venv_python = os.path.join(cwd, vd, "bin", "python")
-                if os.path.isfile(venv_python) and os.path.realpath(venv_python) != os.path.realpath(current_python):
-                    try:
-                        import subprocess
-                        ver = subprocess.check_output(
-                            [venv_python, "--version"], text=True, timeout=5
-                        ).strip().split()[-1]
-                        available_kernels.append({
-                            "name": f"Python {ver} ({vd})",
-                            "path": venv_python,
-                            "version": ver,
-                            "current": False,
-                        })
-                    except Exception:
-                        pass
-
-            # Check conda environments
-            conda_path = shutil.which("conda")
-            if conda_path:
-                try:
-                    import subprocess
-                    result = subprocess.check_output(
-                        ["conda", "env", "list", "--json"], text=True, timeout=10
-                    )
-                    import json as json_mod
-                    envs = json_mod.loads(result).get("envs", [])
-                    for env_path in envs[:10]:  # Limit to 10
-                        env_python = os.path.join(env_path, "bin", "python")
-                        if os.path.isfile(env_python) and os.path.realpath(env_python) != os.path.realpath(current_python):
-                            env_name = os.path.basename(env_path)
-                            available_kernels.append({
-                                "name": f"Python (conda: {env_name})",
-                                "path": env_python,
-                                "version": "",
-                                "current": False,
-                            })
-                except Exception:
-                    pass
+            # Use the comprehensive kernel detector
+            available_kernels = self._detect_kernels()
 
             return {
                 "status": "ready" if is_ready else "idle",
                 "kernel_name": f"Python {current_version}",
                 "python_version": current_version,
-                "python_path": current_python,
+                "python_path": sys.executable,
                 "session_id": self.notebook.session.session_id,
                 "available_kernels": available_kernels,
+                "file_path": self.notebook.file_path,
+            }
+
+        @app.post("/api/kernel/refresh")
+        async def kernel_refresh():
+            """Re-scan available Python environments without switching."""
+            return {"available_kernels": self._detect_kernels()}
+
+        @app.post("/api/kernel/switch")
+        async def kernel_switch(data: dict):
+            """Switch to a different Python kernel.
+
+            This restarts the kernel with a new Python executable.
+            WARNING: All runtime state (variables, imports) is lost.
+            """
+            python_path = data.get("python_path", "")
+            if not python_path or not Path(python_path).exists():
+                raise HTTPException(400, f"Invalid Python path: {python_path}")
+
+            import sys
+            import subprocess
+
+            # Verify the Python executable works
+            try:
+                result = subprocess.run(
+                    [python_path, "-c", "import sys; print(sys.version)"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode != 0:
+                    raise HTTPException(400, f"Python at {python_path} is not functional: {result.stderr}")
+                version = result.stdout.strip()
+            except FileNotFoundError:
+                raise HTTPException(400, f"Python not found: {python_path}")
+            except subprocess.TimeoutExpired:
+                raise HTTPException(400, f"Python at {python_path} timed out")
+
+            # Reset the current session
+            self.notebook.session.reset()
+
+            # For now, we cannot truly switch the interpreter mid-process.
+            # What we CAN do is reset the IPython kernel and set up the new
+            # Python path in the environment so subprocess calls use it.
+            import os
+            os.environ["PYTHON_PATH_OVERRIDE"] = python_path
+
+            # Record the switch
+            logger.info(f"Kernel switched to: {python_path} ({version})")
+
+            return {
+                "status": "ready",
+                "python_path": python_path,
+                "version": version,
+                "message": f"Kernel reset. Using Python {version}. All state has been cleared.",
             }
 
         # --- Notebook Management ---

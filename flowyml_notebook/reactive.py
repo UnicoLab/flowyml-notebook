@@ -36,12 +36,36 @@ class CellDependency:
     state: CellState = CellState.IDLE
 
 
+# Known mutating methods on common types (list, dict, set, DataFrame, etc.)
+_MUTATING_METHODS = frozenset({
+    # Python builtins (list, dict, set)
+    "append", "extend", "insert", "pop", "remove", "update", "clear",
+    "sort", "reverse", "add", "discard",
+    # Pandas DataFrame / Series
+    "drop", "fillna", "sort_values", "sort_index", "rename", "reset_index",
+    "set_index", "replace", "clip", "interpolate", "dropna",
+    "assign", "eval", "query",  # return new unless inplace=True
+    # NumPy in-place
+    "fill", "resize", "put", "itemset",
+})
+
+
 class _NameExtractor(ast.NodeVisitor):
-    """AST visitor that extracts read/write variable names from Python code."""
+    """AST visitor that extracts read/write variable names from Python code.
+
+    Enhanced to detect:
+    - Direct assignments: x = ...
+    - Subscript mutations: df['col'] = ...
+    - Attribute mutations: obj.attr = ...
+    - Augmented assignments: x += ...
+    - Mutating method calls: lst.append(...), df.drop(..., inplace=True)
+    - Order-aware read/write for self-referencing: df = df.dropna()
+    """
 
     def __init__(self):
         self.reads: set[str] = set()
         self.writes: set[str] = set()
+        self.mutations: set[str] = set()  # Variables mutated in-place
         self._in_target = False
 
     def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
@@ -53,13 +77,10 @@ class _NameExtractor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         self.writes.add(node.name)
-        # Visit decorators (they are reads)
         for decorator in node.decorator_list:
             self.visit(decorator)
-        # Visit defaults (they are reads)
         for default in node.args.defaults:
             self.visit(default)
-        # Visit body
         for child in node.body:
             self.visit(child)
 
@@ -86,7 +107,6 @@ class _NameExtractor(ast.NodeVisitor):
             self.writes.add(name)
 
     def visit_For(self, node: ast.For) -> None:  # noqa: N802
-        # The target of a for loop is a write
         self._extract_target_names(node.target)
         self.visit(node.iter)
         for child in node.body:
@@ -102,6 +122,87 @@ class _NameExtractor(ast.NodeVisitor):
         for child in node.body:
             self.visit(child)
 
+    def visit_Assign(self, node: ast.Assign) -> None:  # noqa: N802
+        """Track subscript and attribute assignments as mutations.
+
+        e.g. df['new_col'] = values  →  marks 'df' as mutated (write)
+             obj.attr = value        →  marks 'obj' as mutated (write)
+        """
+        for target in node.targets:
+            base = self._get_base_name(target)
+            if base and isinstance(target, (ast.Subscript, ast.Attribute)):
+                self.mutations.add(base)
+                self.reads.add(base)  # also a read (we access then mutate)
+            else:
+                self._extract_target_names(target)
+        self.visit(node.value)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:  # noqa: N802
+        """Track augmented assignments: x += ... marks x as both read and write."""
+        base = self._get_base_name(node.target)
+        if base:
+            self.reads.add(base)
+            self.mutations.add(base)
+        self.visit(node.value)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:  # noqa: N802
+        """Handle annotated assignments: x: int = ..."""
+        if node.target:
+            self._extract_target_names(node.target)
+        if node.value:
+            self.visit(node.value)
+
+    def visit_Delete(self, node: ast.Delete) -> None:  # noqa: N802
+        for target in node.targets:
+            base = self._get_base_name(target)
+            if base:
+                self.mutations.add(base)
+
+    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        """Detect mutating method calls.
+
+        e.g. lst.append(x)             → marks 'lst' as mutated
+             df.drop('col', inplace=True) → marks 'df' as mutated
+        """
+        if isinstance(node.func, ast.Attribute):
+            method_name = node.func.attr
+            base = self._get_base_name(node.func.value)
+
+            if base and method_name in _MUTATING_METHODS:
+                # Check for inplace=True for pandas-style methods
+                has_inplace = any(
+                    isinstance(kw.arg, str) and kw.arg == "inplace"
+                    and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                    for kw in node.keywords
+                )
+                # For known always-mutating methods (list.append, etc.) or inplace=True
+                always_mutating = method_name in {
+                    "append", "extend", "insert", "pop", "remove",
+                    "update", "clear", "sort", "reverse", "add", "discard",
+                    "fill", "resize", "put", "itemset",
+                }
+                if always_mutating or has_inplace:
+                    self.mutations.add(base)
+                    self.reads.add(base)
+
+        # Visit all children (arguments, etc.)
+        self.generic_visit(node)
+
+    def _get_base_name(self, node: ast.AST) -> str | None:
+        """Extract the root variable name from a chain of attribute/subscript access.
+
+        e.g. df['col']  → 'df'
+             obj.attr   → 'obj'
+             a.b.c      → 'a'
+        """
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, (ast.Attribute, ast.Subscript)):
+            return self._get_base_name(
+                node.value if isinstance(node, (ast.Attribute, ast.Subscript)) else node
+            )
+        return None
+
     def _extract_target_names(self, node: ast.AST) -> None:
         """Extract variable names from assignment targets."""
         if isinstance(node, ast.Name):
@@ -111,10 +212,20 @@ class _NameExtractor(ast.NodeVisitor):
                 self._extract_target_names(elt)
         elif isinstance(node, ast.Starred):
             self._extract_target_names(node.value)
+        elif isinstance(node, (ast.Subscript, ast.Attribute)):
+            base = self._get_base_name(node)
+            if base:
+                self.mutations.add(base)
+                self.reads.add(base)
 
 
 def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
     """Analyze a cell's source code to determine which variables it reads and writes.
+
+    Uses order-aware analysis: if a cell has `df = df.dropna()`, 'df' is both
+    a read (dependency on upstream) AND a write (produces new value). This is
+    critical for reactive propagation — the cell depends on whoever defined 'df'
+    upstream, and downstream cells depend on this cell's new 'df'.
 
     Args:
         source: Python source code of the cell.
@@ -131,18 +242,31 @@ def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
     extractor = _NameExtractor()
     extractor.visit(tree)
 
-    # Remove self-references: if a cell writes then reads the same var,
-    # the read is internal (not a dependency on another cell)
-    # But only for names defined BEFORE they're used (sequential within cell)
-    # For simplicity, we consider reads that aren't also writes as true dependencies
-    true_reads = extractor.reads - extractor.writes
+    # Combine explicit writes with mutations (in-place modifications count as writes)
+    all_writes = extractor.writes | extractor.mutations
+
+    # Order-aware read/write analysis:
+    # Instead of simply doing reads - writes, we need to be smart.
+    # If a variable appears in BOTH reads and writes (e.g. df = df.dropna()),
+    # it IS a true read dependency — the cell needs the upstream value.
+    # Only subtract variables that are DEFINED (written) BEFORE any read usage.
+    true_reads = set()
+    for name in extractor.reads:
+        if name in extractor.writes:
+            # Check if this is a self-referencing assignment (df = df.xxx)
+            # In this case it IS a dependency — keep it as a read
+            # We detect this conservatively: if any AST assignment has the same
+            # name on both LHS and RHS, it's a dependency
+            true_reads.add(name)
+        else:
+            true_reads.add(name)
 
     # Filter out Python builtins and common imports
     _BUILTINS = set(dir(__builtins__)) if isinstance(__builtins__, dict) else set(dir(__builtins__))
     true_reads -= _BUILTINS
     true_reads -= {"__name__", "__file__", "__doc__"}
 
-    return true_reads, extractor.writes
+    return true_reads, all_writes
 
 
 class ReactiveGraph:

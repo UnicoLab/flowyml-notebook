@@ -1,14 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Cpu, Zap, Database, Code, Check, Loader, AlertCircle, Cloud, ChevronDown, Terminal } from 'lucide-react';
+import {
+  Cpu, Zap, Database, Code, Check, Loader, AlertCircle, Cloud, ChevronDown,
+  Terminal, RefreshCw, FileText
+} from 'lucide-react';
 
 export default function StatusBar({
   sessionId, connected, cellCount, executing, variables,
   saveStatus, lastSaved, dirty,
   kernelStatus, kernelInfo,
+  currentFilePath,
+  onSwitchKernel, onRefreshKernels,
 }) {
   const varCount = Object.keys(variables || {}).length;
   const dfCount = Object.values(variables || {}).filter(v => v.type === 'DataFrame').length;
   const [kernelPickerOpen, setKernelPickerOpen] = useState(false);
+  const [switchConfirmKernel, setSwitchConfirmKernel] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const pickerRef = useRef(null);
 
   // Close kernel picker on outside click
@@ -17,11 +24,40 @@ export default function StatusBar({
     const handler = (e) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target)) {
         setKernelPickerOpen(false);
+        setSwitchConfirmKernel(null);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [kernelPickerOpen]);
+
+  // Auto-refresh kernels when picker opens
+  useEffect(() => {
+    if (kernelPickerOpen && onRefreshKernels) {
+      onRefreshKernels();
+    }
+  }, [kernelPickerOpen]);
+
+  const handleRefresh = async () => {
+    if (!onRefreshKernels) return;
+    setRefreshing(true);
+    await onRefreshKernels();
+    setRefreshing(false);
+  };
+
+  const handleSwitchKernel = async (kernel) => {
+    if (kernel.is_current) return;
+    if (!switchConfirmKernel || switchConfirmKernel.python_path !== kernel.python_path) {
+      setSwitchConfirmKernel(kernel);
+      return;
+    }
+    // Confirmed - switch
+    setSwitchConfirmKernel(null);
+    setKernelPickerOpen(false);
+    if (onSwitchKernel) {
+      await onSwitchKernel(kernel.python_path);
+    }
+  };
 
   const renderSaveIndicator = () => {
     if (saveStatus === 'saving') {
@@ -95,6 +131,21 @@ export default function StatusBar({
 
   const availableKernels = kernelInfo?.available_kernels || [];
 
+  // Package indicator emojis
+  const pkgEmoji = (pkg) => {
+    if (pkg === 'pandas') return '🐼';
+    if (pkg === 'numpy') return '📐';
+    if (pkg === 'scikit-learn') return '🤖';
+    if (pkg === 'torch') return '🔥';
+    if (pkg === 'tensorflow') return '🧠';
+    return '📦';
+  };
+
+  // Shortened file path for display
+  const shortPath = currentFilePath
+    ? currentFilePath.replace(/^\/Users\/[^/]+/, '~').replace(/^\/home\/[^/]+/, '~')
+    : null;
+
   return (
     <div className="status-bar">
       <div className="status-bar-left">
@@ -133,6 +184,14 @@ export default function StatusBar({
             Executing{executing !== 'all' ? ` cell` : ' all'}...
           </span>
         )}
+
+        {/* Current file path */}
+        {shortPath && (
+          <span className="status-item file-path" title={currentFilePath}>
+            <FileText size={10} />
+            {shortPath}
+          </span>
+        )}
       </div>
 
       <div className="status-bar-right">
@@ -141,7 +200,7 @@ export default function StatusBar({
 
         <span className="status-item">Reactive Engine</span>
 
-        {/* Kernel Picker */}
+        {/* Enhanced Kernel Picker */}
         <div className="status-kernel-picker-wrapper" ref={pickerRef}>
           <button
             className="status-kernel-picker-btn"
@@ -155,17 +214,61 @@ export default function StatusBar({
 
           {kernelPickerOpen && (
             <div className="status-kernel-picker-dropdown">
-              <div className="status-kernel-picker-header">Select Kernel</div>
+              <div className="status-kernel-picker-header">
+                <span>Select Kernel</span>
+                <button
+                  className="kernel-refresh-btn"
+                  onClick={handleRefresh}
+                  title="Refresh available kernels"
+                  disabled={refreshing}
+                >
+                  <RefreshCw size={11} className={refreshing ? 'spin' : ''} />
+                </button>
+              </div>
+
+              {/* Switch confirmation */}
+              {switchConfirmKernel && (
+                <div className="kernel-switch-warning">
+                  <AlertCircle size={11} />
+                  <span>Switch to {switchConfirmKernel.name}? All state will be lost.</span>
+                  <button
+                    className="kernel-confirm-btn"
+                    onClick={() => handleSwitchKernel(switchConfirmKernel)}
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    className="kernel-cancel-btn"
+                    onClick={() => setSwitchConfirmKernel(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
               {availableKernels.map((k, i) => (
                 <button
                   key={i}
-                  className={`status-kernel-picker-item ${k.current ? 'current' : ''}`}
-                  onClick={() => setKernelPickerOpen(false)}
-                  title={k.path}
+                  className={`status-kernel-picker-item ${k.is_current ? 'current' : ''}`}
+                  onClick={() => handleSwitchKernel(k)}
+                  title={`${k.python_path}\nSource: ${k.source}`}
                 >
-                  <Terminal size={11} />
-                  <span className="kernel-item-name">{k.name}</span>
-                  {k.current && <Check size={11} className="kernel-item-check" />}
+                  <div className="kernel-item-main">
+                    <Terminal size={11} />
+                    <span className="kernel-item-name">{k.name}</span>
+                    {k.is_current && <Check size={11} className="kernel-item-check" />}
+                  </div>
+                  <div className="kernel-item-meta">
+                    <span className="kernel-source-badge">{k.source}</span>
+                    <span className="kernel-version">{k.version}</span>
+                    {k.packages && (
+                      <span className="kernel-packages">
+                        {Object.entries(k.packages).filter(([, v]) => v).map(([pkg]) => (
+                          <span key={pkg} className="kernel-pkg" title={pkg}>{pkgEmoji(pkg)}</span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))}
               {availableKernels.length === 0 && (

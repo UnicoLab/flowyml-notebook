@@ -600,6 +600,187 @@ export function useNotebook() {
     } catch (e) { console.error('Update review failed:', e); }
   }, []);
 
+  // --- Save As / Open File ---
+
+  const [currentFilePath, setCurrentFilePath] = useState(null);
+  const [recentFiles, setRecentFiles] = useState([]);
+
+  // Fetch recent files on mount
+  useEffect(() => {
+    fetch(`${API}/recent-files`)
+      .then(r => r.ok ? r.json() : [])
+      .then(files => setRecentFiles(files))
+      .catch(() => {});
+  }, []);
+
+  const saveAs = useCallback(async ({ path, name, format }) => {
+    setSaveStatus('saving');
+    try {
+      const res = await fetch(`${API}/save-as`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, name, format }),
+      });
+      const data = await res.json();
+      setCurrentFilePath(data.paths?.[0] || null);
+      setMetadata(prev => ({ ...prev, name: data.name || prev.name }));
+      setDirty(false);
+      setSaveStatus('saved');
+      setLastSaved(new Date().toISOString());
+      setTimeout(() => setSaveStatus(prev => prev === 'saved' ? 'idle' : prev), 3000);
+      // Refresh recent files
+      fetch(`${API}/recent-files`).then(r => r.ok ? r.json() : []).then(setRecentFiles);
+      return data;
+    } catch {
+      setSaveStatus('error');
+    }
+  }, []);
+
+  const openFile = useCallback(async (filePath) => {
+    try {
+      const res = await fetch(`${API}/load-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath }),
+      });
+      if (!res.ok) throw new Error('Failed to load');
+      const state = await res.json();
+      setCells(state.notebook?.cells || state.cells || []);
+      setGraph(state.graph || { cells: {}, var_producers: {} });
+      setVariables(state.variables || {});
+      setMetadata(state.notebook?.metadata || state.metadata || { name: 'untitled' });
+      setCurrentFilePath(filePath);
+      setDirty(false);
+      setSaveStatus('idle');
+      // Refresh recent files
+      fetch(`${API}/recent-files`).then(r => r.ok ? r.json() : []).then(setRecentFiles);
+      return state;
+    } catch (e) {
+      console.error('Open file failed:', e);
+    }
+  }, []);
+
+  // --- Kernel switch/refresh ---
+
+  const switchKernel = useCallback(async (pythonPath) => {
+    setKernelStatus('starting');
+    try {
+      const res = await fetch(`${API}/kernel/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ python_path: pythonPath }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setKernelStatus('ready');
+        setVariables({});
+        setCells(prev => prev.map(c => ({ ...c, outputs: [], execution_count: 0 })));
+        // Refresh kernel info
+        const infoRes = await fetch(`${API}/kernel/status`);
+        if (infoRes.ok) setKernelInfo(await infoRes.json());
+        return data;
+      } else {
+        setKernelStatus('error');
+      }
+    } catch (e) {
+      console.error('Kernel switch failed:', e);
+      setKernelStatus('error');
+    }
+  }, []);
+
+  const refreshKernels = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/kernel/refresh`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setKernelInfo(prev => ({
+          ...prev,
+          available_kernels: data.available_kernels,
+        }));
+        return data.available_kernels;
+      }
+    } catch (e) { console.error('Refresh kernels failed:', e); }
+  }, []);
+
+  // --- Undo/Redo ---
+
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const MAX_UNDO = 50;
+
+  const pushUndo = useCallback((action) => {
+    setUndoStack(prev => [...prev.slice(-(MAX_UNDO - 1)), action]);
+    setRedoStack([]); // Clear redo on new action
+  }, []);
+
+  const undo = useCallback(() => {
+    setUndoStack(prev => {
+      if (prev.length === 0) return prev;
+      const action = prev[prev.length - 1];
+      const newStack = prev.slice(0, -1);
+
+      // Reverse the action
+      if (action.type === 'delete_cell') {
+        setCells(c => {
+          const next = [...c];
+          next.splice(action.index, 0, action.cell);
+          return next;
+        });
+      } else if (action.type === 'add_cell') {
+        setCells(c => c.filter(cell => cell.id !== action.cellId));
+      } else if (action.type === 'clear_output') {
+        setCells(c => c.map(cell =>
+          cell.id === action.cellId ? { ...cell, outputs: action.outputs } : cell
+        ));
+      } else if (action.type === 'clear_all_outputs') {
+        setCells(action.previousCells);
+      }
+
+      setRedoStack(r => [...r, action]);
+      markDirty();
+      return newStack;
+    });
+  }, [markDirty]);
+
+  const redo = useCallback(() => {
+    setRedoStack(prev => {
+      if (prev.length === 0) return prev;
+      const action = prev[prev.length - 1];
+      const newStack = prev.slice(0, -1);
+
+      // Re-apply the action
+      if (action.type === 'delete_cell') {
+        setCells(c => c.filter(cell => cell.id !== action.cell.id));
+      } else if (action.type === 'add_cell') {
+        // Re-add is complex, just mark dirty
+      } else if (action.type === 'clear_output') {
+        setCells(c => c.map(cell =>
+          cell.id === action.cellId ? { ...cell, outputs: [], execution_count: 0 } : cell
+        ));
+      } else if (action.type === 'clear_all_outputs') {
+        setCells(c => c.map(cell => ({ ...cell, outputs: [], execution_count: 0 })));
+      }
+
+      setUndoStack(u => [...u, action]);
+      markDirty();
+      return newStack;
+    });
+  }, [markDirty]);
+
+  // --- Smart Import Suggestions ---
+
+  const suggestImports = useCallback(async (source, errorText = '') => {
+    try {
+      const res = await fetch(`${API}/suggest-imports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, error: errorText }),
+      });
+      if (res.ok) return (await res.json()).suggestions || [];
+    } catch (e) { console.error('Suggest imports failed:', e); }
+    return [];
+  }, []);
+
   return {
     cells, setCells, graph, variables, metadata,
     sessionId, connected, executing,
@@ -611,9 +792,18 @@ export function useNotebook() {
     insertRecipe, insertCellWithSource, loadNotebookState, renameNotebook, loadDemo,
     // Reactive DAG
     staleCellIds, runStaleCells,
+    // Save As / Open
+    saveAs, openFile, currentFilePath, recentFiles,
+    // Kernel management
+    switchKernel, refreshKernels,
+    // Undo/Redo
+    undo, redo, pushUndo, undoStack, redoStack,
+    // Smart imports
+    suggestImports,
     // Collaboration
     comments, addComment, resolveComment, deleteComment, replyToComment,
     reviews, requestReview, updateReview,
     userProfile,
   };
 }
+

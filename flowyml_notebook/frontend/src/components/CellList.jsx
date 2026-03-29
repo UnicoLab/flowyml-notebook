@@ -1,8 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import CellEditor from './CellEditor';
 import CellOutput from './CellOutput';
 import FileUploader from './FileUploader';
-import { Plus, Code, Type, Database, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Plus, Code, Type, Database, Zap, ChevronDown, ChevronUp,
+  ChevronRight, ChevronsDownUp, ChevronsUpDown
+} from 'lucide-react';
 import { FLOWYML_SNIPPETS, QUICK_INSERT_SNIPPETS } from '../data/flowymlSnippets';
 
 export default function CellList({
@@ -14,8 +17,83 @@ export default function CellList({
     return graph?.cells?.[cellId]?.state || 'idle';
   }, [graph]);
 
+  // Section folding state
+  const [collapsedSections, setCollapsedSections] = useState(new Set());
+
+  // Compute sections: each markdown cell starting with # is a section header
+  const sections = useMemo(() => {
+    const result = [];
+    let currentSection = null;
+
+    cells.forEach((cell, index) => {
+      const isHeader = cell.cell_type === 'markdown' &&
+        /^#{1,6}\s/.test((cell.source || '').trim());
+
+      if (isHeader) {
+        const match = (cell.source || '').trim().match(/^(#{1,6})\s+(.+)/);
+        currentSection = {
+          id: cell.id,
+          level: match ? match[1].length : 1,
+          title: match ? match[2].replace(/[#*_`]/g, '').trim() : 'Section',
+          startIndex: index,
+          cellIds: [cell.id],
+        };
+        result.push(currentSection);
+      } else if (currentSection) {
+        currentSection.cellIds.push(cell.id);
+      }
+    });
+
+    return result;
+  }, [cells]);
+
+  const getSectionForCell = useCallback((cellId) => {
+    return sections.find(s => s.cellIds.includes(cellId) && s.id !== cellId);
+  }, [sections]);
+
+  const isSectionHeader = useCallback((cellId) => {
+    return sections.some(s => s.id === cellId);
+  }, [sections]);
+
+  const isCellHidden = useCallback((cellId) => {
+    const section = getSectionForCell(cellId);
+    return section && collapsedSections.has(section.id);
+  }, [getSectionForCell, collapsedSections]);
+
+  const toggleSection = useCallback((sectionId) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setCollapsedSections(new Set(sections.map(s => s.id)));
+  }, [sections]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedSections(new Set());
+  }, []);
+
+  const hasSections = sections.length > 0;
+
   return (
     <div className="cell-container" id="cell-scroll-container">
+      {/* Section controls */}
+      {hasSections && (
+        <div className="section-controls">
+          <button className="section-ctrl-btn" onClick={collapseAll} title="Collapse all sections">
+            <ChevronsDownUp size={12} /> Collapse All
+          </button>
+          <button className="section-ctrl-btn" onClick={expandAll} title="Expand all sections">
+            <ChevronsUpDown size={12} /> Expand All
+          </button>
+          <span className="section-ctrl-count">{sections.length} section{sections.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+
       {cells.length === 0 && (
         <div className="flex flex-col items-center justify-center h-full text-gray-500">
           <p className="text-lg mb-4">No cells yet</p>
@@ -54,35 +132,60 @@ export default function CellList({
         </div>
       )}
 
-      {cells.map((cell, index) => (
-        <React.Fragment key={cell.id}>
-          {/* FlowyML-aware add cell button between cells */}
-          {index > 0 && (
-            <FlowyMLQuickInsert
-              onAdd={(type) => onAddCell(type, index)}
-              onInsertSnippet={(source, name) => onInsertSnippet?.(source, name, index)}
-            />
-          )}
+      {cells.map((cell, index) => {
+        const isHeader = isSectionHeader(cell.id);
+        const isCollapsed = collapsedSections.has(cell.id);
+        const hidden = isCellHidden(cell.id);
+        const section = isHeader ? sections.find(s => s.id === cell.id) : null;
 
-          <CellEditor
-            cell={cell}
-            state={getCellState(cell.id)}
-            focused={focusedCellId === cell.id}
-            executing={executing === cell.id || executing === 'all'}
-            upstream={graph?.cells?.[cell.id]?.upstream || []}
-            downstream={graph?.cells?.[cell.id]?.downstream || []}
-            onFocus={() => onFocusCell(cell.id)}
-            onUpdate={(source) => onUpdateCell(cell.id, source)}
-            onExecute={() => onExecuteCell(cell.id)}
-            onDelete={() => onDeleteCell(cell.id)}
-            onClearOutput={() => onClearOutput?.(cell.id)}
-            onWrapInStep={onInsertSnippet ? (newSource) => {
-              onUpdateCell(cell.id, newSource);
-            } : undefined}
-            theme={theme}
-          />
-        </React.Fragment>
-      ))}
+        // If this cell is inside a collapsed section, skip it
+        if (hidden) return null;
+
+        return (
+          <React.Fragment key={cell.id}>
+            {/* FlowyML-aware add cell button between cells */}
+            {index > 0 && !hidden && (
+              <FlowyMLQuickInsert
+                onAdd={(type) => onAddCell(type, index)}
+                onInsertSnippet={(source, name) => onInsertSnippet?.(source, name, index)}
+              />
+            )}
+
+            {/* Section header fold indicator */}
+            {isHeader && (
+              <div className="section-header-bar" onClick={() => toggleSection(cell.id)}>
+                <span className={`section-fold-icon ${isCollapsed ? 'collapsed' : ''}`}>
+                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                </span>
+                <span className="section-header-title">
+                  {section?.title || 'Section'}
+                </span>
+                <span className="section-cell-count">
+                  {(section?.cellIds.length || 1) - 1} cell{(section?.cellIds.length || 1) - 1 !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+
+            <CellEditor
+              cell={cell}
+              state={getCellState(cell.id)}
+              focused={focusedCellId === cell.id}
+              executing={executing === cell.id || executing === 'all'}
+              upstream={graph?.cells?.[cell.id]?.upstream || []}
+              downstream={graph?.cells?.[cell.id]?.downstream || []}
+              onFocus={() => onFocusCell(cell.id)}
+              onUpdate={(source) => onUpdateCell(cell.id, source)}
+              onExecute={() => onExecuteCell(cell.id)}
+              onDelete={() => onDeleteCell(cell.id)}
+              onClearOutput={() => onClearOutput?.(cell.id)}
+              onWrapInStep={onInsertSnippet ? (newSource) => {
+                onUpdateCell(cell.id, newSource);
+              } : undefined}
+              theme={theme}
+            />
+          </React.Fragment>
+        );
+      })}
 
       {/* Add cell at end */}
       {cells.length > 0 && (
