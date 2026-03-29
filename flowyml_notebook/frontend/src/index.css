@@ -1443,6 +1443,70 @@ body {
   50% { opacity: 0.5; }
 }
 
+/* Kernel status indicators */
+.kernel-starting { color: var(--warning) !important; }
+.kernel-ready { color: var(--success) !important; }
+.kernel-error { color: var(--error) !important; }
+.kernel-idle { color: var(--fg-dim) !important; }
+.status-kernel-spin { animation: spin 1s linear infinite; }
+.status-bar .indicator.idle { background: var(--fg-dim); opacity: 0.5; }
+
+/* Kernel picker */
+.status-kernel-picker-wrapper {
+  position: relative;
+}
+.status-kernel-picker-btn {
+  display: flex; align-items: center; gap: 4px;
+  background: none; border: 1px solid transparent;
+  color: var(--fg-dim); font-size: 0.66rem;
+  padding: 2px 8px; border-radius: 6px;
+  cursor: pointer; transition: all var(--transition);
+  font-family: 'JetBrains Mono', monospace;
+}
+.status-kernel-picker-btn:hover {
+  border-color: var(--border); background: var(--accent-glow);
+  color: var(--fg-secondary);
+}
+.status-kernel-picker-dropdown {
+  position: absolute; bottom: 100%; right: 0;
+  min-width: 240px; max-width: 320px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow);
+  z-index: 100; overflow: hidden;
+  margin-bottom: 4px;
+  animation: kernel-picker-in 0.15s ease;
+}
+@keyframes kernel-picker-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.status-kernel-picker-header {
+  padding: 8px 12px; font-size: 0.7rem; font-weight: 700;
+  color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.status-kernel-picker-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 12px; border: none;
+  background: none; color: var(--fg-secondary);
+  font-size: 0.72rem; cursor: pointer; text-align: left;
+  transition: all var(--transition);
+}
+.status-kernel-picker-item:hover {
+  background: var(--accent-glow); color: var(--fg-primary);
+}
+.status-kernel-picker-item.current {
+  color: var(--accent-light); font-weight: 600;
+}
+.kernel-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kernel-item-check { color: var(--success); flex-shrink: 0; }
+.status-kernel-picker-empty {
+  padding: 16px 12px; font-size: 0.7rem;
+  color: var(--fg-dim); text-align: center;
+}
+
 /* ===== Recipe Cards ===== */
 .cell-recipes {
   display: flex; flex-direction: column; height: 100%;

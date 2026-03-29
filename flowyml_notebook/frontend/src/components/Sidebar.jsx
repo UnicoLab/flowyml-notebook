@@ -25,7 +25,7 @@ const TABS = [
   { id: 'env', label: 'Environment', shortLabel: 'Env', icon: Terminal, group: 'system' },
 ];
 
-export default function Sidebar({ variables, graph, cells, metadata, connected, onInsertRecipe, onOpenNotebook, onScrollToCell, saveStatus }) {
+export default function Sidebar({ variables, graph, cells, metadata, connected, onInsertRecipe, onOpenNotebook, onScrollToCell, onFileOpen, saveStatus }) {
   const [activeTab, setActiveTab] = useState('variables');
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsed, setCollapsed] = useState(false);
@@ -103,7 +103,7 @@ export default function Sidebar({ variables, graph, cells, metadata, connected, 
               <NotebookManager currentNotebookName={metadata?.name} onOpenNotebook={onOpenNotebook} saveStatus={saveStatus} />
             )}
             {activeTab === 'files' && (
-              <FilesExplorer />
+              <FilesExplorer onFileOpen={onFileOpen} />
             )}
             {activeTab === 'recipes' && (
               <CellRecipes onInsertRecipe={onInsertRecipe} />

@@ -3,11 +3,12 @@ import {
   Play, RotateCcw, Save, PanelLeftClose, PanelLeftOpen,
   Sparkles, Zap, Command, ChevronDown, Rocket, Sun, Moon,
   GitBranch, Server, Check, X, FlaskConical, MessageSquare,
-  ClipboardCheck, User, FileText, Globe, AlertTriangle
+  ClipboardCheck, User, FileText, Globe, AlertTriangle, Eraser
 } from 'lucide-react';
 
 export default function NotebookHeader({
   metadata, executing, staleCellCount = 0, onRunAll, onRunStale, onSave, onResetKernel, onLoadDemo,
+  onClearAllOutputs,
   onToggleSidebar, onToggleAI, onToggleFlowyML, onToggleDAG, onToggleComments,
   onToggleReport, onToggleApp,
   onOpenPalette, onRenameNotebook, onRequestReview,
@@ -108,6 +109,10 @@ export default function NotebookHeader({
 
         <button className="btn btn-ghost" onClick={onSave} title="Save (⌘ S)">
           <Save size={13} />
+        </button>
+
+        <button className="btn btn-ghost" onClick={onClearAllOutputs} title="Clear All Outputs">
+          <Eraser size={13} />
         </button>
 
         <button className="btn btn-ghost" onClick={onResetKernel} title="Reset Kernel">

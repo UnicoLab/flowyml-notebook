@@ -7,7 +7,7 @@ import {
   Code, Type, Database, GripVertical, Eye, EyeOff,
   MoreHorizontal, Clock, ArrowUpDown, Check,
   Cpu, HardDrive, Activity, Gauge, Zap, Workflow,
-  Plus, ToggleLeft, Tag, FileCode, AlertTriangle
+  Plus, ToggleLeft, Tag, FileCode, AlertTriangle, Eraser
 } from 'lucide-react';
 import { detectFlowyML, wrapInStep, DETECTION_BADGES, extractAllArtifacts, getArtifactType } from '../data/flowymlSnippets';
 
@@ -22,7 +22,7 @@ const CELL_TYPE_CONFIG = {
 export default function CellEditor({
   cell, state, focused, executing, theme,
   upstream, downstream,
-  onFocus, onUpdate, onExecute, onDelete, onWrapInStep,
+  onFocus, onUpdate, onExecute, onDelete, onWrapInStep, onClearOutput,
 }) {
   const editorRef = useRef(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -62,8 +62,12 @@ export default function CellEditor({
 
   const handleEditorMount = useCallback((editor) => {
     editorRef.current = editor;
+    // Ctrl+Enter → run cell
     editor.addCommand(2048 | 3, () => onExecute());
+    // Ctrl+Shift+Enter → run cell
     editor.addCommand(2048 | 2048 | 3, () => onExecute());
+    // Shift+Enter → run cell and move to next (Jupyter-style)
+    editor.addCommand(1024 | 3, () => onExecute());
   }, [onExecute]);
 
   const handleChange = useCallback((value) => {
@@ -228,6 +232,14 @@ export default function CellEditor({
             >
               <Workflow size={11} />
               <span>Wrap in Step</span>
+            </button>
+          )}
+
+          {cell.outputs?.length > 0 && (
+            <button className="btn-icon" style={{ width: 24, height: 24 }}
+              onClick={(e) => { e.stopPropagation(); onClearOutput?.(); }}
+              title="Clear output">
+              <Eraser size={11} />
             </button>
           )}
 

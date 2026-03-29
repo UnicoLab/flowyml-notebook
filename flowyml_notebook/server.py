@@ -229,6 +229,28 @@ class NotebookServer:
                 "variables": self.notebook.session.get_variables(),
             }
 
+        # ===== Clear Cell Outputs =====
+
+        @app.post("/api/cells/{cell_id}/clear-output")
+        async def clear_cell_output(cell_id: str):
+            """Clear outputs for a single cell."""
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            cell.outputs = []
+            cell.execution_count = 0
+            return {"cell_id": cell_id, "cleared": True}
+
+        @app.post("/api/clear-all-outputs")
+        async def clear_all_outputs():
+            """Clear outputs for all cells."""
+            cleared = []
+            for cell in self.notebook.cells:
+                cell.outputs = []
+                cell.execution_count = 0
+                cleared.append(cell.id)
+            return {"cleared": cleared, "count": len(cleared)}
+
         @app.get("/api/variables")
         async def get_variables():
             """Get variable inspector data."""
@@ -1474,6 +1496,79 @@ class NotebookServer:
             """Reset the execution kernel."""
             self.notebook.session.reset()
             return {"status": "reset"}
+
+        @app.get("/api/kernel/status")
+        async def kernel_status():
+            """Get kernel status and available environments."""
+            import sys
+            import shutil
+
+            is_ready = self.notebook.session._initialized
+            current_python = sys.executable
+            current_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+            # Detect available Python environments
+            available_kernels = []
+            # Current interpreter
+            available_kernels.append({
+                "name": f"Python {current_version}",
+                "path": current_python,
+                "version": current_version,
+                "current": True,
+            })
+
+            # Check for common virtual environments
+            import os
+            cwd = os.getcwd()
+            venv_dirs = [".venv", "venv", "env", ".env"]
+            for vd in venv_dirs:
+                venv_python = os.path.join(cwd, vd, "bin", "python")
+                if os.path.isfile(venv_python) and os.path.realpath(venv_python) != os.path.realpath(current_python):
+                    try:
+                        import subprocess
+                        ver = subprocess.check_output(
+                            [venv_python, "--version"], text=True, timeout=5
+                        ).strip().split()[-1]
+                        available_kernels.append({
+                            "name": f"Python {ver} ({vd})",
+                            "path": venv_python,
+                            "version": ver,
+                            "current": False,
+                        })
+                    except Exception:
+                        pass
+
+            # Check conda environments
+            conda_path = shutil.which("conda")
+            if conda_path:
+                try:
+                    import subprocess
+                    result = subprocess.check_output(
+                        ["conda", "env", "list", "--json"], text=True, timeout=10
+                    )
+                    import json as json_mod
+                    envs = json_mod.loads(result).get("envs", [])
+                    for env_path in envs[:10]:  # Limit to 10
+                        env_python = os.path.join(env_path, "bin", "python")
+                        if os.path.isfile(env_python) and os.path.realpath(env_python) != os.path.realpath(current_python):
+                            env_name = os.path.basename(env_path)
+                            available_kernels.append({
+                                "name": f"Python (conda: {env_name})",
+                                "path": env_python,
+                                "version": "",
+                                "current": False,
+                            })
+                except Exception:
+                    pass
+
+            return {
+                "status": "ready" if is_ready else "idle",
+                "kernel_name": f"Python {current_version}",
+                "python_version": current_version,
+                "python_path": current_python,
+                "session_id": self.notebook.session.session_id,
+                "available_kernels": available_kernels,
+            }
 
         # --- Notebook Management ---
 

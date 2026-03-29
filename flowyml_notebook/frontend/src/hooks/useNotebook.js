@@ -16,6 +16,8 @@ export function useNotebook() {
   const [sessionId, setSessionId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [executing, setExecuting] = useState(null); // cell_id being executed
+  const [kernelStatus, setKernelStatus] = useState('idle'); // 'idle' | 'starting' | 'ready' | 'error'
+  const [kernelInfo, setKernelInfo] = useState(null); // { kernel_name, available_kernels, ... }
   const [dirty, setDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
   const [lastSaved, setLastSaved] = useState(null);
@@ -35,6 +37,17 @@ export function useNotebook() {
           setMetadata(state.notebook?.metadata || { name: 'untitled' });
           setSessionId(state.session_id);
           setConnected(state.connected);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch kernel status
+    fetch(`${API}/kernel/status`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setKernelInfo(data);
+          if (data.status === 'ready') setKernelStatus('ready');
         }
       })
       .catch(() => {});
@@ -190,6 +203,10 @@ export function useNotebook() {
 
   const executeCell = useCallback(async (cellId) => {
     setExecuting(cellId);
+    // Track kernel startup for the very first execution
+    if (kernelStatus === 'idle') {
+      setKernelStatus('starting');
+    }
     setGraph(prev => ({
       ...prev,
       cells: {
@@ -200,6 +217,11 @@ export function useNotebook() {
 
     try {
       const res = await fetch(`${API}/cells/${cellId}/execute`, { method: 'POST' });
+
+      // Kernel is now ready after first successful execution
+      if (kernelStatus !== 'ready') {
+        setKernelStatus('ready');
+      }
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => `HTTP ${res.status}`);
@@ -252,6 +274,7 @@ export function useNotebook() {
       markDirty();
     } catch (err) {
       console.error('Execute cell error:', err);
+      if (kernelStatus === 'starting') setKernelStatus('error');
       setCells(prev => prev.map(c =>
         c.id === cellId
           ? { ...c, outputs: [{ output_type: 'error', data: `Network error: ${err.message}` }] }
@@ -263,7 +286,7 @@ export function useNotebook() {
       }));
     }
     setExecuting(null);
-  }, [markDirty]);
+  }, [markDirty, kernelStatus]);
 
   const executeAll = useCallback(async () => {
     setExecuting('all');
@@ -306,7 +329,28 @@ export function useNotebook() {
     setVariables({});
     setGraph({ cells: {}, var_producers: {} });
     setCells(prev => prev.map(c => ({ ...c, outputs: [], execution_count: 0 })));
+    setKernelStatus('idle');
   }, []);
+
+  // --- Clear outputs ---
+
+  const clearCellOutput = useCallback(async (cellId) => {
+    setCells(prev => prev.map(c =>
+      c.id === cellId ? { ...c, outputs: [], execution_count: 0 } : c
+    ));
+    markDirty();
+    try {
+      await fetch(`${API}/cells/${cellId}/clear-output`, { method: 'POST' });
+    } catch (e) { console.error('Clear output failed:', e); }
+  }, [markDirty]);
+
+  const clearAllOutputs = useCallback(async () => {
+    setCells(prev => prev.map(c => ({ ...c, outputs: [], execution_count: 0 })));
+    markDirty();
+    try {
+      await fetch(`${API}/clear-all-outputs`, { method: 'POST' });
+    } catch (e) { console.error('Clear all outputs failed:', e); }
+  }, [markDirty]);
 
   // --- Reactive: stale cell tracking ---
   const staleCellIds = useMemo(() => {
@@ -560,8 +604,10 @@ export function useNotebook() {
     cells, setCells, graph, variables, metadata,
     sessionId, connected, executing,
     dirty, saveStatus, lastSaved,
+    kernelStatus, kernelInfo,
     addCell, updateCell, deleteCell,
     executeCell, executeAll, resetKernel, saveNotebook, uploadCSV,
+    clearCellOutput, clearAllOutputs,
     insertRecipe, insertCellWithSource, loadNotebookState, renameNotebook, loadDemo,
     // Reactive DAG
     staleCellIds, runStaleCells,

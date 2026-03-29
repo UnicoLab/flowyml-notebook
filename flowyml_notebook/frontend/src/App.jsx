@@ -47,6 +47,8 @@ export default function App() {
       case 'add-sql': notebook.addCell('sql'); break;
       case 'delete-cell': if (focusedCellId) notebook.deleteCell(focusedCellId); break;
       case 'save': notebook.saveNotebook(); break;
+      case 'clear-all-outputs': notebook.clearAllOutputs(); break;
+      case 'clear-cell-output': if (focusedCellId) notebook.clearCellOutput(focusedCellId); break;
       case 'export-pipeline': handleAction('export', { format: 'pipeline' }); break;
       case 'export-html': handleAction('export', { format: 'html' }); break;
       case 'promote': handleAction('promote'); break;
@@ -148,21 +150,106 @@ export default function App() {
         e.preventDefault();
         notebook.executeAll();
       }
+      // Shift+Enter → Execute focused cell and move to next (Jupyter-style)
+      // Only when NOT inside Monaco editor (Monaco handles its own Shift+Enter)
+      if (e.shiftKey && e.key === 'Enter' && !(e.metaKey || e.ctrlKey)) {
+        const isInMonaco = e.target.closest('.monaco-editor');
+        if (!isInMonaco && focusedCellId) {
+          e.preventDefault();
+          notebook.executeCell(focusedCellId);
+          // Move focus to next cell
+          const currentIndex = notebook.cells.findIndex(c => c.id === focusedCellId);
+          if (currentIndex >= 0 && currentIndex < notebook.cells.length - 1) {
+            const nextCell = notebook.cells[currentIndex + 1];
+            setFocusedCellId(nextCell.id);
+            const el = document.getElementById(`cell-${nextCell.id}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }
       // Cmd+Shift+D → Toggle DAG
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'd') {
         e.preventDefault();
         setRightPanel(p => p === 'dag' ? null : 'dag');
       }
+      // Cmd+Shift+Backspace → Clear all outputs
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Backspace') {
+        e.preventDefault();
+        notebook.clearAllOutputs();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [notebook]);
+  }, [notebook, focusedCellId]);
 
   const scrollToCell = useCallback((cellId) => {
     setFocusedCellId(cellId);
     const el = document.getElementById(`cell-${cellId}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
+
+  // File open handler for the file browser (Issue #5)
+  const handleFileOpen = useCallback((fileNode) => {
+    if (!fileNode || fileNode.is_dir) return;
+    const ext = fileNode.name.split('.').pop()?.toLowerCase();
+    const path = fileNode.path;
+
+    // Notebook files → load them
+    if (ext === 'py' && fileNode.name.includes('notebook')) {
+      // Attempt to load as notebook
+      fetch(`/api/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      }).then(r => r.ok ? r.json() : null)
+        .then(state => { if (state) notebook.loadNotebookState(state); })
+        .catch(console.error);
+      return;
+    }
+
+    // CSV/TSV → load as DataFrame
+    if (['csv', 'tsv'].includes(ext)) {
+      const varName = fileNode.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      const source = `import pandas as pd\n\n${varName} = pd.read_csv("${path}")\nprint(f"Loaded {len(${varName})} rows × {len(${varName}.columns)} columns")\n${varName}`;
+      notebook.insertCellWithSource(source, `load_${varName}`);
+      return;
+    }
+
+    // JSON → load and inspect
+    if (ext === 'json') {
+      const varName = fileNode.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      const source = `import json\n\nwith open("${path}") as f:\n    ${varName} = json.load(f)\n\nprint(f"Loaded JSON: {type(${varName}).__name__}")\n${varName}`;
+      notebook.insertCellWithSource(source, `load_${varName}`);
+      return;
+    }
+
+    // Python files → import or read
+    if (ext === 'py') {
+      const source = `# Loaded from: ${path}\nwith open("${path}") as f:\n    print(f.read())`;
+      notebook.insertCellWithSource(source, `view_${fileNode.name}`);
+      return;
+    }
+
+    // Images → display
+    if (['png', 'jpg', 'jpeg', 'svg', 'gif'].includes(ext)) {
+      const source = `from IPython.display import Image, display\ndisplay(Image(filename="${path}"))`;
+      notebook.insertCellWithSource(source, `show_${fileNode.name}`);
+      return;
+    }
+
+    // Pickle / model files → load
+    if (['pkl', 'pickle', 'joblib'].includes(ext)) {
+      const varName = fileNode.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      const loader = ext === 'joblib' ? 'joblib' : 'pickle';
+      const source = `import ${loader}\n\nwith open("${path}", "rb") as f:\n    ${varName} = ${loader}.load(f)\n\nprint(f"Loaded: {type(${varName}).__name__}")\n${varName}`;
+      notebook.insertCellWithSource(source, `load_${varName}`);
+      return;
+    }
+
+    // Default → read as text
+    const source = `with open("${path}") as f:\n    content = f.read()\nprint(content[:2000])`;
+    notebook.insertCellWithSource(source, `view_${fileNode.name}`);
+  }, [notebook]);
 
   // Pending reviews count for badge
   const pendingReviews = notebook.reviews.filter(r => r.status === 'pending').length;
@@ -215,6 +302,7 @@ export default function App() {
         onSave={() => notebook.saveNotebook()}
         onResetKernel={notebook.resetKernel}
         onLoadDemo={notebook.loadDemo}
+        onClearAllOutputs={notebook.clearAllOutputs}
         onRenameNotebook={notebook.renameNotebook}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onToggleAI={() => setRightPanel(p => p === 'ai' ? null : 'ai')}
@@ -256,6 +344,7 @@ export default function App() {
                 onInsertRecipe={notebook.insertRecipe}
                 onOpenNotebook={notebook.loadNotebookState}
                 onScrollToCell={scrollToCell}
+                onFileOpen={handleFileOpen}
                 saveStatus={notebook.saveStatus}
               />
             </Panel>
@@ -275,6 +364,7 @@ export default function App() {
             onExecuteCell={notebook.executeCell}
             onDeleteCell={notebook.deleteCell}
             onAddCell={notebook.addCell}
+            onClearOutput={notebook.clearCellOutput}
             onInsertSnippet={(source, name, index) => notebook.insertCellWithSource(source, name, 'code', index ?? null)}
             theme={theme}
           />
@@ -360,6 +450,8 @@ export default function App() {
         saveStatus={notebook.saveStatus}
         lastSaved={notebook.lastSaved}
         dirty={notebook.dirty}
+        kernelStatus={notebook.kernelStatus}
+        kernelInfo={notebook.kernelInfo}
       />
 
       {/* Command Palette */}

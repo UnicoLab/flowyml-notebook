@@ -8,7 +8,7 @@ import { FLOWYML_SNIPPETS, QUICK_INSERT_SNIPPETS } from '../data/flowymlSnippets
 export default function CellList({
   cells, graph, executing, focusedCellId, theme,
   onFocusCell, onUpdateCell, onExecuteCell, onDeleteCell, onAddCell,
-  onInsertSnippet,
+  onInsertSnippet, onClearOutput,
 }) {
   const getCellState = useCallback((cellId) => {
     return graph?.cells?.[cellId]?.state || 'idle';
@@ -75,6 +75,7 @@ export default function CellList({
             onUpdate={(source) => onUpdateCell(cell.id, source)}
             onExecute={() => onExecuteCell(cell.id)}
             onDelete={() => onDeleteCell(cell.id)}
+            onClearOutput={() => onClearOutput?.(cell.id)}
             onWrapInStep={onInsertSnippet ? (newSource) => {
               onUpdateCell(cell.id, newSource);
             } : undefined}

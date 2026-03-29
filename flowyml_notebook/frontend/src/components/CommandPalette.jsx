@@ -4,7 +4,7 @@ import {
   BarChart3, Rocket, Clock, Zap, Sparkles, GitBranch,
   Plus, Code, Type, Database, Trash2, Settings, Moon, Sun, Layout,
   Command, FileText, Globe, Workflow, Box, Activity, Cpu, ToggleLeft,
-  FlaskConical, Package
+  FlaskConical, Package, Eraser
 } from 'lucide-react';
 
 const ALL_COMMANDS = [
@@ -15,6 +15,8 @@ const ALL_COMMANDS = [
   { id: 'add-markdown', label: 'Add Markdown Cell', shortcut: ['⌘', 'M'], icon: Type, group: 'Cells' },
   { id: 'add-sql', label: 'Add SQL Cell', icon: Database, group: 'Cells' },
   { id: 'delete-cell', label: 'Delete Cell', shortcut: ['⌘', '⌫'], icon: Trash2, group: 'Cells' },
+  { id: 'clear-cell-output', label: 'Clear Cell Output', icon: Eraser, group: 'Cells' },
+  { id: 'clear-all-outputs', label: 'Clear All Outputs', shortcut: ['⌘', '⇧', '⌫'], icon: Eraser, group: 'Cells' },
   { id: 'save', label: 'Save Notebook', shortcut: ['⌘', 'S'], icon: Save, group: 'File' },
   { id: 'export-pipeline', label: 'Export as Pipeline', icon: FileCode, group: 'File' },
   { id: 'export-html', label: 'Export HTML Report', icon: BarChart3, group: 'File' },
