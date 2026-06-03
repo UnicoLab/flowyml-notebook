@@ -87,7 +87,7 @@ jobs:
 
   PYPI_PUBLISH:
     needs: [SEMANTIC_RELEASE]
-    if: ${{ needs.SEMANTIC_RELEASE.outputs.release_created == 'true' || inputs.SKIP_RELEASE }}
+    if: ${{ always() && (needs.SEMANTIC_RELEASE.outputs.release_created == 'true' || inputs.SKIP_RELEASE) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -148,10 +148,11 @@ jobs:
         id: publish_pypi
         run: |
           python -m build
-          twine upload dist/*
+          twine upload dist/* --verbose
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        timeout-minutes: 5
         continue-on-error: true
 
       - name: Retry PyPI publish on failure
@@ -168,7 +169,7 @@ jobs:
 
   UPDATE_DOCS:
     needs: [SEMANTIC_RELEASE, PYPI_PUBLISH]
-    if: ${{ (needs.SEMANTIC_RELEASE.outputs.release_created == 'true' && !failure('PYPI_PUBLISH')) || inputs.SKIP_RELEASE }}
+    if: ${{ always() && ((needs.SEMANTIC_RELEASE.outputs.release_created == 'true' && needs.PYPI_PUBLISH.result != 'failure') || inputs.SKIP_RELEASE) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
