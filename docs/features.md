@@ -512,9 +512,9 @@ Widgets participate in the reactive DAG — when a user changes a slider value, 
 
 ---
 
-## :microscope: Killer Features — NEW in v1.5
+## :microscope: Killer Features — NEW in v2.0
 
-FlowyML Notebook v1.5 introduces **13 built-in analysis tools** — a complete data science toolkit embedded directly in the notebook. No extra installs, no configuration.
+FlowyML Notebook v2.0 introduces **13 built-in analysis tools** — a complete data science toolkit embedded directly in the notebook. No extra installs, no configuration.
 
 <div class="grid cards" markdown>
 

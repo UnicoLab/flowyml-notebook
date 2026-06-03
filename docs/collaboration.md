@@ -200,7 +200,7 @@ Collaborate in context with **inline comments**:
 - **@Mentions** — Tag teammates with `@username` to notify them
 - **Emoji reactions** — React to comments with 👍 ❤️ 🎉 and more
 
-### Review Approval Workflow — NEW in v1.5
+### Review Approval Workflow — NEW in v2.0
 
 Request formal reviews for your notebook — GitHub PR-style approval workflow:
 
@@ -216,7 +216,7 @@ POST /api/reviews/{id}/request-changes    # Request changes
 GET  /api/reviews/summary                 # Status counts
 ```
 
-### Notebook Sharing — NEW in v1.5
+### Notebook Sharing — NEW in v2.0
 
 Share your notebook with a single click:
 
@@ -231,7 +231,7 @@ GET    /api/shares                 # List active shares
 DELETE /api/shares/{share_id}      # Revoke a share
 ```
 
-### Activity Feed — NEW in v1.5
+### Activity Feed — NEW in v2.0
 
 Unified timeline of all notebook collaboration activity:
 

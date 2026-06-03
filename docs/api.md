@@ -265,7 +265,7 @@ POST   /api/patterns/search             # Search by query, tags, type
 }
 ```
 
-### REST API — Killer Features (v1.5)
+### REST API — Killer Features (v2.0)
 
 See the comprehensive [Killer Features](killer-features.md) page for full API documentation covering all 13 built-in tools (profiler, benchmark, data validator, code analyzer, execution history, lineage, environment, package installer, Jupyter converter, notebook diff, snippets, cell dependencies, and search).
 

@@ -267,7 +267,7 @@ Run **standalone** (Local Mode) or connect to a **FlowyML server** (Remote Mode)
 
 ---
 
-## 🔬 Killer Features — NEW in v1.5
+## 🔬 Killer Features — NEW in v2.0
 
 FlowyML Notebook ships with **13 built-in analysis tools** — a full data science toolkit embedded directly in the notebook. No extra installs, no configuration.
 

@@ -11,7 +11,7 @@ Core features:
 - SQL cells: mixed Python + SQL workflows
 - Scheduling & deployment: production-ready from within the notebook
 
-Killer features (v1.5+):
+Killer features (v2.0+):
 - Cell Profiler: CPU, memory, and function call profiling
 - Cell Benchmark: statistical timing with regression detection
 - Data Validator: automatic DataFrame quality scoring
