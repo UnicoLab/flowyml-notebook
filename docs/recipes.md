@@ -168,9 +168,9 @@ When a teammate pushes a recipe, it appears in the **Shared** tab for everyone w
 
 ---
 
-## :unicorn: UnicoLab Ecosystem Recipes — NEW in v1.3
+## :unicorn: UnicoLab Ecosystem Recipes
 
-FlowyML Notebook v1.3 adds **4 builtin ecosystem recipes** that provide ready-to-use workflows for the UnicoLab ML stack:
+FlowyML Notebook includes **4 builtin ecosystem recipes** that provide ready-to-use workflows for the UnicoLab ML stack:
 
 | Recipe | Package | What It Does |
 |--------|---------|-------------|

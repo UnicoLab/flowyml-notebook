@@ -67,7 +67,7 @@ See [Data Exploration](exploration.md) for the full breakdown.
 
 ---
 
-## :wrench: SmartPrep Advisor — NEW in v1.2
+## :wrench: SmartPrep Advisor
 
 Stop guessing what preprocessing to apply. The **SmartPrep Advisor** analyzes your DataFrame and generates actionable, ready-to-run suggestions — automatically.
 
@@ -96,7 +96,7 @@ Access the SmartPrep tab in the DataFrameExplorer — no code needed. Just click
 
 ---
 
-## :brain: Algorithm Matchmaker — NEW in v1.2
+## :brain: Algorithm Matchmaker
 
 Don't know which ML algorithm to use? The **Algorithm Matchmaker** analyzes your data characteristics, detects the task type, and ranks the best algorithms — with full pipeline code.
 
@@ -136,7 +136,7 @@ print(classification_report(y_test, model.predict(X_test)))
 
 ---
 
-## :unicorn: UnicoLab Keras Ecosystem — NEW in v1.3
+## :unicorn: UnicoLab Keras Ecosystem
 
 Native integration with the **UnicoLab ML ecosystem** — [KDP](https://github.com/UnicoLab/keras-data-processor), [KerasFactory](https://github.com/UnicoLab/KerasFactory), and [MLPotion](https://github.com/UnicoLab/MLPotion). Install the full stack with:
 
@@ -170,7 +170,7 @@ See [Ecosystem](ecosystem.md) for the full guide with code examples.
 
 ---
 
-## :chart_with_upwards_trend: Live Interactive Dashboards — NEW in v1.2
+## :chart_with_upwards_trend: Live Interactive Dashboards
 
 Transform any notebook into a **stakeholder-ready interactive dashboard** — with auto-detected widgets, auto-refresh, shareable URLs, and email snapshots.
 
@@ -194,7 +194,7 @@ Access via the **App Publisher** panel → enable "Interactive Widgets" toggle.
 
 ---
 
-## :bookmark: Collaborative Analysis Patterns — NEW in v1.2
+## :bookmark: Collaborative Analysis Patterns
 
 Bookmark reusable cell sequences as **Analysis Patterns** — share them across notebooks, search by tags, and apply with one click.
 
@@ -512,9 +512,9 @@ Widgets participate in the reactive DAG — when a user changes a slider value, 
 
 ---
 
-## :microscope: Killer Features — NEW in v2.0
+## :microscope: Killer Features
 
-FlowyML Notebook v2.0 introduces **13 built-in analysis tools** — a complete data science toolkit embedded directly in the notebook. No extra installs, no configuration.
+FlowyML Notebook introduces **13 built-in analysis tools** — a complete data science toolkit embedded directly in the notebook. No extra installs, no configuration.
 
 <div class="grid cards" markdown>
 

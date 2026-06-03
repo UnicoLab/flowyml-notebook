@@ -17,7 +17,7 @@ FlowyML Notebook is a full-stack application with a Python backend, React fronte
 │  │ (Monaco) │  │ & Nav    │  │ Explorer    │  │ (ReactFlow) │  │
 │  └──────────┘  └──────────┘  └─────────────┘  └─────────────┘  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    Tools Panel (v2.0)                     │   │
+│  │                    Tools Panel                     │   │
 │  │  Profile │ Benchmark │ Quality │ Lint │ History │ Env    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                      React + Vite                               │
@@ -34,7 +34,7 @@ FlowyML Notebook is a full-stack application with a Python backend, React fronte
 │  │ API          │  │ Store        │  │ (Remote Exec)      │    │
 │  └──────────────┘  └──────────────┘  └────────────────────┘    │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              Killer Features (v2.0) — 13 modules         │   │
+│  │              Killer Features — 13 modules         │   │
 │  │  Profiler · Benchmark · DataValidator · CodeAnalyzer     │   │
 │  │  ExecHistory · Lineage · Environment · PackageInstaller  │   │
 │  │  IpynbConverter · Diff · Snippets · CellDeps · Search    │   │

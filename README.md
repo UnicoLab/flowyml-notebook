@@ -121,7 +121,7 @@ Cells are nodes in a **dependency graph**. Change a variable, and only dependent
 
 ---
 
-### 🦄 UnicoLab Keras Ecosystem — NEW in v1.3
+### 🦄 UnicoLab Keras Ecosystem
 
 Native integration with the **UnicoLab ML ecosystem** — [KDP](https://github.com/UnicoLab/keras-data-processor), [KerasFactory](https://github.com/UnicoLab/KerasFactory), and [MLPotion](https://github.com/UnicoLab/MLPotion). All packages are optional and auto-detected.
 
@@ -267,7 +267,7 @@ Run **standalone** (Local Mode) or connect to a **FlowyML server** (Remote Mode)
 
 ---
 
-## 🔬 Killer Features — NEW in v2.0
+## 🔬 Killer Features
 
 FlowyML Notebook ships with **13 built-in analysis tools** — a full data science toolkit embedded directly in the notebook. No extra installs, no configuration.
 

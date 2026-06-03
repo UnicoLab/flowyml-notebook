@@ -71,7 +71,7 @@ Automated recommendations for ML preprocessing — no manual analysis needed:
 
 ---
 
-## :wrench: SmartPrep Advisor — NEW in v1.2
+## :wrench: SmartPrep Advisor
 
 Go beyond insights — get **actionable preprocessing suggestions** with severity-ranked cards and ready-to-run Python code.
 
@@ -88,7 +88,7 @@ Each card includes a **"Generate Cell"** button that inserts the fix directly in
 
 ---
 
-## :brain: Algorithm Matchmaker — NEW in v1.2
+## :brain: Algorithm Matchmaker
 
 Select a target column and get **ranked ML algorithm recommendations** with reasoning, caveats, and complete pipeline code.
 

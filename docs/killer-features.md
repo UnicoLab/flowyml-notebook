@@ -1,8 +1,8 @@
-# :fire: Killer Features — v2.0.0
+# :fire: Killer Features
 
-FlowyML Notebook v2.0.0 introduces **13 new modules** that transform your notebook from a scratchpad into a professional data-science workstation. Every feature is available via Python API, CLI, and GUI — zero configuration required.
+FlowyML Notebook introduces **13 new modules** that transform your notebook from a scratchpad into a professional data-science workstation. Every feature is available via Python API, CLI, and GUI — zero configuration required.
 
-!!! success "What's New in v2.0.0"
+!!! success "What's New"
     This release focuses on **observability**, **code intelligence**, and **interoperability** — the three pillars that separate a hobby notebook from a production-grade ML development environment.
 
 | Category | Features | Modules |
