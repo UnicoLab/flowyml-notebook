@@ -87,6 +87,30 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 
     Native Keras integration with KDP, KerasFactory, and MLPotion. End-to-end deep learning pipelines from preprocessing to training.
 
+-   :material-speedometer:{ .lg .middle } **Killer Features**
+
+    ---
+
+    13 built-in analysis tools — profiler, benchmark, search, snippets, code analyzer, and more. A full data science toolkit, zero config.
+
+-   :material-swap-horizontal:{ .lg .middle } **Jupyter Compatible**
+
+    ---
+
+    Import and export `.ipynb` files seamlessly. Migrate from Jupyter with zero friction — keep all your outputs and metadata.
+
+-   :material-magnify:{ .lg .middle } **Smart Search**
+
+    ---
+
+    Full-text search with fuzzy matching, regex, find & replace, and duplicate code detection — across all cells.
+
+-   :material-code-braces:{ .lg .middle } **Code Snippets**
+
+    ---
+
+    35 built-in data science snippets across 8 categories. Search, insert, and contribute your own.
+
 </div>
 
 ---
@@ -149,6 +173,7 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 | Preprocessing help | None | SmartPrep Advisor with code generation |
 | Algorithm selection | Trial and error | Algorithm Matchmaker with ranked recommendations |
 | Code reuse | Copy between notebooks | 43 recipes + Collaborative Analysis Patterns + Ecosystem recipes |
+| Built-in tools | None | 13 killer features: profiler, benchmark, search, snippets, dependencies, and more |
 
 ---
 
@@ -156,7 +181,7 @@ No cloud lock-in. No JSON diffs. No stale state. Just pure Python notebooks that
 
 ```bash
 pip install "flowyml-notebook[all]"
-fml-notebook start
+fml-notebook start   # or: fmln start
 ```
 
 Your browser opens. Start building. :arrow_right: [Full Getting Started Guide](getting-started.md)

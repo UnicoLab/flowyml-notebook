@@ -30,7 +30,16 @@ Get up and running with FlowyML Notebook in **under 60 seconds**. No Docker, no 
 | `[ai]` | :robot: AI assistant (OpenAI & Google Generative AI) |
 | `[sql]` | :floppy_disk: SQL cells with DuckDB & SQLAlchemy |
 | `[exploration]` | :mag: Advanced DataFrame profiling with ML insights |
+| `[keras]` | :unicorn: UnicoLab Keras ecosystem (KDP, KerasFactory, MLPotion) |
 | `[all]` | :package: Everything above — **recommended** |
+
+!!! tip "Short Alias"
+    You can use `fmln` instead of `fml-notebook` — it's the same CLI:
+    ```bash
+    fmln start          # same as fml-notebook start
+    fmln dev            # same as fml-notebook dev
+    ```
+    You can also `import fmln` in Python as a shorthand for `import flowyml_notebook`.
 
 ---
 
@@ -157,6 +166,7 @@ Or configure from the **Env** panel in the sidebar.
 | :handshake: [Collaboration](collaboration.md) | GitHub-powered team workflows |
 | :electric_plug: [Integration](integration.md) | Pipelines, deploy, and asset management |
 | :mag: [Data Exploration](exploration.md) | Deep dive into DataFrame profiling |
+| :microscope: [Killer Features](killer-features.md) | 13 built-in analysis tools for data science |
 
 !!! info "Need Help?"
     - :bug: [Bug Reports](https://github.com/UnicoLab/flowyml-notebook/issues)

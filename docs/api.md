@@ -2,7 +2,10 @@
 
 ## CLI Reference
 
-FlowyML Notebook provides six CLI commands via the `fml-notebook` entry point.
+FlowyML Notebook provides eight CLI commands via the `fml-notebook` entry point.
+
+!!! tip "Short Alias"
+    All commands work with the `fmln` alias: `fmln dev`, `fmln start`, `fmln convert`, etc.
 
 ### `fml-notebook dev`
 
@@ -82,6 +85,30 @@ List notebooks on a remote FlowyML server.
 ```bash
 fml-notebook list --server <URL>
 ```
+
+### `fml-notebook convert`
+
+Convert between `.ipynb` and `.py` notebook formats.
+
+```bash
+fml-notebook convert <file> [OPTIONS]
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--output`, `-o` | — | Output file path (auto-detected from input extension) |
+
+### `fml-notebook diff`
+
+Compare two notebooks and display cell-level differences.
+
+```bash
+fml-notebook diff <file_a> <file_b> [OPTIONS]
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--html` | `false` | Output diff as HTML instead of terminal text |
 
 ---
 
@@ -238,6 +265,10 @@ POST   /api/patterns/search             # Search by query, tags, type
 }
 ```
 
+### REST API — Killer Features (v1.5)
+
+See the comprehensive [Killer Features](killer-features.md) page for full API documentation covering all 13 built-in tools (profiler, benchmark, data validator, code analyzer, execution history, lineage, environment, package installer, Jupyter converter, notebook diff, snippets, cell dependencies, and search).
+
 ---
 
 ### Supporting Modules
@@ -255,4 +286,17 @@ POST   /api/patterns/search             # Search by query, tags, type
 | `flowyml_notebook.sql` | SQL cell engine (DuckDB, SQLAlchemy) |
 | `flowyml_notebook.ai` | AI assistant integration |
 | `flowyml_notebook.ui` | App mode and widget system |
+| `flowyml_notebook.profiler` | Cell CPU/memory profiling |
+| `flowyml_notebook.benchmark` | Statistical cell benchmarking |
+| `flowyml_notebook.data_validator` | DataFrame quality scoring |
+| `flowyml_notebook.code_analyzer` | Smart linting and auto-fix |
+| `flowyml_notebook.execution_history` | Time-travel debugging |
+| `flowyml_notebook.lineage` | Data transformation tracking |
+| `flowyml_notebook.environment` | Environment snapshots |
+| `flowyml_notebook.package_installer` | In-notebook package management |
+| `flowyml_notebook.ipynb_converter` | Jupyter .ipynb conversion |
+| `flowyml_notebook.diff` | Notebook comparison |
+| `flowyml_notebook.snippets` | Code snippet library |
+| `flowyml_notebook.cell_deps` | Cell dependency analysis |
+| `flowyml_notebook.search` | Full-text notebook search |
 

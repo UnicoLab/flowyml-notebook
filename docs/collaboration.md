@@ -144,7 +144,7 @@ Turn your best code patterns into **shared team recipes** — reusable templates
 
 <figure markdown>
   ![Recipes Panel](screenshots/recipies.png){ width="60%" }
-  <figcaption>39 built-in recipes plus your team's custom shared catalog</figcaption>
+  <figcaption>83 built-in recipes plus your team's custom shared catalog</figcaption>
 </figure>
 
 ### Push a Recipe
@@ -195,8 +195,51 @@ Collaborate in context with **inline comments**:
 
 - **Notebook-level comments** — General discussion about the analysis
 - **Cell-level annotations** — Target specific code, outputs, or data
-- **Threaded replies** — Keep conversations organized
+- **Threaded replies** — Keep conversations organized with nested threads
 - **Resolve** — Mark completed discussions to declutter
+- **@Mentions** — Tag teammates with `@username` to notify them
+- **Emoji reactions** — React to comments with 👍 ❤️ 🎉 and more
+
+### Review Approval Workflow — NEW in v1.5
+
+Request formal reviews for your notebook — GitHub PR-style approval workflow:
+
+1. Click **Request Review** in the Comments panel
+2. Add **reviewers**, a **title**, and **description**
+3. Reviewers can **Approve** ✅, **Request Changes** 🔄, or leave comments
+4. Track review status in the **Review Summary** dashboard
+
+```
+POST /api/reviews                         # Request a review
+POST /api/reviews/{id}/approve            # Approve a review
+POST /api/reviews/{id}/request-changes    # Request changes
+GET  /api/reviews/summary                 # Status counts
+```
+
+### Notebook Sharing — NEW in v1.5
+
+Share your notebook with a single click:
+
+- **Read-only** — Viewers can see but not edit
+- **Comment** — Viewers can add comments and reactions
+- **Edit** — Full collaborative editing access
+- **Expiring links** — Auto-expire after 24h (configurable)
+
+```
+POST   /api/share                  # Generate shareable link
+GET    /api/shares                 # List active shares
+DELETE /api/shares/{share_id}      # Revoke a share
+```
+
+### Activity Feed — NEW in v1.5
+
+Unified timeline of all notebook collaboration activity:
+
+```
+GET /api/activity?limit=50
+```
+
+Returns a chronological feed combining comments, replies, reviews, and shares — so you never miss what your team has been doing.
 
 ---
 

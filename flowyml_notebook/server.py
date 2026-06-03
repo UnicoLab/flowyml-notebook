@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from flowyml_notebook import __version__
 from flowyml_notebook.core import Notebook
 from flowyml_notebook.kernel import NotebookKernel
 from flowyml_notebook.cells import CellType
@@ -100,6 +101,12 @@ class NotebookServer:
         self._ai_config: dict = self._load_ai_config()  # AI provider config
         self._comments: list[dict] = []  # In-memory comments store
         self._reviews: list[dict] = []  # In-memory reviews store
+        self._profiler = None  # Lazy-loaded CellProfiler
+        self._benchmark = None  # Lazy-loaded CellBenchmark
+        self._validator = None  # Lazy-loaded DataValidator
+        self._analyzer = None  # Lazy-loaded CodeAnalyzer
+        self._execution_history = None  # Lazy-loaded ExecutionHistory
+        self._lineage = None  # Lazy-loaded LineageTracker
         self.app = self._create_app()
 
     @staticmethod
@@ -283,7 +290,7 @@ class NotebookServer:
         """Create the FastAPI application."""
         app = FastAPI(
             title="FlowyML Notebook",
-            version="1.1.0",
+            version=__version__,
             description="Production-grade reactive notebook for ML pipelines",
         )
 
@@ -303,7 +310,7 @@ class NotebookServer:
             """Health check endpoint."""
             return {
                 "status": "ok",
-                "version": "0.9.0",
+                "version": __version__,
                 "kernel": "active",
             }
 
@@ -1822,6 +1829,27 @@ class NotebookServer:
                 html = app.to_html()
             return HTMLResponse(content=html)
 
+        @app.post("/api/app/snapshot")
+        async def snapshot_app():
+            """Create a snapshot of the current published app state."""
+            from pathlib import Path
+            import json as json_mod
+
+            snapshots_dir = Path.home() / ".flowyml" / "app_snapshots"
+            snapshots_dir.mkdir(parents=True, exist_ok=True)
+
+            snap_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            snapshot = {
+                "id": snap_id,
+                "notebook_name": self.notebook.notebook.metadata.name,
+                "cell_count": len(self.notebook.notebook.cells),
+                "created_at": datetime.now().isoformat(),
+                "cells": [c.to_dict() for c in self.notebook.notebook.cells],
+            }
+            snap_file = snapshots_dir / f"{snap_id}.json"
+            snap_file.write_text(json_mod.dumps(snapshot, indent=2), encoding="utf-8")
+            return {"snapshot_id": snap_id, "path": str(snap_file)}
+
         # --- Widget Updates ---
 
         @app.post("/api/widgets/update")
@@ -2798,6 +2826,34 @@ Dataset profile:
             """Get cell-level change summary for a commit."""
             return self.github_sync.get_commit_diff_summary(commit_sha)
 
+        @app.post("/api/github/restore")
+        async def github_restore(sha: str):
+            """Restore notebook to a specific version (by commit SHA or snapshot ID)."""
+            # Try the legacy snapshot system first
+            import json as json_mod
+            from pathlib import Path
+
+            history_dir = Path.home() / ".flowyml" / "history"
+            snapshot_file = history_dir / f"{sha}.json"
+
+            if snapshot_file.exists():
+                snap = json_mod.loads(snapshot_file.read_text())
+                self.notebook.cells.clear()
+                for cell_data in snap.get("cells", []):
+                    self.notebook.cell(
+                        source=cell_data.get("source", ""),
+                        cell_type=CellType(cell_data.get("cell_type", "code")),
+                        name=cell_data.get("name", ""),
+                    )
+                return {"restored": True, "source": "snapshot", "cell_count": len(self.notebook.cells)}
+
+            # Fall back to git checkout
+            try:
+                result = self.github_sync.restore_to_commit(sha)
+                return {"restored": True, "source": "git", **result}
+            except Exception as e:
+                raise HTTPException(404, f"Cannot restore version {sha}: {e}")
+
         # --- GitHub: Team Presence ---
 
         @app.get("/api/github/presence")
@@ -2966,6 +3022,173 @@ Dataset profile:
                 self.github_sync.push_review(project, experiment, review)
             self._reviews = self.github_sync.pull_reviews(project, experiment)
             return {"synced": True, "count": len(self._reviews)}
+
+        # --- Notebook Sharing ---
+
+        @app.post("/api/share")
+        async def share_notebook(mode: str = "readonly", expires_hours: int = 24):
+            """Generate a shareable link for the current notebook."""
+            import hashlib
+            from datetime import timedelta
+            share_id = hashlib.sha256(
+                f"{self.notebook.name}:{datetime.now().isoformat()}".encode()
+            ).hexdigest()[:12]
+            share_info = {
+                "share_id": share_id,
+                "mode": mode,  # "readonly", "comment", "edit"
+                "created_at": datetime.now().isoformat(),
+                "expires_at": (datetime.now() + timedelta(hours=expires_hours)).isoformat(),
+                "notebook_name": self.notebook.name,
+                "cell_count": len(self.notebook.cells),
+                "url": f"/shared/{share_id}",
+            }
+            if not hasattr(self, '_shares'):
+                self._shares = {}
+            self._shares[share_id] = share_info
+            return share_info
+
+        @app.get("/api/shares")
+        async def list_shares():
+            """List all active notebook shares."""
+            shares = getattr(self, '_shares', {})
+            # Filter expired shares
+            now = datetime.now().isoformat()
+            active = [s for s in shares.values() if s.get("expires_at", "") > now]
+            return {"shares": active, "total": len(active)}
+
+        @app.delete("/api/shares/{share_id}")
+        async def revoke_share(share_id: str):
+            """Revoke a notebook share."""
+            shares = getattr(self, '_shares', {})
+            if share_id in shares:
+                del shares[share_id]
+                return {"revoked": True, "share_id": share_id}
+            raise HTTPException(404, "Share not found")
+
+        # --- Review Approval Workflow ---
+
+        @app.post("/api/reviews/{review_id}/approve")
+        async def approve_review(review_id: str, comment: str = ""):
+            """Approve a review."""
+            git_user = self.github_sync._get_git_user(
+                str(self.github_sync.repo_path)
+            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            for r in self._reviews:
+                if r["id"] == review_id:
+                    r["status"] = "approved"
+                    r["resolved_at"] = datetime.now().isoformat()
+                    r["reviewer"] = git_user
+                    if comment:
+                        r.setdefault("review_comments", []).append({
+                            "author": git_user,
+                            "text": comment,
+                            "status": "approved",
+                            "created_at": datetime.now().isoformat(),
+                        })
+                    return r
+            raise HTTPException(404, "Review not found")
+
+        @app.post("/api/reviews/{review_id}/request-changes")
+        async def request_changes(review_id: str, comment: str = "Changes needed"):
+            """Request changes on a review."""
+            git_user = self.github_sync._get_git_user(
+                str(self.github_sync.repo_path)
+            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            for r in self._reviews:
+                if r["id"] == review_id:
+                    r["status"] = "changes_requested"
+                    r["resolved_at"] = datetime.now().isoformat()
+                    r["reviewer"] = git_user
+                    r.setdefault("review_comments", []).append({
+                        "author": git_user,
+                        "text": comment,
+                        "status": "changes_requested",
+                        "created_at": datetime.now().isoformat(),
+                    })
+                    return r
+            raise HTTPException(404, "Review not found")
+
+        @app.get("/api/reviews/summary")
+        async def review_summary():
+            """Get review summary with counts by status."""
+            summary = {"approved": 0, "pending": 0, "changes_requested": 0, "rejected": 0, "total": len(self._reviews)}
+            for r in self._reviews:
+                status = r.get("status", "pending")
+                summary[status] = summary.get(status, 0) + 1
+            return summary
+
+        # --- Comment Mentions ---
+
+        @app.get("/api/comments/mentions/{username}")
+        async def get_mentions(username: str):
+            """Get all comments mentioning a specific user."""
+            import re
+            mentioned = []
+            for c in self._comments:
+                text = c.get("text", "")
+                if re.search(rf'@{re.escape(username)}\b', text, re.IGNORECASE):
+                    mentioned.append(c)
+                for reply in c.get("replies", []):
+                    if re.search(rf'@{re.escape(username)}\b', reply.get("text", ""), re.IGNORECASE):
+                        mentioned.append({"parent_comment": c["id"], **reply})
+            return {"mentions": mentioned, "count": len(mentioned)}
+
+        @app.get("/api/comments/threads")
+        async def get_threaded_comments():
+            """Get comments organized as threads with nested replies."""
+            threads = []
+            for c in self._comments:
+                thread = dict(c)
+                thread["reply_count"] = len(c.get("replies", []))
+                thread["last_activity"] = max(
+                    [c.get("created_at", "")] + [r.get("created_at", "") for r in c.get("replies", [])],
+                )
+                threads.append(thread)
+            threads.sort(key=lambda t: t.get("last_activity", ""), reverse=True)
+            return {"threads": threads, "total": len(threads)}
+
+        # --- Activity Feed ---
+
+        @app.get("/api/activity")
+        async def get_activity(limit: int = 50):
+            """Unified activity feed for notebook collaboration."""
+            activities = []
+            for c in self._comments:
+                activities.append({
+                    "type": "comment",
+                    "user": c.get("author", {}).get("name", "anonymous") if isinstance(c.get("author"), dict) else str(c.get("author", "anonymous")),
+                    "text": c.get("text", "")[:100],
+                    "timestamp": c.get("created_at", ""),
+                    "cell_id": c.get("cell_id"),
+                    "id": c.get("id"),
+                })
+                for reply in c.get("replies", []):
+                    activities.append({
+                        "type": "reply",
+                        "user": reply.get("author", {}).get("name", "anonymous") if isinstance(reply.get("author"), dict) else str(reply.get("author", "anonymous")),
+                        "text": reply.get("text", "")[:100],
+                        "timestamp": reply.get("created_at", ""),
+                        "parent_id": c.get("id"),
+                    })
+            for r in self._reviews:
+                activities.append({
+                    "type": "review",
+                    "user": r.get("requested_by", {}).get("name", "anonymous") if isinstance(r.get("requested_by"), dict) else str(r.get("requested_by", "anonymous")),
+                    "text": r.get("title", "")[:100],
+                    "timestamp": r.get("created_at", ""),
+                    "status": r.get("status", "pending"),
+                    "id": r.get("id"),
+                })
+            for s in getattr(self, '_shares', {}).values():
+                activities.append({
+                    "type": "share",
+                    "user": "system",
+                    "text": f"Notebook shared ({s.get('mode', 'readonly')})",
+                    "timestamp": s.get("created_at", ""),
+                    "share_id": s.get("share_id"),
+                })
+            activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            return {"activities": activities[:limit], "total": len(activities)}
 
         # --- User Profile ---
 
@@ -3175,6 +3398,422 @@ Dataset profile:
                 results.append(p)
 
             return {"patterns": results}
+
+        # ===== Killer Features: Profiler =====
+
+        @app.post("/api/cells/{cell_id}/profile")
+        async def profile_cell(cell_id: str):
+            """Profile a cell's execution with CPU, memory, and timing."""
+            from flowyml_notebook.profiler import CellProfiler, format_profile_output
+            if not self._profiler:
+                self._profiler = CellProfiler()
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            result = self._profiler.profile(cell_id, cell.source, self.notebook.session._namespace)
+            output = format_profile_output(result)
+            return {"profile": result.to_dict(), "output": output.to_dict()}
+
+        @app.get("/api/profiler/history")
+        async def profiler_history():
+            """Get profiling history for all cells."""
+            if not self._profiler:
+                return {"history": []}
+            return {"history": [r.to_dict() for r in self._profiler.history]}
+
+        @app.get("/api/profiler/history/{cell_id}")
+        async def profiler_cell_history(cell_id: str):
+            """Get profiling history for a specific cell."""
+            if not self._profiler:
+                return {"history": []}
+            return {"history": [r.to_dict() for r in self._profiler.get_history_for_cell(cell_id)]}
+
+        # ===== Killer Features: Benchmark =====
+
+        @app.post("/api/cells/{cell_id}/benchmark")
+        async def benchmark_cell(cell_id: str, runs: int = 5, warmup: int = 1):
+            """Benchmark a cell with statistical timing analysis."""
+            from flowyml_notebook.benchmark import CellBenchmark, format_benchmark_output
+            if not self._benchmark:
+                self._benchmark = CellBenchmark()
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            result = self._benchmark.benchmark(
+                cell_id, cell.source, self.notebook.session._namespace,
+                runs=runs, warmup=warmup,
+            )
+            output = format_benchmark_output(result)
+            regressions = self._benchmark.detect_regressions(cell_id)
+            return {
+                "benchmark": result.to_dict(),
+                "output": output.to_dict(),
+                "regressions": [r.to_dict() for r in regressions],
+            }
+
+        @app.get("/api/benchmark/history/{cell_id}")
+        async def benchmark_history(cell_id: str):
+            """Get benchmark history for a cell."""
+            if not self._benchmark:
+                return {"history": []}
+            return {"history": self._benchmark.get_history(cell_id)}
+
+        # ===== Killer Features: Data Quality =====
+
+        @app.get("/api/data-quality/{var_name}")
+        async def validate_data(var_name: str):
+            """Run data quality checks on a DataFrame variable."""
+            from flowyml_notebook.data_validator import DataValidator, format_quality_output
+            if not self._validator:
+                self._validator = DataValidator()
+            self.notebook.session._ensure_kernel()
+            ns = self.notebook.session._namespace
+            if var_name not in ns:
+                raise HTTPException(404, f"Variable '{var_name}' not found")
+            obj = ns[var_name]
+            try:
+                import pandas as pd
+                if not isinstance(obj, pd.DataFrame):
+                    raise HTTPException(400, f"'{var_name}' is not a DataFrame")
+            except ImportError:
+                raise HTTPException(500, "pandas not installed")
+            report = self._validator.validate(var_name, "api", obj)
+            output = format_quality_output(report)
+            return {"report": report.to_dict(), "output": output.to_dict()}
+
+        @app.post("/api/data-quality/validate-all")
+        async def validate_all_dataframes():
+            """Validate all DataFrames in the current namespace."""
+            from flowyml_notebook.data_validator import DataValidator
+            if not self._validator:
+                self._validator = DataValidator()
+            self.notebook.session._ensure_kernel()
+            reports = self._validator.validate_namespace("api", self.notebook.session._namespace)
+            return {"reports": [r.to_dict() for r in reports]}
+
+        # ===== Killer Features: Code Analyzer =====
+
+        @app.post("/api/cells/{cell_id}/analyze")
+        async def analyze_cell_code(cell_id: str):
+            """Run smart code analysis on a cell."""
+            from flowyml_notebook.code_analyzer import CodeAnalyzer
+            if not self._analyzer:
+                self._analyzer = CodeAnalyzer()
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            report = self._analyzer.analyze(cell_id, cell.source)
+            return {"report": report.to_dict()}
+
+        @app.post("/api/cells/{cell_id}/auto-fix")
+        async def auto_fix_cell(cell_id: str):
+            """Apply auto-fixes to a cell."""
+            from flowyml_notebook.code_analyzer import CodeAnalyzer
+            if not self._analyzer:
+                self._analyzer = CodeAnalyzer()
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            fixed_source, changes = self._analyzer.auto_fix(cell_id, cell.source)
+            if changes:
+                cell.source = fixed_source
+            return {"fixed_source": fixed_source, "changes": changes, "applied": len(changes) > 0}
+
+        # ===== Killer Features: Execution History =====
+
+        @app.get("/api/execution-history")
+        async def get_execution_history():
+            """Get execution statistics and global log."""
+            from flowyml_notebook.execution_history import ExecutionHistory
+            if not self._execution_history:
+                self._execution_history = ExecutionHistory()
+            return {
+                "stats": self._execution_history.get_execution_stats(),
+                "log": self._execution_history.get_global_log(limit=50),
+            }
+
+        @app.get("/api/execution-history/{cell_id}")
+        async def get_cell_execution_history(cell_id: str):
+            """Get execution timeline for a specific cell."""
+            from flowyml_notebook.execution_history import ExecutionHistory
+            if not self._execution_history:
+                self._execution_history = ExecutionHistory()
+            timeline = self._execution_history.get_timeline(cell_id)
+            return {"timeline": timeline}
+
+        @app.get("/api/execution-history/{cell_id}/compare")
+        async def compare_cell_runs(cell_id: str, run_a: int = -2, run_b: int = -1):
+            """Compare two execution runs of a cell."""
+            from flowyml_notebook.execution_history import ExecutionHistory
+            if not self._execution_history:
+                self._execution_history = ExecutionHistory()
+            comparison = self._execution_history.compare_runs(cell_id, run_a, run_b)
+            return {"comparison": comparison}
+
+        # ===== Killer Features: Data Lineage =====
+
+        @app.get("/api/lineage")
+        async def get_all_lineage():
+            """Get data lineage for all tracked variables."""
+            from dataclasses import asdict
+            from flowyml_notebook.lineage import LineageTracker
+            if not self._lineage:
+                self._lineage = LineageTracker()
+            all_lineage = self._lineage.get_all_lineage()
+            return {
+                "lineage": {
+                    var: [asdict(e) for e in entries]
+                    for var, entries in all_lineage.items()
+                },
+            }
+
+        @app.get("/api/lineage/{var_name}")
+        async def get_variable_lineage(var_name: str):
+            """Get lineage for a specific variable."""
+            from dataclasses import asdict
+            from flowyml_notebook.lineage import LineageTracker
+            if not self._lineage:
+                self._lineage = LineageTracker()
+            entries = self._lineage.get_lineage(var_name)
+            return {"var_name": var_name, "entries": [asdict(e) for e in entries]}
+
+        @app.get("/api/lineage/graph")
+        async def get_lineage_graph():
+            """Get lineage graph for visualization."""
+            from flowyml_notebook.lineage import LineageTracker
+            if not self._lineage:
+                self._lineage = LineageTracker()
+            return {"graph": self._lineage.get_lineage_graph()}
+
+        # ===== Killer Features: Environment =====
+
+        @app.get("/api/environment/snapshot")
+        async def get_environment_snapshot():
+            """Capture a full environment snapshot."""
+            from flowyml_notebook.environment import capture_environment
+            snap = capture_environment()
+            d = snap.to_dict()
+            # Add frontend-expected aliases
+            d["os"] = d.get("os_name", "")
+            d["arch"] = d.get("architecture", "")
+            # Convert packages dict to list of {name, version} for frontend
+            pkg_dict = d.get("packages", {})
+            d["packages"] = [
+                {"name": name, "version": ver}
+                for name, ver in sorted(pkg_dict.items(), key=lambda x: x[0].lower())
+            ]
+            # GPU info for frontend
+            gpu_list = d.get("gpu_info", [])
+            if gpu_list:
+                d["gpu"] = {"name": gpu_list[0].get("name", "GPU"), "memory": gpu_list[0].get("memory_total_mb")}
+            return d
+
+        @app.post("/api/environment/requirements")
+        async def export_requirements(pinned: bool = True):
+            """Export requirements.txt from notebook imports."""
+            from flowyml_notebook.environment import export_requirements
+            from pathlib import Path
+            output_dir = Path.home() / ".flowyml"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / "requirements.txt"
+            path = export_requirements(self.notebook.notebook, output_path=output_path, pinned=pinned)
+            # Read content for inline display
+            content = path.read_text(encoding="utf-8")
+            return {"path": str(path), "pinned": pinned, "content": content}
+
+        @app.get("/api/packages")
+        async def list_packages():
+            """List installed packages."""
+            from flowyml_notebook.package_installer import list_installed
+            return {"packages": list_installed()}
+
+        @app.post("/api/packages/install")
+        async def install_package(name: str, version: str | None = None, upgrade: bool = False):
+            """Install a Python package."""
+            from flowyml_notebook.package_installer import install_package as _install
+            result = _install(name, version=version, upgrade=upgrade)
+            return result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+
+        @app.post("/api/packages/uninstall")
+        async def uninstall_package(name: str):
+            """Uninstall a Python package."""
+            from flowyml_notebook.package_installer import uninstall_package as _uninstall
+            result = _uninstall(name)
+            return result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+        # ===== Killer Features: Unified Package Management (Frontend) =====
+
+        @app.post("/api/environment/packages")
+        async def manage_packages(body: dict):
+            """Unified package management endpoint for the ToolsPanel frontend."""
+            from flowyml_notebook.package_installer import install_package as _install, uninstall_package as _uninstall
+            action = body.get("action", "install")
+            pkg_name = body.get("package", body.get("name", ""))
+            if not pkg_name:
+                raise HTTPException(400, "Package name required")
+            if action == "uninstall":
+                result = _uninstall(pkg_name)
+            else:
+                result = _install(pkg_name, version=body.get("version"), upgrade=body.get("upgrade", False))
+            r = result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+            msg = f"{'Uninstalled' if action == 'uninstall' else 'Installed'} {pkg_name}"
+            if r.get("version"):
+                msg += f" ({r['version']})"
+            r["message"] = msg
+            return r
+
+        # ===== Killer Features: Import/Export =====
+
+        @app.post("/api/import/ipynb")
+        async def import_ipynb(file: UploadFile):
+            """Import a Jupyter .ipynb file."""
+            from flowyml_notebook.ipynb_converter import from_ipynb
+            content = await file.read()
+            nb_data = json.loads(content)
+            self.notebook.notebook = from_ipynb(nb_data)
+            return {
+                "notebook": self.notebook.notebook.to_dict(),
+                "cells": [c.to_dict() for c in self.notebook.notebook.cells],
+                "message": f"Imported {len(self.notebook.notebook.cells)} cells from {file.filename}",
+            }
+
+        @app.post("/api/export/ipynb")
+        async def export_ipynb():
+            """Export current notebook as .ipynb."""
+            from flowyml_notebook.ipynb_converter import to_ipynb
+            ipynb_data = to_ipynb(self.notebook.notebook)
+            return {"ipynb": ipynb_data, "filename": f"{self.notebook.notebook.metadata.name}.ipynb"}
+
+        # ===== Killer Features: Cell Dependencies =====
+
+        @app.get("/api/cells/dependencies")
+        async def get_cell_dependencies():
+            """Analyze all code cells and return a full dependency graph."""
+            from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+            analyzer = CellDependencyAnalyzer()
+            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            graph = analyzer.build_graph(cells)
+            return graph.to_dict()
+
+        @app.get("/api/cells/{cell_id}/dependencies")
+        async def get_single_cell_deps(cell_id: str):
+            """Get defines/uses/imports for a single cell."""
+            from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+            cell = self.notebook.notebook.get_cell(cell_id)
+            if not cell:
+                raise HTTPException(404, f"Cell {cell_id} not found")
+            analyzer = CellDependencyAnalyzer()
+            dep = analyzer.analyze_cell(cell_id, cell.source)
+            return dep.to_dict()
+
+        @app.get("/api/cells/{cell_id}/stale")
+        async def get_stale_cells(cell_id: str):
+            """Find all cells that transitively depend on the given cell."""
+            from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+            analyzer = CellDependencyAnalyzer()
+            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            stale = analyzer.find_stale_cells(cell_id, cells)
+            return {"stale_cells": stale, "modified_cell": cell_id}
+
+        @app.get("/api/cells/execution-order")
+        async def get_optimal_order():
+            """Return the topologically optimal execution order for all code cells."""
+            from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+            analyzer = CellDependencyAnalyzer()
+            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            order = analyzer.get_execution_order(cells)
+            return {"execution_order": order}
+
+        # ===== Killer Features: Search =====
+
+        @app.post("/api/search")
+        async def search_notebook(query: dict):
+            from flowyml_notebook.search import NotebookSearch
+            search = NotebookSearch()
+            cells = self.notebook.notebook.cells
+            results = search.search(
+                cells, query.get('query', ''),
+                case_sensitive=query.get('case_sensitive', False),
+                regex=query.get('regex', False),
+                search_outputs=query.get('search_outputs', False),
+                max_results=query.get('max_results', 50),
+            )
+            return {"results": [r.to_dict() for r in results], "total": len(results)}
+
+        @app.post("/api/search/replace")
+        async def search_replace(query: dict):
+            from flowyml_notebook.search import NotebookSearch
+            search = NotebookSearch()
+            cells = self.notebook.notebook.cells
+            changes = search.search_and_replace(
+                cells, query.get('query', ''),
+                query.get('replacement', ''),
+                case_sensitive=query.get('case_sensitive', False),
+                regex=query.get('regex', False),
+            )
+            return {"changes": changes, "count": len(changes)}
+
+        @app.get("/api/search/variables")
+        async def find_variables():
+            from flowyml_notebook.search import NotebookSearch
+            search = NotebookSearch()
+            cells = self.notebook.notebook.cells
+            return {"variables": search.find_all_variables(cells)}
+
+        @app.get("/api/search/functions")
+        async def find_functions():
+            from flowyml_notebook.search import NotebookSearch
+            search = NotebookSearch()
+            cells = self.notebook.notebook.cells
+            return {"functions": search.find_all_functions(cells)}
+
+        @app.get("/api/search/duplicates")
+        async def find_duplicates():
+            from flowyml_notebook.search import NotebookSearch
+            search = NotebookSearch()
+            cells = self.notebook.notebook.cells
+            return {"duplicates": search.find_duplicates(cells)}
+
+        # ===== Killer Features: Snippets =====
+
+        @app.get("/api/snippets")
+        async def list_snippets(category: str | None = None, q: str | None = None):
+            from flowyml_notebook.snippets import SnippetLibrary
+            if not hasattr(self, '_snippets'):
+                self._snippets = SnippetLibrary()
+            if q:
+                results = self._snippets.search(q, category=category)
+            elif category:
+                results = self._snippets.get_by_category(category)
+            else:
+                results = self._snippets.search('')
+            return {"snippets": [s.to_dict() for s in results]}
+
+        @app.get("/api/snippets/categories")
+        async def snippet_categories():
+            from flowyml_notebook.snippets import SnippetLibrary
+            if not hasattr(self, '_snippets'):
+                self._snippets = SnippetLibrary()
+            return {"categories": self._snippets.get_categories()}
+
+        @app.post("/api/snippets")
+        async def add_snippet(snippet: dict):
+            from flowyml_notebook.snippets import SnippetLibrary, Snippet
+            if not hasattr(self, '_snippets'):
+                self._snippets = SnippetLibrary()
+            s = Snippet(**snippet)
+            result = self._snippets.add_custom(s)
+            return {"snippet": result.to_dict()}
+
+        @app.post("/api/snippets/{snippet_id}/use")
+        async def use_snippet(snippet_id: str):
+            from flowyml_notebook.snippets import SnippetLibrary
+            if not hasattr(self, '_snippets'):
+                self._snippets = SnippetLibrary()
+            snippet = self._snippets.get_snippet(snippet_id)
+            if not snippet:
+                raise HTTPException(404, f"Snippet {snippet_id} not found")
+            self._snippets.record_use(snippet_id)
+            return {"snippet": snippet.to_dict()}
 
         # --- WebSocket for real-time kernel ---
 

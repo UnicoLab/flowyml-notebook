@@ -4,7 +4,7 @@ import {
   Trash2, Copy, ChevronRight, ChevronDown, Code, Database,
   BarChart2, Zap, Puzzle, GitBranch, GripVertical, X,
   FolderPlus, Tag, Check, ExternalLink, RefreshCw, TrendingUp,
-  Share2, Eye
+  Share2, Eye, Brain, Languages, Clock, Shield, Layers
 } from 'lucide-react';
 
 // Built-in recipe categories
@@ -14,6 +14,11 @@ const CATEGORIES = [
   { id: 'flowyml-parallel', label: 'Parallel', icon: Zap, color: '#a855f7' },
   { id: 'flowyml-observe', label: 'Observability', icon: Eye, color: '#f59e0b' },
   { id: 'flowyml-evals', label: 'Evals', icon: TrendingUp, color: '#10b981' },
+  { id: 'production', label: 'Production', icon: Shield, color: '#ef4444' },
+  { id: 'nlp', label: 'NLP', icon: Languages, color: '#06b6d4' },
+  { id: 'time-series', label: 'Time Series', icon: Clock, color: '#f97316' },
+  { id: 'deep-learning', label: 'Deep Learning', icon: Brain, color: '#8b5cf6' },
+  { id: 'data-engineering', label: 'Data Engineering', icon: Layers, color: '#14b8a6' },
   { id: 'data-prep', label: 'Data Prep', icon: Database, color: 'var(--success)' },
   { id: 'ml', label: 'ML / Models', icon: BarChart2, color: 'var(--warning)' },
   { id: 'viz', label: 'Visualization', icon: BarChart2, color: '#e879f9' },
@@ -1610,6 +1615,1197 @@ ax.set_title("Top 15 Feature Importances", fontsize=14, fontweight="bold")
 ax.set_xlabel("Importance")
 plt.tight_layout()
 plt.show()`,
+  },
+  // ═══════════════════════════════════════
+  //  PRODUCTION
+  // ═══════════════════════════════════════
+  {
+    id: 'prod-config',
+    name: 'Production Config',
+    category: 'production',
+    description: 'Pydantic settings with env vars and secrets management',
+    tags: ['config', 'pydantic', 'env', 'secrets'],
+    builtin: true,
+    source: `from pydantic_settings import BaseSettings
+from pydantic import Field, SecretStr
+
+class AppConfig(BaseSettings):
+    """Type-safe configuration with env var support."""
+    model_name: str = Field("xgboost_v3", env="MODEL_NAME")
+    model_path: str = Field("models/latest.pkl", env="MODEL_PATH")
+    api_key: SecretStr = Field(..., env="API_KEY")
+    batch_size: int = Field(32, env="BATCH_SIZE")
+    max_workers: int = Field(4, env="MAX_WORKERS")
+    log_level: str = Field("INFO", env="LOG_LEVEL")
+    
+    class Config:
+        env_prefix = "ML_"
+        env_file = ".env"
+
+config = AppConfig()
+print(f"🔧 Config loaded: model={config.model_name}, batch={config.batch_size}")`,
+  },
+  {
+    id: 'prod-fastapi-serve',
+    name: 'Model Serving API',
+    category: 'production',
+    description: 'FastAPI model serving with health check and metrics',
+    tags: ['fastapi', 'serving', 'api', 'deployment'],
+    builtin: true,
+    source: `from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import joblib
+import time
+
+app = FastAPI(title="ML Model API", version="1.0.0")
+
+# Load model at startup
+model = joblib.load("model.pkl")
+request_count = 0
+
+class PredictRequest(BaseModel):
+    features: list[float]
+
+class PredictResponse(BaseModel):
+    prediction: float
+    confidence: float
+    latency_ms: float
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "model_loaded": model is not None, "requests_served": request_count}
+
+@app.post("/predict", response_model=PredictResponse)
+async def predict(req: PredictRequest):
+    global request_count
+    start = time.perf_counter()
+    try:
+        pred = model.predict([req.features])[0]
+        proba = model.predict_proba([req.features])[0].max()
+        request_count += 1
+        return PredictResponse(
+            prediction=float(pred),
+            confidence=float(proba),
+            latency_ms=(time.perf_counter() - start) * 1000,
+        )
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+print("🚀 Run with: uvicorn app:app --host 0.0.0.0 --port 8000")`,
+  },
+  {
+    id: 'prod-docker',
+    name: 'Docker Deployment',
+    category: 'production',
+    description: 'Dockerfile + compose for ML model service',
+    tags: ['docker', 'deployment', 'container'],
+    builtin: true,
+    source: `# Save this as Dockerfile
+dockerfile = """
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
+
+# Save this as docker-compose.yml
+compose = """
+version: '3.8'
+services:
+  ml-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/app/models/latest.pkl
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+"""
+
+print("🐳 Docker files generated")
+print("   Build: docker-compose up --build")`,
+  },
+  {
+    id: 'prod-cicd',
+    name: 'CI/CD Pipeline',
+    category: 'production',
+    description: 'GitHub Actions workflow for model testing and deployment',
+    tags: ['cicd', 'github-actions', 'testing', 'automation'],
+    builtin: true,
+    source: `# Save as .github/workflows/ml-pipeline.yml
+workflow = """
+name: ML Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -v --tb=short
+
+  train:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python train.py
+      - uses: actions/upload-artifact@v4
+        with: { name: model, path: models/ }
+
+  deploy:
+    needs: train
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying model..."
+"""
+
+print("⚙️ GitHub Actions workflow generated")
+print("   Stages: test → train → deploy")`,
+  },
+  {
+    id: 'prod-monitoring',
+    name: 'Model Monitoring',
+    category: 'production',
+    description: 'Track predictions, latency, and data drift in production',
+    tags: ['monitoring', 'metrics', 'prometheus', 'drift'],
+    builtin: true,
+    source: `import time
+import numpy as np
+from collections import defaultdict
+from datetime import datetime
+
+class ModelMonitor:
+    """Production model monitoring with drift detection."""
+    
+    def __init__(self, baseline_stats=None):
+        self.predictions = []
+        self.latencies = []
+        self.errors = 0
+        self.baseline = baseline_stats or {}
+        self._feature_stats = defaultdict(list)
+    
+    def record_prediction(self, features, prediction, latency_ms):
+        self.predictions.append({"pred": prediction, "ts": datetime.now().isoformat()})
+        self.latencies.append(latency_ms)
+        for i, v in enumerate(features):
+            self._feature_stats[f"f{i}"].append(v)
+    
+    def get_metrics(self):
+        return {
+            "total_predictions": len(self.predictions),
+            "avg_latency_ms": np.mean(self.latencies) if self.latencies else 0,
+            "p99_latency_ms": np.percentile(self.latencies, 99) if self.latencies else 0,
+            "error_rate": self.errors / max(len(self.predictions), 1),
+            "prediction_mean": np.mean([p["pred"] for p in self.predictions]) if self.predictions else 0,
+        }
+
+monitor = ModelMonitor()
+print("📊 Model monitor initialized")
+print("   Call monitor.record_prediction(features, pred, latency) after each inference")`,
+  },
+  {
+    id: 'prod-ab-test',
+    name: 'A/B Testing Framework',
+    category: 'production',
+    description: 'Feature flag based experiment framework',
+    tags: ['ab-test', 'experiment', 'feature-flag'],
+    builtin: true,
+    source: `import hashlib
+import random
+from dataclasses import dataclass, field
+
+@dataclass
+class ABExperiment:
+    """Simple A/B testing framework for ML models."""
+    name: str
+    control_model: object = None
+    treatment_model: object = None
+    traffic_pct: float = 0.5
+    results: dict = field(default_factory=lambda: {"control": [], "treatment": []})
+    
+    def assign_variant(self, user_id: str) -> str:
+        hash_val = int(hashlib.md5(f"{self.name}:{user_id}".encode()).hexdigest(), 16)
+        return "treatment" if (hash_val % 100) < (self.traffic_pct * 100) else "control"
+    
+    def predict(self, user_id: str, features):
+        variant = self.assign_variant(user_id)
+        model = self.treatment_model if variant == "treatment" else self.control_model
+        pred = model.predict([features])[0]
+        self.results[variant].append(pred)
+        return {"variant": variant, "prediction": pred}
+    
+    def get_summary(self):
+        import numpy as np
+        return {
+            "control_n": len(self.results["control"]),
+            "treatment_n": len(self.results["treatment"]),
+            "control_mean": np.mean(self.results["control"]) if self.results["control"] else 0,
+            "treatment_mean": np.mean(self.results["treatment"]) if self.results["treatment"] else 0,
+        }
+
+experiment = ABExperiment(name="model_v3_vs_v4", traffic_pct=0.2)
+print(f"🧪 A/B Test '{experiment.name}' created (20% traffic to treatment)")`,
+  },
+  // ═══════════════════════════════════════
+  //  NLP
+  // ═══════════════════════════════════════
+  {
+    id: 'nlp-text-classification',
+    name: 'Text Classification Pipeline',
+    category: 'nlp',
+    description: 'Full sklearn text classification with TF-IDF',
+    tags: ['classification', 'tfidf', 'sklearn', 'text'],
+    builtin: true,
+    source: `from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import classification_report
+
+# Example data
+texts = ["Great product!", "Terrible service", "Love it", "Worst experience", "Amazing quality"]
+labels = [1, 0, 1, 0, 1]
+
+X_train, X_test, y_train, y_test = train_test_split(texts, labels, test_size=0.2, random_state=42)
+
+# Build pipeline
+pipeline = Pipeline([
+    ("tfidf", TfidfVectorizer(max_features=5000, ngram_range=(1, 2), stop_words="english")),
+    ("clf", LogisticRegression(max_iter=1000, C=1.0)),
+])
+
+pipeline.fit(X_train, y_train)
+y_pred = pipeline.predict(X_test)
+
+print("📊 Classification Report:")
+print(classification_report(y_test, y_pred, target_names=["Negative", "Positive"]))`,
+  },
+  {
+    id: 'nlp-sentiment',
+    name: 'Sentiment Analysis',
+    category: 'nlp',
+    description: 'VADER sentiment scoring with visualization',
+    tags: ['sentiment', 'vader', 'nlp', 'analysis'],
+    builtin: true,
+    source: `from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import nltk
+import pandas as pd
+
+nltk.download("vader_lexicon", quiet=True)
+analyzer = SentimentIntensityAnalyzer()
+
+texts = [
+    "This product is absolutely amazing!",
+    "Terrible experience, would not recommend.",
+    "It's okay, nothing special.",
+    "Best purchase I've ever made!",
+    "Disappointing quality for the price.",
+]
+
+results = []
+for text in texts:
+    scores = analyzer.polarity_scores(text)
+    label = "positive" if scores["compound"] > 0.05 else "negative" if scores["compound"] < -0.05 else "neutral"
+    results.append({"text": text[:50], "compound": scores["compound"], "label": label})
+
+df = pd.DataFrame(results)
+print("🎭 Sentiment Analysis Results:")
+print(df.to_string(index=False))`,
+  },
+  {
+    id: 'nlp-topic-modeling',
+    name: 'Topic Modeling (LDA)',
+    category: 'nlp',
+    description: 'Extract topics from text corpus with LDA',
+    tags: ['topics', 'lda', 'unsupervised', 'text-mining'],
+    builtin: true,
+    source: `from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+import numpy as np
+
+# Your corpus
+documents = [
+    "Machine learning models need training data",
+    "Neural networks learn feature representations",
+    "Stock prices fluctuate based on market sentiment",
+    "Interest rates affect bond yields",
+    "Deep learning requires GPU computing power",
+]
+
+vectorizer = CountVectorizer(max_features=1000, stop_words="english")
+doc_term_matrix = vectorizer.fit_transform(documents)
+
+n_topics = 2
+lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
+lda.fit(doc_term_matrix)
+
+feature_names = vectorizer.get_feature_names_out()
+print("📚 Discovered Topics:")
+for idx, topic in enumerate(lda.components_):
+    top_words = [feature_names[i] for i in topic.argsort()[-5:]]
+    print(f"  Topic {idx + 1}: {', '.join(top_words)}")`,
+  },
+  {
+    id: 'nlp-ner',
+    name: 'Named Entity Recognition',
+    category: 'nlp',
+    description: 'Extract named entities with spaCy',
+    tags: ['ner', 'spacy', 'entities', 'extraction'],
+    builtin: true,
+    source: `import spacy
+
+nlp = spacy.load("en_core_web_sm")
+
+text = """Apple Inc. was founded by Steve Jobs in Cupertino, California.
+The company reported $394 billion in revenue for 2022.
+Tim Cook serves as the CEO since August 2011."""
+
+doc = nlp(text)
+
+print("🏷️ Named Entities:")
+for ent in doc.ents:
+    print(f"  {ent.text:25s} → {ent.label_:10s} ({spacy.explain(ent.label_)})")
+
+# Group by entity type
+from collections import defaultdict
+entities = defaultdict(list)
+for ent in doc.ents:
+    entities[ent.label_].append(ent.text)
+
+print("\\n📊 Summary:")
+for label, ents in entities.items():
+    print(f"  {label}: {', '.join(set(ents))}")`,
+  },
+  {
+    id: 'nlp-embeddings',
+    name: 'Text Embeddings & Similarity',
+    category: 'nlp',
+    description: 'Sentence embeddings for semantic similarity',
+    tags: ['embeddings', 'similarity', 'sentence-transformers'],
+    builtin: true,
+    source: `from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+sentences = [
+    "Machine learning is a subset of artificial intelligence",
+    "AI systems can learn from data",
+    "The weather is sunny today",
+    "Deep learning uses neural networks",
+    "It will rain tomorrow",
+]
+
+# TF-IDF based similarity (no GPU required)
+vectorizer = TfidfVectorizer(stop_words="english")
+tfidf_matrix = vectorizer.fit_transform(sentences)
+similarity = cosine_similarity(tfidf_matrix)
+
+print("🔗 Semantic Similarity Matrix:")
+for i, s1 in enumerate(sentences):
+    most_similar = np.argsort(similarity[i])[-2]  # Skip self
+    print(f"  '{s1[:40]}...'")
+    print(f"    → Most similar: '{sentences[most_similar][:40]}...' (score: {similarity[i][most_similar]:.3f})")`,
+  },
+  // ═══════════════════════════════════════
+  //  TIME SERIES
+  // ═══════════════════════════════════════
+  {
+    id: 'ts-decompose',
+    name: 'Seasonal Decomposition',
+    category: 'time-series',
+    description: 'STL decomposition with trend, seasonal, and residual components',
+    tags: ['decomposition', 'seasonal', 'trend', 'statsmodels'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+from statsmodels.tsa.seasonal import seasonal_decompose
+import matplotlib.pyplot as plt
+
+# Generate sample time series
+np.random.seed(42)
+dates = pd.date_range("2023-01-01", periods=365, freq="D")
+trend = np.linspace(100, 150, 365)
+seasonal = 10 * np.sin(2 * np.pi * np.arange(365) / 365)
+noise = np.random.normal(0, 3, 365)
+ts = pd.Series(trend + seasonal + noise, index=dates, name="value")
+
+# Decompose
+result = seasonal_decompose(ts, model="additive", period=30)
+
+fig, axes = plt.subplots(4, 1, figsize=(12, 8), sharex=True)
+result.observed.plot(ax=axes[0], title="Observed")
+result.trend.plot(ax=axes[1], title="Trend")
+result.seasonal.plot(ax=axes[2], title="Seasonal")
+result.resid.plot(ax=axes[3], title="Residual")
+plt.tight_layout()
+plt.show()`,
+  },
+  {
+    id: 'ts-arima',
+    name: 'ARIMA Forecast',
+    category: 'time-series',
+    description: 'Auto ARIMA model selection and forecasting',
+    tags: ['arima', 'forecast', 'statsmodels', 'prediction'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import adfuller
+import matplotlib.pyplot as plt
+
+# Generate sample data
+np.random.seed(42)
+dates = pd.date_range("2023-01-01", periods=200, freq="D")
+values = np.cumsum(np.random.randn(200)) + 100
+ts = pd.Series(values, index=dates)
+
+# Stationarity test
+adf = adfuller(ts)
+print(f"📊 ADF Statistic: {adf[0]:.4f}")
+print(f"   p-value: {adf[1]:.4f}")
+print(f"   Stationary: {'Yes ✅' if adf[1] < 0.05 else 'No ❌ (differencing needed)'}")
+
+# Fit ARIMA
+model = ARIMA(ts, order=(2, 1, 2))
+fitted = model.fit()
+print(f"\\n📈 Model: ARIMA(2,1,2)")
+print(f"   AIC: {fitted.aic:.2f}")
+
+# Forecast
+forecast = fitted.forecast(steps=30)
+
+fig, ax = plt.subplots(figsize=(12, 5))
+ts.plot(ax=ax, label="Observed")
+forecast.plot(ax=ax, label="Forecast (30d)", color="red", linestyle="--")
+ax.set_title("ARIMA Forecast", fontsize=14, fontweight="bold")
+ax.legend()
+plt.tight_layout()
+plt.show()`,
+  },
+  {
+    id: 'ts-anomaly',
+    name: 'Anomaly Detection',
+    category: 'time-series',
+    description: 'Isolation Forest for time series anomaly detection',
+    tags: ['anomaly', 'isolation-forest', 'outlier', 'detection'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+from sklearn.ensemble import IsolationForest
+import matplotlib.pyplot as plt
+
+# Generate time series with anomalies
+np.random.seed(42)
+n = 300
+dates = pd.date_range("2023-01-01", periods=n, freq="D")
+normal = np.sin(2 * np.pi * np.arange(n) / 30) * 10 + 50 + np.random.normal(0, 2, n)
+
+# Inject anomalies
+anomaly_idx = [50, 120, 200, 250]
+normal[anomaly_idx] += np.array([30, -25, 35, -30])
+
+df = pd.DataFrame({"date": dates, "value": normal})
+
+# Create features for Isolation Forest
+df["rolling_mean"] = df["value"].rolling(7).mean()
+df["rolling_std"] = df["value"].rolling(7).std()
+df["diff"] = df["value"].diff()
+features = df[["value", "rolling_mean", "rolling_std", "diff"]].dropna()
+
+# Detect anomalies
+iso_forest = IsolationForest(contamination=0.02, random_state=42)
+df.loc[features.index, "anomaly"] = iso_forest.fit_predict(features)
+
+anomalies = df[df["anomaly"] == -1]
+print(f"🔍 Detected {len(anomalies)} anomalies")
+
+fig, ax = plt.subplots(figsize=(14, 5))
+ax.plot(df["date"], df["value"], label="Normal", alpha=0.7)
+ax.scatter(anomalies["date"], anomalies["value"], color="red", s=100, zorder=5, label="Anomaly")
+ax.set_title("Time Series Anomaly Detection", fontsize=14, fontweight="bold")
+ax.legend()
+plt.tight_layout()
+plt.show()`,
+  },
+  {
+    id: 'ts-rolling-features',
+    name: 'Rolling Feature Engineering',
+    category: 'time-series',
+    description: 'Create rolling window features for ML models',
+    tags: ['features', 'rolling', 'engineering', 'lag'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+
+# Sample time series
+np.random.seed(42)
+df = pd.DataFrame({
+    "date": pd.date_range("2023-01-01", periods=365, freq="D"),
+    "value": np.cumsum(np.random.randn(365)) + 100,
+})
+
+# Rolling features
+for window in [7, 14, 30]:
+    df[f"rolling_mean_{window}d"] = df["value"].rolling(window).mean()
+    df[f"rolling_std_{window}d"] = df["value"].rolling(window).std()
+    df[f"rolling_min_{window}d"] = df["value"].rolling(window).min()
+    df[f"rolling_max_{window}d"] = df["value"].rolling(window).max()
+
+# Lag features
+for lag in [1, 7, 14]:
+    df[f"lag_{lag}d"] = df["value"].shift(lag)
+
+# Rate of change
+df["pct_change_1d"] = df["value"].pct_change()
+df["pct_change_7d"] = df["value"].pct_change(7)
+
+# Expanding features
+df["expanding_mean"] = df["value"].expanding().mean()
+df["expanding_std"] = df["value"].expanding().std()
+
+print(f"📊 Generated {len(df.columns) - 2} features from 1 time series")
+print(f"   Columns: {list(df.columns[2:])}")
+df.dropna(inplace=True)
+print(f"   Final shape: {df.shape}")`,
+  },
+  {
+    id: 'ts-prophet',
+    name: 'Prophet Forecast',
+    category: 'time-series',
+    description: 'Facebook Prophet quick forecast with holidays',
+    tags: ['prophet', 'forecast', 'facebook', 'holidays'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+
+# Generate sample data in Prophet format
+np.random.seed(42)
+df = pd.DataFrame({
+    "ds": pd.date_range("2022-01-01", periods=365, freq="D"),
+    "y": np.sin(2 * np.pi * np.arange(365) / 365) * 20 + 100 + np.random.normal(0, 5, 365) + np.linspace(0, 30, 365),
+})
+
+from prophet import Prophet
+
+model = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    changepoint_prior_scale=0.05,
+)
+model.fit(df)
+
+# Forecast 90 days ahead
+future = model.make_future_dataframe(periods=90)
+forecast = model.predict(future)
+
+fig = model.plot(forecast)
+fig.suptitle("Prophet Forecast", fontsize=14, fontweight="bold")
+
+# Component plots
+fig2 = model.plot_components(forecast)
+
+print(f"📈 Forecast generated: {len(forecast)} data points")
+print(f"   Trend: {forecast['trend'].iloc[-1]:.1f}")`,
+  },
+  // ═══════════════════════════════════════
+  //  DEEP LEARNING
+  // ═══════════════════════════════════════
+  {
+    id: 'dl-pytorch-training',
+    name: 'PyTorch Training Loop',
+    category: 'deep-learning',
+    description: 'Complete PyTorch training with validation and checkpointing',
+    tags: ['pytorch', 'training', 'neural-network', 'gpu'],
+    builtin: true,
+    source: `import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
+# Simple model
+class Net(nn.Module):
+    def __init__(self, input_dim, hidden=64):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden), nn.ReLU(), nn.Dropout(0.3),
+            nn.Linear(hidden, hidden // 2), nn.ReLU(),
+            nn.Linear(hidden // 2, 1), nn.Sigmoid(),
+        )
+    def forward(self, x):
+        return self.net(x)
+
+# Setup
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+model = Net(input_dim=10).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+criterion = nn.BCELoss()
+
+# Training loop
+for epoch in range(10):
+    model.train()
+    train_loss = 0
+    # for batch_x, batch_y in train_loader:
+    #     batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+    #     optimizer.zero_grad()
+    #     loss = criterion(model(batch_x).squeeze(), batch_y)
+    #     loss.backward()
+    #     optimizer.step()
+    #     train_loss += loss.item()
+    print(f"Epoch {epoch+1}/10 — device: {device}")
+
+print(f"🧠 Model: {sum(p.numel() for p in model.parameters()):,} params on {device}")`,
+  },
+  {
+    id: 'dl-transfer-learning',
+    name: 'Transfer Learning',
+    category: 'deep-learning',
+    description: 'Fine-tune pretrained ResNet for custom classification',
+    tags: ['transfer-learning', 'resnet', 'fine-tune', 'pretrained'],
+    builtin: true,
+    source: `import keras
+from keras import layers
+
+# Load pretrained ResNet50 (without top classification layer)
+base_model = keras.applications.ResNet50(
+    weights="imagenet",
+    include_top=False,
+    input_shape=(224, 224, 3),
+)
+
+# Freeze base model
+base_model.trainable = False
+
+# Add custom classification head
+model = keras.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dropout(0.3),
+    layers.Dense(256, activation="relu"),
+    layers.Dropout(0.2),
+    layers.Dense(10, activation="softmax"),  # 10 classes
+])
+
+model.compile(
+    optimizer=keras.optimizers.Adam(1e-4),
+    loss="categorical_crossentropy",
+    metrics=["accuracy"],
+)
+
+print(f"🧠 Transfer Learning Model:")
+print(f"   Base: ResNet50 ({base_model.count_params():,} params, frozen)")
+print(f"   Total: {model.count_params():,} params")
+print(f"   Trainable: {sum(p.numpy().size for p in model.trainable_weights):,} params")`,
+  },
+  {
+    id: 'dl-hyperopt',
+    name: 'Hyperparameter Tuning (Optuna)',
+    category: 'deep-learning',
+    description: 'Optuna-based hyperparameter optimization',
+    tags: ['optuna', 'hyperparameter', 'tuning', 'optimization'],
+    builtin: true,
+    source: `import optuna
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
+import numpy as np
+
+def objective(trial):
+    """Optuna objective function."""
+    params = {
+        "n_estimators": trial.suggest_int("n_estimators", 50, 500),
+        "max_depth": trial.suggest_int("max_depth", 3, 20),
+        "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
+        "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
+        "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
+    }
+    
+    model = RandomForestClassifier(**params, random_state=42, n_jobs=-1)
+    scores = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
+    return scores.mean()
+
+# Run optimization
+study = optuna.create_study(direction="maximize", study_name="rf_tuning")
+study.optimize(objective, n_trials=50, show_progress_bar=True)
+
+print(f"🏆 Best trial:")
+print(f"   Accuracy: {study.best_value:.4f}")
+print(f"   Params: {study.best_params}")`,
+  },
+  {
+    id: 'dl-explainability',
+    name: 'Model Explainability (SHAP)',
+    category: 'deep-learning',
+    description: 'SHAP values for model interpretability',
+    tags: ['shap', 'explainability', 'interpretability', 'xai'],
+    builtin: true,
+    source: `import shap
+import matplotlib.pyplot as plt
+
+# Assuming model and X_test are defined
+explainer = shap.TreeExplainer(model)  # For tree-based models
+shap_values = explainer.shap_values(X_test)
+
+# Summary plot — feature importance
+plt.figure(figsize=(10, 8))
+shap.summary_plot(shap_values, X_test, show=False)
+plt.title("SHAP Feature Importance", fontsize=14, fontweight="bold")
+plt.tight_layout()
+plt.show()
+
+# Waterfall plot for a single prediction
+plt.figure(figsize=(10, 6))
+shap.plots.waterfall(shap.Explanation(
+    values=shap_values[0],
+    base_values=explainer.expected_value,
+    data=X_test.iloc[0],
+    feature_names=X_test.columns.tolist(),
+), show=False)
+plt.title("SHAP Explanation — Single Prediction")
+plt.tight_layout()
+plt.show()
+
+print(f"📊 Top 5 important features:")
+importance = abs(shap_values).mean(axis=0)
+for idx in importance.argsort()[-5:][::-1]:
+    print(f"   {X_test.columns[idx]}: {importance[idx]:.4f}")`,
+  },
+  {
+    id: 'dl-gpu-check',
+    name: 'GPU & Device Check',
+    category: 'deep-learning',
+    description: 'Check CUDA/MPS availability and system resources',
+    tags: ['gpu', 'cuda', 'mps', 'device', 'hardware'],
+    builtin: true,
+    source: `import sys
+import platform
+
+print("🖥️ System Info:")
+print(f"   Python: {sys.version.split()[0]}")
+print(f"   Platform: {platform.platform()}")
+print(f"   Arch: {platform.machine()}")
+
+# PyTorch
+try:
+    import torch
+    print(f"\\n🔥 PyTorch: {torch.__version__}")
+    print(f"   CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"   GPU: {torch.cuda.get_device_name(0)}")
+        print(f"   Memory: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+    print(f"   MPS available: {torch.backends.mps.is_available()}")
+except ImportError:
+    print("\\n⚠️ PyTorch not installed")
+
+# Keras/TensorFlow
+try:
+    import keras
+    print(f"\\n🧠 Keras: {keras.__version__}")
+    devices = keras.distribution.list_devices()
+    print(f"   Devices: {devices}")
+except ImportError:
+    print("\\n⚠️ Keras not installed")
+
+# Check available memory
+import os
+try:
+    import psutil
+    mem = psutil.virtual_memory()
+    print(f"\\n💾 RAM: {mem.total / 1e9:.1f} GB total, {mem.available / 1e9:.1f} GB available")
+except ImportError:
+    pass`,
+  },
+  // ═══════════════════════════════════════
+  //  DATA ENGINEERING
+  // ═══════════════════════════════════════
+  {
+    id: 'de-etl-pipeline',
+    name: 'ETL Pipeline',
+    category: 'data-engineering',
+    description: 'Extract/Transform/Load pipeline with error handling',
+    tags: ['etl', 'pipeline', 'data-engineering'],
+    builtin: true,
+    source: `import pandas as pd
+import logging
+from datetime import datetime
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("etl")
+
+class ETLPipeline:
+    def __init__(self, name):
+        self.name = name
+        self.stats = {"extracted": 0, "transformed": 0, "loaded": 0, "errors": 0}
+    
+    def extract(self, source: str) -> pd.DataFrame:
+        log.info(f"📥 Extracting from {source}")
+        df = pd.read_csv(source)
+        self.stats["extracted"] = len(df)
+        return df
+    
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        log.info(f"🔄 Transforming {len(df)} rows")
+        df = df.dropna().drop_duplicates()
+        df.columns = [c.lower().replace(" ", "_") for c in df.columns]
+        self.stats["transformed"] = len(df)
+        return df
+    
+    def load(self, df: pd.DataFrame, dest: str):
+        log.info(f"📤 Loading {len(df)} rows to {dest}")
+        Path(dest).parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(dest, index=False)
+        self.stats["loaded"] = len(df)
+    
+    def run(self, source, dest):
+        try:
+            df = self.extract(source)
+            df = self.transform(df)
+            self.load(df, dest)
+            log.info(f"✅ ETL complete: {self.stats}")
+        except Exception as e:
+            self.stats["errors"] += 1
+            log.error(f"❌ ETL failed: {e}")
+            raise
+
+pipeline = ETLPipeline("daily_ingest")
+print(f"🔧 ETL Pipeline '{pipeline.name}' ready")`,
+  },
+  {
+    id: 'de-data-quality',
+    name: 'Data Quality Suite',
+    category: 'data-engineering',
+    description: 'Great Expectations-style data validation checks',
+    tags: ['data-quality', 'validation', 'assertions', 'testing'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+
+class DataQualityChecker:
+    """Simple data quality validation framework."""
+    
+    def __init__(self, df: pd.DataFrame, name: str = "dataset"):
+        self.df = df
+        self.name = name
+        self.results = []
+    
+    def expect_no_nulls(self, columns=None):
+        cols = columns or self.df.columns
+        for col in cols:
+            nulls = self.df[col].isnull().sum()
+            self.results.append({"check": f"no_nulls({col})", "passed": nulls == 0, "detail": f"{nulls} nulls"})
+        return self
+    
+    def expect_unique(self, column):
+        dupes = self.df[column].duplicated().sum()
+        self.results.append({"check": f"unique({column})", "passed": dupes == 0, "detail": f"{dupes} duplicates"})
+        return self
+    
+    def expect_values_in(self, column, allowed):
+        invalid = ~self.df[column].isin(allowed)
+        self.results.append({"check": f"values_in({column})", "passed": invalid.sum() == 0, "detail": f"{invalid.sum()} invalid"})
+        return self
+    
+    def expect_range(self, column, min_val=None, max_val=None):
+        violations = 0
+        if min_val is not None: violations += (self.df[column] < min_val).sum()
+        if max_val is not None: violations += (self.df[column] > max_val).sum()
+        self.results.append({"check": f"range({column}, {min_val}-{max_val})", "passed": violations == 0, "detail": f"{violations} violations"})
+        return self
+    
+    def report(self):
+        passed = sum(1 for r in self.results if r["passed"])
+        total = len(self.results)
+        print(f"\\n📊 Data Quality Report: {self.name}")
+        print(f"   {'✅' if passed == total else '⚠️'} {passed}/{total} checks passed\\n")
+        for r in self.results:
+            icon = "✅" if r["passed"] else "❌"
+            print(f"   {icon} {r['check']}: {r['detail']}")
+        return passed == total
+
+# Usage
+checker = DataQualityChecker(df, "my_dataset")
+checker.expect_no_nulls(["id", "name"]).expect_unique("id").expect_range("age", 0, 120)
+all_passed = checker.report()`,
+  },
+  {
+    id: 'de-duckdb',
+    name: 'DuckDB Analytics',
+    category: 'data-engineering',
+    description: 'In-memory SQL analytics with DuckDB',
+    tags: ['duckdb', 'sql', 'analytics', 'olap'],
+    builtin: true,
+    source: `import duckdb
+import pandas as pd
+
+# Create in-memory DuckDB connection
+con = duckdb.connect()
+
+# Query pandas DataFrames directly with SQL!
+df = pd.DataFrame({
+    "product": ["A", "B", "A", "C", "B", "A"],
+    "revenue": [100, 200, 150, 300, 180, 120],
+    "region": ["US", "EU", "US", "EU", "US", "EU"],
+})
+
+# SQL analytics on DataFrames
+result = con.execute("""
+    SELECT 
+        product,
+        region,
+        SUM(revenue) as total_revenue,
+        AVG(revenue) as avg_revenue,
+        COUNT(*) as orders
+    FROM df
+    GROUP BY product, region
+    ORDER BY total_revenue DESC
+""").fetchdf()
+
+print("📊 Revenue by Product & Region:")
+print(result.to_string(index=False))
+
+# Window functions
+ranked = con.execute("""
+    SELECT *, 
+        RANK() OVER (PARTITION BY region ORDER BY revenue DESC) as rank
+    FROM df
+""").fetchdf()
+print("\\n🏆 Rankings by Region:")
+print(ranked.to_string(index=False))`,
+  },
+  {
+    id: 'de-sqlalchemy',
+    name: 'SQLAlchemy Database',
+    category: 'data-engineering',
+    description: 'Connect to databases with SQLAlchemy and pandas',
+    tags: ['sqlalchemy', 'database', 'postgresql', 'mysql'],
+    builtin: true,
+    source: `from sqlalchemy import create_engine, text
+import pandas as pd
+
+# Connection string examples
+# PostgreSQL: "postgresql://user:pass@host:5432/dbname"
+# MySQL:      "mysql+pymysql://user:pass@host:3306/dbname"
+# SQLite:     "sqlite:///local.db"
+
+engine = create_engine("sqlite:///analytics.db", echo=False)
+
+# Read SQL to DataFrame
+df = pd.read_sql("SELECT * FROM users LIMIT 1000", engine)
+print(f"📊 Loaded {len(df)} rows")
+
+# Write DataFrame to SQL
+df.to_sql("users_backup", engine, if_exists="replace", index=False)
+
+# Parameterized queries (safe from SQL injection)
+with engine.connect() as conn:
+    result = conn.execute(
+        text("SELECT * FROM users WHERE age > :min_age AND region = :region"),
+        {"min_age": 25, "region": "US"}
+    )
+    filtered = pd.DataFrame(result.fetchall(), columns=result.keys())
+    print(f"   Filtered: {len(filtered)} rows")`,
+  },
+  {
+    id: 'de-schema-evolution',
+    name: 'Schema Evolution Handler',
+    category: 'data-engineering',
+    description: 'Handle schema changes gracefully between data versions',
+    tags: ['schema', 'evolution', 'migration', 'compatibility'],
+    builtin: true,
+    source: `import pandas as pd
+from dataclasses import dataclass
+
+@dataclass
+class SchemaChange:
+    change_type: str  # "added", "removed", "type_changed", "renamed"
+    column: str
+    detail: str
+
+def detect_schema_changes(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list[SchemaChange]:
+    """Detect schema differences between two DataFrames."""
+    changes = []
+    old_cols = set(old_df.columns)
+    new_cols = set(new_df.columns)
+    
+    for col in new_cols - old_cols:
+        changes.append(SchemaChange("added", col, f"New column (dtype: {new_df[col].dtype})"))
+    for col in old_cols - new_cols:
+        changes.append(SchemaChange("removed", col, f"Column removed (was: {old_df[col].dtype})"))
+    for col in old_cols & new_cols:
+        if old_df[col].dtype != new_df[col].dtype:
+            changes.append(SchemaChange("type_changed", col, f"{old_df[col].dtype} → {new_df[col].dtype}"))
+    return changes
+
+def apply_schema_migration(df, changes, defaults=None):
+    """Apply schema changes with defaults for new columns."""
+    defaults = defaults or {}
+    for change in changes:
+        if change.change_type == "added" and change.column not in df.columns:
+            df[change.column] = defaults.get(change.column, None)
+        elif change.change_type == "removed" and change.column in df.columns:
+            df = df.drop(columns=[change.column])
+    return df
+
+print("🔧 Schema evolution utilities loaded")
+print("   Use detect_schema_changes(old_df, new_df) to find differences")
+print("   Use apply_schema_migration(df, changes) to migrate data")`,
+  },
+  // ═══════════════════════════════════════
+  //  DATA PREP (expanded)
+  // ═══════════════════════════════════════
+  {
+    id: 'dp-advanced-imputation',
+    name: 'Advanced Imputation',
+    category: 'data-prep',
+    description: 'KNN and iterative imputer comparison',
+    tags: ['imputation', 'missing-values', 'knn', 'iterative'],
+    builtin: true,
+    source: `from sklearn.impute import KNNImputer, SimpleImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+import pandas as pd
+import numpy as np
+
+# Compare imputation strategies
+strategies = {
+    "Mean": SimpleImputer(strategy="mean"),
+    "Median": SimpleImputer(strategy="median"),
+    "KNN (k=5)": KNNImputer(n_neighbors=5),
+    "Iterative": IterativeImputer(max_iter=10, random_state=42),
+}
+
+print(f"📊 Missing values before imputation:")
+print(df.isnull().sum()[df.isnull().sum() > 0])
+
+results = {}
+for name, imputer in strategies.items():
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    imputed = pd.DataFrame(
+        imputer.fit_transform(df[numeric_cols]),
+        columns=numeric_cols, index=df.index,
+    )
+    results[name] = imputed
+    print(f"  ✅ {name}: {imputed.isnull().sum().sum()} remaining nulls")`,
+  },
+  {
+    id: 'dp-feature-selection',
+    name: 'Feature Selection',
+    category: 'data-prep',
+    description: 'Mutual information + recursive feature elimination',
+    tags: ['feature-selection', 'rfe', 'mutual-info', 'dimensionality'],
+    builtin: true,
+    source: `from sklearn.feature_selection import mutual_info_classif, RFE, SelectKBest
+from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+import numpy as np
+
+# Mutual Information
+mi_scores = mutual_info_classif(X_train, y_train, random_state=42)
+mi_ranking = pd.Series(mi_scores, index=X_train.columns).sort_values(ascending=False)
+
+print("📊 Mutual Information Scores:")
+for feat, score in mi_ranking.head(10).items():
+    bar = "█" * int(score * 50)
+    print(f"  {feat:25s} {score:.4f} {bar}")
+
+# Recursive Feature Elimination
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+rfe = RFE(model, n_features_to_select=10, step=1)
+rfe.fit(X_train, y_train)
+
+selected = X_train.columns[rfe.support_].tolist()
+print(f"\\n🏆 RFE Selected Features ({len(selected)}):")
+for f in selected:
+    print(f"  ✅ {f}")`,
+  },
+  {
+    id: 'dp-outlier-treatment',
+    name: 'Outlier Treatment',
+    category: 'data-prep',
+    description: 'IQR, Z-score, and Isolation Forest comparison',
+    tags: ['outliers', 'iqr', 'zscore', 'detection'],
+    builtin: true,
+    source: `import pandas as pd
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from scipy import stats
+
+def detect_outliers_iqr(df, column, factor=1.5):
+    Q1 = df[column].quantile(0.25)
+    Q3 = df[column].quantile(0.75)
+    IQR = Q3 - Q1
+    mask = (df[column] < Q1 - factor * IQR) | (df[column] > Q3 + factor * IQR)
+    return mask
+
+def detect_outliers_zscore(df, column, threshold=3):
+    z_scores = np.abs(stats.zscore(df[column].dropna()))
+    mask = pd.Series(False, index=df.index)
+    mask[df[column].dropna().index] = z_scores > threshold
+    return mask
+
+# Compare methods on numeric columns
+for col in df.select_dtypes(include=[np.number]).columns:
+    iqr_out = detect_outliers_iqr(df, col).sum()
+    z_out = detect_outliers_zscore(df, col).sum()
+    print(f"  {col:20s} IQR: {iqr_out:4d} outliers | Z-score: {z_out:4d} outliers")
+
+# Isolation Forest (multivariate)
+iso = IsolationForest(contamination=0.05, random_state=42)
+numeric = df.select_dtypes(include=[np.number]).dropna()
+iso_labels = iso.fit_predict(numeric)
+print(f"\\n🔍 Isolation Forest: {(iso_labels == -1).sum()} multivariate outliers")`,
+  },
+  {
+    id: 'dp-smote',
+    name: 'Imbalanced Data (SMOTE)',
+    category: 'data-prep',
+    description: 'SMOTE + random oversampling for class imbalance',
+    tags: ['smote', 'imbalanced', 'oversampling', 'augmentation'],
+    builtin: true,
+    source: `from imblearn.over_sampling import SMOTE, RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
+from collections import Counter
+import pandas as pd
+
+print(f"📊 Original class distribution:")
+print(f"   {dict(Counter(y_train))}")
+
+# SMOTE — Synthetic Minority Oversampling
+smote = SMOTE(random_state=42)
+X_smote, y_smote = smote.fit_resample(X_train, y_train)
+print(f"\\n🔄 After SMOTE:")
+print(f"   {dict(Counter(y_smote))} ({len(X_smote)} samples)")
+
+# Random Oversampling
+ros = RandomOverSampler(random_state=42)
+X_ros, y_ros = ros.fit_resample(X_train, y_train)
+print(f"\\n🎲 After Random Oversampling:")
+print(f"   {dict(Counter(y_ros))} ({len(X_ros)} samples)")
+
+# Combination: SMOTE + Undersampling
+from imblearn.combine import SMOTETomek
+smt = SMOTETomek(random_state=42)
+X_combined, y_combined = smt.fit_resample(X_train, y_train)
+print(f"\\n⚖️ After SMOTE + Tomek:")
+print(f"   {dict(Counter(y_combined))} ({len(X_combined)} samples)")`,
   },
 ];
 

@@ -28,6 +28,8 @@ from rich.table import Table
 from rich.text import Text
 from rich import box
 
+from flowyml_notebook import __version__
+
 
 console = Console()
 
@@ -44,7 +46,7 @@ def _styled_header() -> Panel:
     title = Text()
     title.append(f"\n  {WAVE}  ", style="bold")
     title.append("FlowyML Notebook", style="bold #3b82f6")
-    title.append("  v1.1.0\n", style="dim #94a3b8")
+    title.append(f"  v{__version__}\n", style="dim #94a3b8")
 
     return Panel(
         title,

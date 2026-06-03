@@ -16,9 +16,13 @@ FlowyML Notebook is a full-stack application with a Python backend, React fronte
 │  │ Editor   │  │ Sidebar  │  │ DataFrame   │  │ DAG View    │  │
 │  │ (Monaco) │  │ & Nav    │  │ Explorer    │  │ (ReactFlow) │  │
 │  └──────────┘  └──────────┘  └─────────────┘  └─────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    Tools Panel (v1.5)                     │   │
+│  │  Profile │ Benchmark │ Quality │ Lint │ History │ Env    │   │
+│  └──────────────────────────────────────────────────────────┘   │
 │                      React + Vite                               │
 └─────────────────────────┬───────────────────────────────────────┘
-                          │ WebSocket + REST API
+                          │ WebSocket + REST API (157 endpoints)
 ┌─────────────────────────┴───────────────────────────────────────┐
 │                      FastAPI Server                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
@@ -29,6 +33,12 @@ FlowyML Notebook is a full-stack application with a Python backend, React fronte
 │  │ AI Assistant │  │ Recipes      │  │ FlowyML Connector  │    │
 │  │ API          │  │ Store        │  │ (Remote Exec)      │    │
 │  └──────────────┘  └──────────────┘  └────────────────────┘    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Killer Features (v1.5) — 13 modules         │   │
+│  │  Profiler · Benchmark · DataValidator · CodeAnalyzer     │   │
+│  │  ExecHistory · Lineage · Environment · PackageInstaller  │   │
+│  │  IpynbConverter · Diff · Snippets · CellDeps · Search    │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────┬───────────────────────────────────────┘
                           │
 ┌─────────────────────────┴───────────────────────────────────────┐
@@ -107,6 +117,9 @@ The frontend is a React application built with Vite:
 | `DataFrameExplorer` | Interactive data profiling with tabs |
 | `PipelineDAG` | ReactFlow-based dependency visualization |
 | `Sidebar` | Navigation, file tree, recipes, settings |
+| `ToolsPanel` | 6-tab analysis toolkit (Profile, Benchmark, Quality, Lint, History, Env) |
+| `SmartPrepPanel` | Preprocessing advisor with code generation |
+| `AlgorithmMatchPanel` | ML algorithm recommendations |
 | `ConnectionConfig` | FlowyML instance connection UI |
 
 ### Key Dependencies

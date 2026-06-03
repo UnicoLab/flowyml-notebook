@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from flowyml_notebook import __version__
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_NOTEBOOKS_DIR = Path.home() / ".flowyml" / "notebooks"
@@ -107,7 +109,7 @@ class NotebookManager:
                 "created_at": now,
                 "modified_at": now,
                 "kernel": "python3",
-                "version": "1.1.0",
+                "version": __version__,
             },
             "cells": [],
         }
@@ -189,7 +191,7 @@ class NotebookManager:
             return False
 
     def duplicate_notebook(self, nb_id: str) -> dict[str, Any] | None:
-        """Duplicate a notebook."""
+        """Duplicate a notebook, including all cells."""
         info = self._index.get(nb_id)
         if not info or not info.path.exists():
             return None
@@ -197,11 +199,21 @@ class NotebookManager:
         try:
             data = json.loads(info.path.read_text(encoding="utf-8"))
             new_name = f"{info.name} (copy)"
-            return self.create_notebook(
+            # Create the empty notebook first
+            new_info = self.create_notebook(
                 name=new_name,
                 description=data.get("metadata", {}).get("description", ""),
                 tags=data.get("metadata", {}).get("tags", []),
             )
+            if new_info is None:
+                return None
+            # Now copy cells into the new notebook
+            new_nb_id = new_info["id"]
+            source_cells = data.get("cells", [])
+            if source_cells:
+                self.save_notebook_data(new_nb_id, source_cells)
+                new_info["cell_count"] = len(source_cells)
+            return new_info
         except Exception as e:
             logger.error(f"Failed to duplicate notebook {nb_id}: {e}")
             return None

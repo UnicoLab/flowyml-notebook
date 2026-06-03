@@ -66,6 +66,13 @@ fml-notebook dev    # 🔥 Hot-reload development mode
 fml-notebook start  # 🚀 Production build
 ```
 
+> **💡 Short alias**: You can also use `fmln` instead of `fml-notebook` — it's the same CLI:
+> ```bash
+> fmln dev     # same as fml-notebook dev
+> fmln start   # same as fml-notebook start
+> ```
+> You can also import the package with `import fmln` as a shorthand for `import flowyml_notebook`.
+
 The browser opens automatically. You're ready to build.
 
 ---
@@ -253,6 +260,54 @@ Run **standalone** (Local Mode) or connect to a **FlowyML server** (Remote Mode)
 | `fml-notebook export <file>` | 📦 Export as pipeline/HTML/PDF/Docker |
 | `fml-notebook app <file>` | 🌐 Deploy as interactive web app |
 | `fml-notebook list --server <URL>` | 📚 List notebooks on a server |
+| `fml-notebook convert <file>` | 🔄 Convert between `.ipynb` ↔ `.py` |
+| `fml-notebook diff <a> <b>` | 📝 Compare two notebooks |
+
+> All commands also work with the short alias: `fmln dev`, `fmln start`, etc.
+
+---
+
+## 🔬 Killer Features — NEW in v1.5
+
+FlowyML Notebook ships with **13 built-in analysis tools** — a full data science toolkit embedded directly in the notebook. No extra installs, no configuration.
+
+### ⚡ Performance Tools
+
+| Tool | What It Does |
+|------|-------------|
+| **Cell Profiler** | CPU time, wall time, memory delta, peak memory, and hot function detection for any cell |
+| **Cell Benchmark** | Statistical timing (mean, median, std, min, max) with regression detection across runs |
+
+### 📊 Data Quality
+
+| Tool | What It Does |
+|------|-------------|
+| **Data Validator** | Automatic DataFrame quality scoring — null detection, duplicate analysis, column-level diagnostics |
+| **Data Lineage** | Track how DataFrames transform across cells — row/column changes, dtype mutations, null diffs |
+
+### 🔍 Code Intelligence
+
+| Tool | What It Does |
+|------|-------------|
+| **Code Analyzer** | Smart linting for data science — pandas anti-patterns, security checks, naming conventions, auto-fix |
+| **Cell Dependencies** | AST-based dependency graph between cells — topological sort, stale detection, optimal execution order |
+| **Notebook Search** | Full-text search with fuzzy/regex matching, find & replace, variable/function finder, duplicate detection |
+
+### 📝 Productivity
+
+| Tool | What It Does |
+|------|-------------|
+| **Snippets Library** | 35 built-in code snippets across 8 categories — Data Loading, EDA, Modeling, Visualization, and more |
+| **Execution History** | Time-travel debugging — inspect past outputs, compare runs, track performance trends |
+| **Environment Manager** | Full environment snapshot, in-notebook package install/uninstall, requirements.txt export |
+
+### 🔄 Interoperability
+
+| Tool | What It Does |
+|------|-------------|
+| **Jupyter Import/Export** | Seamless `.ipynb` ↔ `.py` conversion with full output/metadata preservation |
+| **Notebook Diff** | Cell-level diff between notebooks with added/removed/modified detection |
+| **Package Installer** | pip-compatible package management without leaving the notebook |
 
 ---
 

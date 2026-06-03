@@ -8,20 +8,25 @@ FlowyML Notebook includes a powerful **Recipe System** — pre-configured, reusa
 
 <figure markdown>
   ![Recipes Panel](screenshots/recipies.png){ width="60%" }
-  <figcaption>43 built-in recipes organized by category, with search, sort, and one-click insertion</figcaption>
+  <figcaption>83 built-in recipes organized by 15 categories, with search, sort, and one-click insertion</figcaption>
 </figure>
 
 ### Built-in Categories
 
 | Category | Count | Examples |
 |----------|:-----:|---------|
-| :star: **Core** | 9 | FlowyML Step, Pipeline, Conditional Branching |
-| :package: **Assets** | 8 | Dataset loading, Model versioning, Artifact catalog |
-| :fast_forward: **Parallel** | 4 | Parallel map, Dynamic tasks, Map-reduce |
-| :eye: **Observability** | 5 | Drift detection, Performance monitoring, Logging |
-| :chart_with_upwards_trend: **Evals** | 3 | Eval suites, EvalDataset, Structured assessment |
-| :floppy_disk: **Data** | 3 | Data loading, SQL connectors, Parquet I/O |
-| :brain: **ML** | 3 | XGBoost/LightGBM baselines, Feature engineering |
+| :star: **Core** | 14 | FlowyML Step, Pipeline, Conditional Branching, Scheduling |
+| :package: **Assets** | 11 | Dataset loading, Model versioning, Experiment tracking |
+| :fast_forward: **Parallel** | 5 | Parallel map, Retry logic, Checkpointing, Smart caching |
+| :eye: **Observability** | 7 | GenAI tracing, OpenAI/LangChain observability, Drift detection |
+| :chart_with_upwards_trend: **Evals** | 6 | Eval suites, Judge arena, Structured assessment |
+| :shield: **Production** | 6 | Config management, FastAPI serving, Docker, CI/CD, Monitoring, A/B Testing |
+| :brain: **Deep Learning** | 5 | PyTorch training, Transfer learning, Optuna tuning, SHAP explainability |
+| :globe_with_meridians: **NLP** | 5 | Text classification, Sentiment analysis, Topic modeling, NER, Embeddings |
+| :clock1: **Time Series** | 5 | Seasonal decomposition, ARIMA, Prophet, Anomaly detection, Rolling features |
+| :building_construction: **Data Engineering** | 5 | ETL pipeline, Data quality, DuckDB analytics, SQLAlchemy, Schema evolution |
+| :floppy_disk: **Data Prep** | 7 | Imputation, Feature selection, Outlier treatment, SMOTE |
+| :robot: **ML / Models** | 3 | XGBoost/LightGBM baselines, Feature engineering |
 | :bar_chart: **Visualization** | 4 | Plotly charts, SHAP/LIME, Dashboard templates |
 | :unicorn: **Ecosystem** | 4 | KDP preprocessing, KerasFactory model, MLPotion training, E2E pipeline |
 

@@ -14,6 +14,7 @@ import ReportGenerator from './components/ReportGenerator';
 import AppPublisher from './components/AppPublisher';
 import AnalysisPatternsPanel from './components/AnalysisPatternsPanel';
 import PipelineWizard from './components/PipelineWizard';
+import ToolsPanel from './components/ToolsPanel';
 import SaveAsDialog from './components/SaveAsDialog';
 import OpenFileDialog from './components/OpenFileDialog';
 import { FLOWYML_SNIPPETS } from './data/flowymlSnippets';
@@ -65,6 +66,7 @@ export default function App() {
       case 'report': setRightPanel(p => p === 'report' ? null : 'report'); break;
       case 'publish-app': setRightPanel(p => p === 'app' ? null : 'app'); break;
       case 'patterns': setRightPanel(p => p === 'patterns' ? null : 'patterns'); break;
+      case 'tools': setRightPanel(p => p === 'tools' ? null : 'tools'); break;
       case 'find': break;
     }
 
@@ -344,6 +346,7 @@ export default function App() {
         onToggleReport={() => setRightPanel(p => p === 'report' ? null : 'report')}
         onToggleApp={() => setRightPanel(p => p === 'app' ? null : 'app')}
         onTogglePatterns={() => setRightPanel(p => p === 'patterns' ? null : 'patterns')}
+        onToggleTools={() => setRightPanel(p => p === 'tools' ? null : 'tools')}
         onOpenPalette={() => setPaletteOpen(true)}
         onRequestReview={notebook.requestReview}
         onUndo={notebook.undoStack?.length > 0 ? notebook.undo : null}
@@ -467,6 +470,15 @@ export default function App() {
                       await notebook.insertCellWithSource(cell.source, cell.name);
                     }
                   }}
+                />
+              )}
+              {rightPanel === 'tools' && (
+                <ToolsPanel
+                  onClose={() => setRightPanel(null)}
+                  cells={notebook.cells}
+                  variables={notebook.variables}
+                  focusedCellId={focusedCellId}
+                  onUpdateCell={notebook.updateCell}
                 />
               )}
             </Panel>

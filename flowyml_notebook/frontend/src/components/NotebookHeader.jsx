@@ -4,7 +4,7 @@ import {
   Sparkles, Zap, Command, ChevronDown, Rocket, Sun, Moon,
   GitBranch, Server, Check, X, FlaskConical, MessageSquare,
   ClipboardCheck, User, FileText, Globe, AlertTriangle, Eraser,
-  FolderOpen, Undo2, Redo2, SaveAll
+  FolderOpen, Undo2, Redo2, SaveAll, Wrench
 } from 'lucide-react';
 
 export default function NotebookHeader({
@@ -12,7 +12,7 @@ export default function NotebookHeader({
   onResetKernel, onLoadDemo,
   onClearAllOutputs,
   onToggleSidebar, onToggleAI, onToggleFlowyML, onToggleDAG, onToggleComments,
-  onToggleReport, onToggleApp,
+  onToggleReport, onToggleApp, onTogglePatterns, onToggleTools,
   onOpenPalette, onRenameNotebook, onRequestReview,
   onUndo, onRedo,
   sidebarOpen, rightPanel, theme, onToggleTheme,
@@ -239,6 +239,15 @@ export default function NotebookHeader({
         >
           <Sparkles size={13} />
           AI
+        </button>
+
+        <button
+          className={`btn btn-ghost ${rightPanel === 'tools' ? 'text-emerald-400 bg-emerald-500/10' : ''}`}
+          onClick={onToggleTools}
+          title="Dev Tools — Profiler, Benchmark, Lint, Quality"
+        >
+          <Wrench size={13} />
+          Tools
         </button>
 
         <div className="header-divider" />

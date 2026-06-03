@@ -10,6 +10,8 @@ import argparse
 import logging
 import sys
 
+from flowyml_notebook import __version__
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="fml-notebook",
         description="🌊 FlowyML Notebook — Production-grade reactive notebook",
     )
-    parser.add_argument("--version", action="version", version="flowyml-notebook 1.1.0")
+    parser.add_argument("--version", action="version", version=f"flowyml-notebook {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     export_parser = subparsers.add_parser("export", help="Export notebook")
     export_parser.add_argument("file", help="Notebook .py file")
     export_parser.add_argument(
-        "--format", choices=["pipeline", "html", "pdf", "docker"], default="pipeline",
+        "--format", choices=["pipeline", "html", "pdf", "docker", "ipynb", "requirements"], default="pipeline",
         help="Export format"
     )
     export_parser.add_argument("--output", "-o", help="Output file path")
@@ -64,6 +66,17 @@ def main(argv: list[str] | None = None) -> int:
     # --- list ---
     list_parser = subparsers.add_parser("list", help="List notebooks on server")
     list_parser.add_argument("--server", required=True, help="FlowyML server URL")
+
+    # --- convert ---
+    convert_parser = subparsers.add_parser("convert", help="Convert between .ipynb and .py formats")
+    convert_parser.add_argument("file", help="Input file (.ipynb or .py)")
+    convert_parser.add_argument("--output", "-o", help="Output file path")
+
+    # --- diff ---
+    diff_parser = subparsers.add_parser("diff", help="Compare two notebooks")
+    diff_parser.add_argument("file_a", help="First notebook (.py file)")
+    diff_parser.add_argument("file_b", help="Second notebook (.py file)")
+    diff_parser.add_argument("--html", action="store_true", help="Output as HTML")
 
     args = parser.parse_args(argv)
 
@@ -90,6 +103,10 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_app(args)
         elif args.command == "list":
             return _cmd_list(args)
+        elif args.command == "convert":
+            return _cmd_convert(args)
+        elif args.command == "diff":
+            return _cmd_diff(args)
         else:
             parser.print_help()
             return 1
@@ -177,6 +194,12 @@ def _cmd_export(args) -> int:
         from flowyml_notebook.deployer import generate_dockerfile
         path = generate_dockerfile(nb.notebook, args.output or "Dockerfile")
         print(f"🐳 Dockerfile generated: {path}")
+    elif args.format == "ipynb":
+        path = nb.export_ipynb(args.output)
+        print(f"📓 Jupyter notebook exported: {path}")
+    elif args.format == "requirements":
+        path = nb.export_requirements(args.output)
+        print(f"📋 Requirements exported: {path}")
 
     return 0
 
@@ -217,13 +240,56 @@ def _cmd_app(args) -> int:
 
 def _cmd_list(args) -> int:
     """List notebooks on a remote server."""
-    from flowyml_notebook.connection import FlowyMLConnection
+    import httpx
 
-    conn = FlowyMLConnection(args.server)
-    conn.connect()
-    print(f"📚 Notebooks on {args.server}:")
-    # This would call the notebooks API endpoint
-    print("   (notebook listing endpoint not yet implemented)")
+    server = args.server.rstrip("/")
+    try:
+        resp = httpx.get(f"{server}/api/notebooks", timeout=10.0)
+        resp.raise_for_status()
+        notebooks = resp.json().get("notebooks", [])
+    except httpx.ConnectError:
+        print(f"❌ Cannot connect to {server}")
+        return 1
+    except httpx.HTTPStatusError as e:
+        print(f"❌ Server returned {e.response.status_code}")
+        return 1
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return 1
+
+    print(f"📚 Notebooks on {server}:")
+    if not notebooks:
+        print("   (no notebooks found)")
+        return 0
+
+    for nb in notebooks:
+        name = nb.get("name", nb.get("path", "untitled"))
+        cells = nb.get("cell_count", "?")
+        modified = nb.get("modified", "")
+        print(f"   • {name}  ({cells} cells)  {modified}")
+
+    print(f"\n   Total: {len(notebooks)} notebook(s)")
+    return 0
+
+
+def _cmd_convert(args) -> int:
+    """Convert between .ipynb and .py formats."""
+    from flowyml_notebook.ipynb_converter import convert_file
+
+    output = convert_file(args.file, args.output)
+    print(f"✅ Converted → {output}")
+    return 0
+
+
+def _cmd_diff(args) -> int:
+    """Compare two notebooks."""
+    from flowyml_notebook.diff import diff_notebooks, render_diff_terminal, render_diff_html
+
+    diff = diff_notebooks(args.file_a, args.file_b)
+    if args.html:
+        print(render_diff_html(diff))
+    else:
+        print(render_diff_terminal(diff))
     return 0
 
 

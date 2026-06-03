@@ -149,5 +149,51 @@ def register_magics(notebook) -> None:
         except Exception as e:
             print(f"❌ SQL error: {e}")
 
+    @register_line_magic
+    def pip(line):
+        """Install a package. Usage: %pip install pandas>=2.0"""
+        from flowyml_notebook.package_installer import install_package
+        parts = line.strip().split()
+        if not parts or parts[0] not in ("install", "uninstall"):
+            print("Usage: %pip install <package> [version]")
+            print("       %pip uninstall <package>")
+            return
+        action = parts[0]
+        if action == "install" and len(parts) >= 2:
+            pkg = parts[1]
+            version = parts[2] if len(parts) > 2 else None
+            upgrade = "--upgrade" in parts or "-U" in parts
+            result = install_package(pkg, version=version, upgrade=upgrade)
+            if result.success:
+                print(f"✅ Installed {result.package}=={result.version} ({result.env_type})")
+            else:
+                print(f"❌ Failed to install {pkg}: {result.error}")
+        elif action == "uninstall" and len(parts) >= 2:
+            from flowyml_notebook.package_installer import uninstall_package
+            result = uninstall_package(parts[1])
+            if result.success:
+                print(f"✅ Uninstalled {parts[1]}")
+            else:
+                print(f"❌ Failed: {result.error}")
+
+    @register_line_magic
+    def env_snapshot(line):
+        """Capture environment snapshot. Usage: %env_snapshot"""
+        from flowyml_notebook.environment import capture_environment
+        snap = capture_environment()
+        print(f"🐍 Python {snap.python_version} on {snap.os_name} ({snap.architecture})")
+        print(f"   {len(snap.packages)} packages installed")
+        if snap.gpu_info:
+            for gpu in snap.gpu_info:
+                print(f"   🖥️  GPU: {gpu.get('name', 'Unknown')}")
+        print(f"   💻 CPUs: {snap.cpu_count}")
+
+    @register_line_magic
+    def profile(line):
+        """Profile the next cell. Usage: %profile"""
+        print("⏱️  Profiling enabled for the next cell execution.")
+        # This sets a flag that the kernel checks when executing
+        notebook._profiling_enabled = True
+
     _MAGICS_REGISTERED = True
     logger.info("FlowyML magic commands registered")

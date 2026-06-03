@@ -509,3 +509,93 @@ Widgets participate in the reactive DAG — when a user changes a slider value, 
 | PDF Report | `fml-notebook export --format pdf` | Documentation |
 | Docker Image | `fml-notebook export --format docker` | Containerized deployment |
 | Web App | `fml-notebook app notebook.py` | Interactive applications |
+
+---
+
+## :microscope: Killer Features — NEW in v1.5
+
+FlowyML Notebook v1.5 introduces **13 built-in analysis tools** — a complete data science toolkit embedded directly in the notebook. No extra installs, no configuration.
+
+<div class="grid cards" markdown>
+
+-   :material-speedometer:{ .lg .middle } **Cell Profiler**
+
+    ---
+
+    CPU time, wall time, memory delta, peak memory, and hot function detection.
+
+-   :material-timer-outline:{ .lg .middle } **Cell Benchmark**
+
+    ---
+
+    Statistical timing with mean, median, std, min, max, and regression detection.
+
+-   :material-check-decagram:{ .lg .middle } **Data Validator**
+
+    ---
+
+    Automatic DataFrame quality scoring with null, duplicate, and type analysis.
+
+-   :material-source-branch:{ .lg .middle } **Data Lineage**
+
+    ---
+
+    Track DataFrame transformations across cells — row/column changes and dtype mutations.
+
+-   :material-code-tags-check:{ .lg .middle } **Code Analyzer**
+
+    ---
+
+    Smart linting: pandas anti-patterns, security checks, naming conventions, and auto-fix.
+
+-   :material-graph:{ .lg .middle } **Cell Dependencies**
+
+    ---
+
+    AST-based dependency graph, topological sort, stale detection, optimal execution order.
+
+-   :material-magnify:{ .lg .middle } **Notebook Search**
+
+    ---
+
+    Full-text search with fuzzy/regex matching, find & replace, and duplicate detection.
+
+-   :material-code-block-braces:{ .lg .middle } **Snippets Library**
+
+    ---
+
+    35 built-in data science snippets across 8 categories — search, insert, and contribute.
+
+-   :material-history:{ .lg .middle } **Execution History**
+
+    ---
+
+    Time-travel debugging — inspect past outputs, compare runs, track trends.
+
+-   :material-package-variant:{ .lg .middle } **Environment Manager**
+
+    ---
+
+    Full environment snapshots, in-notebook package install, requirements.txt export.
+
+-   :material-swap-horizontal:{ .lg .middle } **Jupyter Import/Export**
+
+    ---
+
+    Seamless `.ipynb` ↔ `.py` conversion with full output and metadata preservation.
+
+-   :material-file-compare:{ .lg .middle } **Notebook Diff**
+
+    ---
+
+    Cell-level comparison between notebooks with added/removed/modified detection.
+
+-   :material-download:{ .lg .middle } **Package Installer**
+
+    ---
+
+    pip-compatible package management without leaving the notebook.
+
+</div>
+
+:arrow_right: See the full [Killer Features Guide](killer-features.md) for API reference, code examples, and detailed documentation.

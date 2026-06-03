@@ -159,12 +159,20 @@ class NotebookSession:
             ExecutionResult with outputs and error info.
         """
         import time
-        import resource
+        import sys
 
         self._ensure_kernel()
         start = time.time()
         cpu_start = time.process_time()
-        mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+        # Memory tracking: `resource` is Unix-only; fallback to 0 on Windows
+        try:
+            import resource
+            mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            _has_resource = True
+        except ImportError:
+            mem_before = 0
+            _has_resource = False
         outputs: list[CellOutput] = []
         error: str | None = None
         success = True
@@ -178,12 +186,15 @@ class NotebookSession:
 
         duration = time.time() - start
         cpu_time = time.process_time() - cpu_start
-        mem_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        # macOS reports bytes, Linux reports KB
-        import sys
-        divisor = 1024 * 1024 if sys.platform == 'darwin' else 1024
-        memory_delta = (mem_after - mem_before) / divisor
-        peak_memory = mem_after / divisor
+        if _has_resource:
+            mem_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            # macOS reports bytes, Linux reports KB
+            divisor = 1024 * 1024 if sys.platform == 'darwin' else 1024
+            memory_delta = (mem_after - mem_before) / divisor
+            peak_memory = mem_after / divisor
+        else:
+            memory_delta = 0.0
+            peak_memory = 0.0
         cell.execution_count += 1
         cell.last_executed = datetime.now().isoformat()
         cell.outputs = outputs
@@ -678,14 +689,61 @@ class Notebook:
         logger.info(f"Notebook saved to {save_path}")
         return save_path
 
-    def load(self, path: str) -> None:
-        """Load notebook from .py file.
+    def export_ipynb(self, path: str | None = None) -> str:
+        """Export notebook as a Jupyter .ipynb file.
 
         Args:
-            path: Path to notebook .py file.
+            path: Output path. Defaults to <name>.ipynb.
+
+        Returns:
+            Path to the exported file.
         """
-        content = Path(path).read_text(encoding="utf-8")
-        self.notebook = parse_notebook(content)
+        import json
+        from flowyml_notebook.ipynb_converter import to_ipynb
+
+        save_path = path or f"{self.name}.ipynb"
+        ipynb_data = to_ipynb(self.notebook)
+        Path(save_path).write_text(
+            json.dumps(ipynb_data, indent=1, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info(f"Notebook exported to {save_path}")
+        return save_path
+
+    def snapshot(self) -> dict:
+        """Capture a full environment snapshot.
+
+        Returns:
+            Dict with Python version, packages, GPU info, etc.
+        """
+        from flowyml_notebook.environment import capture_environment
+        return capture_environment().to_dict()
+
+    def export_requirements(self, output_path: str | None = None, pinned: bool = True) -> str:
+        """Export a requirements.txt from the notebook's actual imports.
+
+        Args:
+            output_path: Output file path.
+            pinned: If True, pin exact versions.
+
+        Returns:
+            Path to generated requirements file.
+        """
+        from flowyml_notebook.environment import export_requirements
+        return export_requirements(self.notebook, output_path, pinned)
+
+    def load(self, path: str) -> None:
+        """Load notebook from .py or .ipynb file.
+
+        Args:
+            path: Path to notebook file (.py or .ipynb).
+        """
+        if path.endswith(".ipynb"):
+            from flowyml_notebook.ipynb_converter import from_ipynb
+            self.notebook = from_ipynb(path)
+        else:
+            content = Path(path).read_text(encoding="utf-8")
+            self.notebook = parse_notebook(content)
         self.file_path = path
 
         # Rebuild reactive graph

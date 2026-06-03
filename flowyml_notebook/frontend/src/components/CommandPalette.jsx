@@ -4,7 +4,7 @@ import {
   BarChart3, Rocket, Clock, Zap, Sparkles, GitBranch,
   Plus, Code, Type, Database, Trash2, Settings, Moon, Sun, Layout,
   Command, FileText, Globe, Workflow, Box, Activity, Cpu, ToggleLeft,
-  FlaskConical, Package, Eraser
+  FlaskConical, Package, Eraser, Wrench, Shield
 } from 'lucide-react';
 
 const ALL_COMMANDS = [
@@ -41,6 +41,7 @@ const ALL_COMMANDS = [
   { id: 'report', label: 'Generate Report', icon: FileText, group: 'Publish' },
   { id: 'publish-app', label: 'Publish as App', icon: Globe, group: 'Publish' },
   { id: 'ai-assist', label: 'Open AI Assistant', shortcut: ['⌘', 'J'], icon: Sparkles, group: 'Tools' },
+  { id: 'tools', label: 'Dev Tools — Profile, Bench, Lint, Quality', icon: Wrench, group: 'Tools' },
   { id: 'find', label: 'Find in Notebook', shortcut: ['⌘', 'F'], icon: Search, group: 'Tools' },
 ];
 
