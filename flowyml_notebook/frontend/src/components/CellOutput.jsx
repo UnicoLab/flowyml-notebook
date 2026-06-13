@@ -7,24 +7,43 @@ import ChartRenderer from './ChartRenderer';
 import InputWidgets from './InputWidgets';
 
 export default function CellOutput({ outputs }) {
+  const [showRaw, setShowRaw] = useState(false);
+
   if (!outputs || outputs.length === 0) return null;
+
+  // Detect if we have both raw text and rich content
+  const richTypes = ['dataframe', 'chart', 'image', 'widget', 'pipeline_result', 'model_info', 'html'];
+  const hasRichOutput = outputs.some(o => richTypes.includes(o.output_type));
+  const hasRawOutput = outputs.some(o => o.output_type === 'text');
+  const canToggle = hasRichOutput && hasRawOutput;
 
   return (
     <div className="cell-output">
       <AnimatePresence mode="popLayout">
-        {outputs.map((output, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="output-wrapper"
-          >
-            <OutputRenderer output={output} />
-          </motion.div>
-        ))}
+        {outputs.map((output, i) => {
+          // Hide raw text outputs when toggle is off and we have rich content
+          if (canToggle && !showRaw && output.output_type === 'text') return null;
+
+          return (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="output-wrapper"
+            >
+              <OutputRenderer output={output} />
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
+      {canToggle && (
+        <div className="output-toggle-bar" onClick={() => setShowRaw(!showRaw)}>
+          {showRaw ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+          <span>{showRaw ? 'Hide raw output' : 'Show raw output'}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -89,7 +108,12 @@ function OutputRenderer({ output }) {
 /* JSON tree viewer */
 function JsonViewer({ data }) {
   const [expanded, setExpanded] = useState(true);
-  const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+  let parsed;
+  try {
+    parsed = typeof data === 'string' ? JSON.parse(data) : data;
+  } catch {
+    return <pre className="output-text" style={{ fontSize: '0.75rem' }}>Invalid JSON: {String(data)}</pre>;
+  }
 
   return (
     <div className="p-2 rounded-lg bg-black/20 border border-white/5">

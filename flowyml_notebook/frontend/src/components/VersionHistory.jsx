@@ -22,9 +22,35 @@ export default function VersionHistory({ onClose }) {
   const loadCommits = async () => {
     setLoading(true);
     try {
+      // Try git-based history first
       const res = await fetch('/api/github/log?limit=30');
-      const data = await res.json();
-      setCommits(data.commits || []);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.commits && data.commits.length > 0) {
+          setCommits(data.commits);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // Fallback to snapshot-based history
+    try {
+      const res = await fetch('/api/version/history');
+      if (res.ok) {
+        const data = await res.json();
+        setCommits((data.commits || []).map(c => ({
+          sha: c.id,
+          message: c.message,
+          date: c.timestamp,
+          author: { name: 'You', avatar_letter: 'Y' },
+          additions: c.additions || 0,
+          deletions: c.deletions || 0,
+          cell_count: c.cell_count || 0,
+        })));
+      } else {
+        setCommits([]);
+      }
     } catch { setCommits([]); }
     setLoading(false);
   };
@@ -32,8 +58,20 @@ export default function VersionHistory({ onClose }) {
   const loadDiff = async (sha) => {
     try {
       const res = await fetch(`/api/github/diff-summary/${sha}`);
-      setDiffSummary(await res.json());
-    } catch { setDiffSummary(null); }
+      if (res.ok) {
+        setDiffSummary(await res.json());
+        return;
+      }
+    } catch {}
+    // Fallback to version diff
+    try {
+      const res = await fetch(`/api/version/diff/${sha}`);
+      if (res.ok) {
+        setDiffSummary(await res.json());
+        return;
+      }
+    } catch {}
+    setDiffSummary(null);
   };
 
   const selectCommit = (commit) => {
@@ -49,7 +87,14 @@ export default function VersionHistory({ onClose }) {
   const handleRestore = async (sha) => {
     if (!confirm('Restore this version? Current changes will be overwritten.')) return;
     try {
-      await fetch(`/api/github/restore?sha=${sha}`, { method: 'POST' });
+      const res = await fetch(`/api/version/restore/${sha}`, { method: 'POST' });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        // Try git restore
+        await fetch(`/api/github/restore?sha=${sha}`, { method: 'POST' });
+        window.location.reload();
+      }
     } catch (e) {
       console.error('Restore failed', e);
     }

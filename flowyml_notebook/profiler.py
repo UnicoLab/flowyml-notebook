@@ -125,10 +125,14 @@ class CellProfiler:
         profiler = cProfile.Profile()
         wall_start = time.perf_counter()
         cpu_start = time.process_time()
+        exec_error = None
 
         try:
             profiler.enable()
             exec(code, ns)  # noqa: S102
+        except Exception as exc:
+            exec_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Profiler: cell %s raised during execution: %s", cell_id, exec_error)
         finally:
             profiler.disable()
 
@@ -206,7 +210,7 @@ class CellProfiler:
             function_calls=function_calls,
             top_functions=top_functions,
             top_allocations=top_allocations,
-            line_times=[],
+            line_times=[{"error": exec_error}] if exec_error else [],
         )
 
         self._history.append(result)

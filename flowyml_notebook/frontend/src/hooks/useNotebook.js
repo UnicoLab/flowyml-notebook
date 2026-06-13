@@ -8,6 +8,14 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 const API = '/api';
 const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
 
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
 export function useNotebook() {
   const [cells, setCells] = useState([]);
   const [graph, setGraph] = useState({ cells: {}, var_producers: {} });
@@ -53,6 +61,10 @@ export function useNotebook() {
       .catch(() => {});
   }, []);
 
+  // Ref for latest handleKernelMessage to avoid stale closure in WS effect
+  const handleKernelMessageRef = useRef(handleKernelMessage);
+  useEffect(() => { handleKernelMessageRef.current = handleKernelMessage; }, [handleKernelMessage]);
+
   // WebSocket connection
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -61,8 +73,12 @@ export function useNotebook() {
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      handleKernelMessage(msg);
+      try {
+        const msg = JSON.parse(event.data);
+        handleKernelMessageRef.current(msg);
+      } catch (e) {
+        console.warn('WS: non-JSON message received', e);
+      }
     };
 
     ws.onclose = () => {
@@ -182,23 +198,51 @@ export function useNotebook() {
     return cell;
   }, [markDirty]);
 
+  const debouncedApiUpdate = useRef(null);
+  if (!debouncedApiUpdate.current) {
+    debouncedApiUpdate.current = debounce(async (cellId, source) => {
+      try {
+        const res = await fetch(`${API}/cells/${cellId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source }),
+        });
+        const data = await res.json();
+        if (data.graph) setGraph(data.graph);
+      } catch (e) {
+        console.error('Update cell API error:', e);
+      }
+    }, 300);
+  }
+
   const updateCell = useCallback(async (cellId, source) => {
     setCells(prev => prev.map(c => c.id === cellId ? { ...c, source } : c));
     markDirty();
-
-    const res = await fetch(`${API}/cells/${cellId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source }),
-    });
-    const data = await res.json();
-    if (data.graph) setGraph(data.graph);
+    debouncedApiUpdate.current(cellId, source);
   }, [markDirty]);
 
   const deleteCell = useCallback(async (cellId) => {
     setCells(prev => prev.filter(c => c.id !== cellId));
     markDirty();
     await fetch(`${API}/cells/${cellId}`, { method: 'DELETE' });
+  }, [markDirty]);
+
+  const moveCell = useCallback(async (cellId, newIndex) => {
+    // Optimistic update
+    setCells(prev => {
+      const idx = prev.findIndex(c => c.id === cellId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      const [cell] = next.splice(idx, 1);
+      next.splice(newIndex, 0, cell);
+      return next;
+    });
+    markDirty();
+    try {
+      await fetch(`${API}/cells/${cellId}/move?index=${newIndex}`, { method: 'POST' });
+    } catch (e) {
+      console.error('Move cell failed:', e);
+    }
   }, [markDirty]);
 
   const executeCell = useCallback(async (cellId) => {
@@ -291,38 +335,40 @@ export function useNotebook() {
   const executeAll = useCallback(async () => {
     setExecuting('all');
     try {
-      const res = await fetch(`${API}/execute-all`, { method: 'POST' });
-
-      if (!res.ok) {
-        console.error('Execute all failed:', res.status);
-        setExecuting(null);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.results) {
-        for (const result of data.results) {
-          setCells(prev => prev.map(c =>
-            c.id === result.cell_id
-              ? {
-                  ...c,
-                  outputs: result.outputs || [],
-                  execution_count: (c.execution_count || 0) + 1,
-                  last_executed: new Date().toISOString(),
-                }
-              : c
-          ));
+      // Execute cells one by one in order for proper progress feedback
+      const cellsCopy = [...cells];
+      for (const cell of cellsCopy) {
+        if (cell.cell_type !== 'code') continue;
+        setExecuting(cell.id);
+        try {
+          const res = await fetch(`${API}/cells/${cell.id}/execute`, { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.outputs !== undefined) {
+              setCells(prev => prev.map(c =>
+                c.id === cell.id
+                  ? {
+                      ...c,
+                      outputs: data.outputs || [],
+                      execution_count: (c.execution_count || 0) + 1,
+                      last_executed: new Date().toISOString(),
+                    }
+                  : c
+              ));
+            }
+            if (data.graph) setGraph(data.graph);
+            if (data.variables) setVariables(data.variables);
+          }
+        } catch (cellErr) {
+          console.error(`Error executing cell ${cell.id}:`, cellErr);
         }
       }
-      if (data.graph) setGraph(data.graph);
-      if (data.variables) setVariables(data.variables);
       markDirty();
     } catch (err) {
       console.error('Execute all error:', err);
     }
     setExecuting(null);
-  }, [markDirty]);
+  }, [cells, markDirty]);
 
   const resetKernel = useCallback(async () => {
     await fetch(`${API}/kernel/reset`, { method: 'POST' });
@@ -786,7 +832,7 @@ export function useNotebook() {
     sessionId, connected, executing,
     dirty, saveStatus, lastSaved,
     kernelStatus, kernelInfo,
-    addCell, updateCell, deleteCell,
+    addCell, updateCell, deleteCell, moveCell,
     executeCell, executeAll, resetKernel, saveNotebook, uploadCSV,
     clearCellOutput, clearAllOutputs,
     insertRecipe, insertCellWithSource, loadNotebookState, renameNotebook, loadDemo,

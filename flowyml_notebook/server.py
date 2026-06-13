@@ -1283,6 +1283,31 @@ class NotebookServer:
                 )
             # Track in recent files
             self._track_recent_file(saved_path, self.notebook.notebook.metadata.name)
+
+            # Auto-create version snapshot
+            try:
+                import hashlib
+                from datetime import datetime as dt_now
+                history_dir = Path.home() / ".flowyml" / "history"
+                history_dir.mkdir(parents=True, exist_ok=True)
+                ts = dt_now.now().isoformat()
+                snapshot_id = hashlib.sha256(ts.encode()).hexdigest()[:12]
+                state = self.notebook.get_state()
+                cells_data_snap = state.get("notebook", {}).get("cells", [])
+                snapshot = {
+                    "id": snapshot_id,
+                    "message": f"Auto-save at {dt_now.now().strftime('%H:%M:%S')}",
+                    "timestamp": ts,
+                    "cell_count": len(cells_data_snap),
+                    "additions": 0,
+                    "deletions": 0,
+                    "cells": [{"id": c.get("id", ""), "name": c.get("name", ""), "cell_type": c.get("cell_type", "code"), "source": c.get("source", "")} for c in cells_data_snap],
+                }
+                import json as _json
+                (history_dir / f"{snapshot_id}.json").write_text(_json.dumps(snapshot, indent=2))
+            except Exception:
+                pass
+
             return {"path": saved_path}
 
         @app.post("/api/save-as")
@@ -1729,6 +1754,14 @@ class NotebookServer:
                     include_code=req.include_code,
                 )
                 return {"format": req.format, "path": path}
+            elif req.format == "presentation":
+                from flowyml_notebook.reporting import generate_report
+                path = generate_report(
+                    self.notebook.notebook,
+                    format="presentation",
+                    include_code=req.include_code,
+                )
+                return {"format": "presentation", "path": path}
             else:
                 raise HTTPException(400, f"Unsupported format: {req.format}")
 
@@ -1762,22 +1795,33 @@ class NotebookServer:
             except Exception as e:
                 logger.warning(f"Some cells failed during report preview: {e}")
             report_title = title or f"{self.notebook.notebook.metadata.name} — Report"
-            html = _generate_html_report(self.notebook.notebook, report_title, include_code)
-            return HTMLResponse(content=html)
+            try:
+                html = _generate_html_report(self.notebook.notebook, report_title, include_code)
+                return HTMLResponse(content=html)
+            except Exception as e:
+                logger.error(f"Report preview failed: {e}", exc_info=True)
+                return HTMLResponse(
+                    content=f"<html><body><h1>Report Generation Error</h1><pre>{e}</pre></body></html>",
+                    status_code=500,
+                )
 
         @app.get("/api/report/download")
         async def download_report(format: str = "html", include_code: bool = False, title: str = ""):
             """Generate report and return as downloadable file."""
             from flowyml_notebook.reporting import generate_report
             report_title = title or f"{self.notebook.notebook.metadata.name} — Report"
-            path = generate_report(
-                self.notebook.notebook,
-                format=format,
-                title=report_title,
-                include_code=include_code,
-            )
-            return FileResponse(path, filename=os.path.basename(path),
-                                media_type="text/html" if format == "html" else "application/pdf")
+            try:
+                path = generate_report(
+                    self.notebook.notebook,
+                    format=format,
+                    title=report_title,
+                    include_code=include_code,
+                )
+                return FileResponse(path, filename=os.path.basename(path),
+                                    media_type="text/html" if format == "html" else "application/pdf")
+            except Exception as e:
+                logger.error(f"Report download failed: {e}", exc_info=True)
+                raise HTTPException(500, detail=f"Report generation failed: {e}")
 
         # --- App Mode / Publish ---
 
@@ -2115,6 +2159,25 @@ class NotebookServer:
                 raise HTTPException(404, "Notebook not found")
             # Load the notebook data
             self.notebook.load_from_dict(nb_data)
+            self.current_nb_id = nb_id
+            return self.notebook.get_state()
+
+        @app.get("/api/notebooks/{nb_id}/load")
+        async def load_notebook(nb_id: str):
+            """Load a specific notebook by ID into the current session."""
+            nb_data = self.nb_manager.get_notebook(nb_id)
+            if not nb_data:
+                raise HTTPException(404, "Notebook not found")
+            # Load the notebook data into the current session
+            cells_data = nb_data.get("cells", [])
+            self.notebook.notebook.cells.clear()
+            for cell_data in cells_data:
+                self.notebook.cell(
+                    source=cell_data.get("source", ""),
+                    cell_type=CellType(cell_data.get("cell_type", "code")),
+                    name=cell_data.get("name", ""),
+                )
+            self.notebook.notebook.metadata.name = nb_data.get("name", "untitled")
             self.current_nb_id = nb_id
             return self.notebook.get_state()
 
@@ -3410,9 +3473,24 @@ Dataset profile:
             cell = self.notebook.notebook.get_cell(cell_id)
             if not cell:
                 raise HTTPException(404, f"Cell {cell_id} not found")
-            result = self._profiler.profile(cell_id, cell.source, self.notebook.session._namespace)
-            output = format_profile_output(result)
-            return {"profile": result.to_dict(), "output": output.to_dict()}
+            try:
+                result = self._profiler.profile(cell_id, cell.source, self.notebook.session._namespace)
+                output = format_profile_output(result)
+                return {"profile": result.to_dict(), "output": output.to_dict()}
+            except Exception as e:
+                logger.error(f"Profiling failed for cell {cell_id}: {e}", exc_info=True)
+                return {
+                    "profile": {
+                        "cell_id": cell_id,
+                        "wall_time_s": 0, "cpu_time_s": 0,
+                        "memory_delta_mb": 0, "peak_memory_mb": 0,
+                        "function_calls": 0,
+                        "top_functions": [], "top_allocations": [],
+                        "line_times": [{"error": str(e)}],
+                        "timestamp": "",
+                    },
+                    "output": {"output_type": "error", "data": f"Profiling error: {e}", "metadata": {}},
+                }
 
         @app.get("/api/profiler/history")
         async def profiler_history():
@@ -3439,17 +3517,29 @@ Dataset profile:
             cell = self.notebook.notebook.get_cell(cell_id)
             if not cell:
                 raise HTTPException(404, f"Cell {cell_id} not found")
-            result = self._benchmark.benchmark(
-                cell_id, cell.source, self.notebook.session._namespace,
-                runs=runs, warmup=warmup,
-            )
-            output = format_benchmark_output(result)
-            regressions = self._benchmark.detect_regressions(cell_id)
-            return {
-                "benchmark": result.to_dict(),
-                "output": output.to_dict(),
-                "regressions": [r.to_dict() for r in regressions],
-            }
+            try:
+                result = self._benchmark.benchmark(
+                    cell_id, cell.source, self.notebook.session._namespace,
+                    runs=runs, warmup=warmup,
+                )
+                output = format_benchmark_output(result)
+                regressions = self._benchmark.detect_regressions(cell_id)
+                return {
+                    "benchmark": result.to_dict(),
+                    "output": output.to_dict(),
+                    "regressions": [r.to_dict() for r in regressions],
+                }
+            except Exception as e:
+                logger.error(f"Benchmark failed for cell {cell_id}: {e}", exc_info=True)
+                return {
+                    "benchmark": {
+                        "cell_id": cell_id, "runs": 0, "warmup": 0,
+                        "mean_s": 0, "std_s": 0, "min_s": 0, "max_s": 0,
+                        "median_s": 0, "times": [], "timestamp": "",
+                    },
+                    "output": {"output_type": "error", "data": f"Benchmark error: {e}", "metadata": {}},
+                    "regressions": [],
+                }
 
         @app.get("/api/benchmark/history/{cell_id}")
         async def benchmark_history(cell_id: str):

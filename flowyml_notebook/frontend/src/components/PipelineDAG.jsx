@@ -8,7 +8,7 @@ import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import {
   X, Maximize2, Minimize2, Code, Type, Database,
-  Play, CheckCircle, AlertCircle, Circle, Zap, Eye,
+  Play, PlayCircle, CheckCircle, AlertCircle, Circle, Zap, Eye,
   AlertTriangle, LayoutGrid, ArrowDownRight,
 } from 'lucide-react';
 import {
@@ -113,6 +113,23 @@ function CellNode({ data }) {
       style={{ borderColor: isHighlighted ? '#818cf8' : stateColor }}
       onClick={() => data.onCellClick?.(data.cellId)}
     >
+      {/* Execute button on node */}
+      {data.onExecuteCell && data.state !== 'running' && (
+        <button
+          className="dag-node-run-btn"
+          onClick={(e) => { e.stopPropagation(); data.onExecuteCell(data.cellId); }}
+          title="Execute this cell"
+          style={{
+            position: 'absolute', top: 4, right: 4, zIndex: 10,
+            width: 20, height: 20, borderRadius: '50%',
+            background: 'var(--accent)', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', opacity: 0, transition: 'opacity 0.15s',
+          }}
+        >
+          <Play size={9} />
+        </button>
+      )}
       <Handle type="target" position={Position.Top} className="dag-handle" />
       <div className="dag-node-state" style={{ background: stateColor }}>
         {data.state === 'running' && <Play size={8} className="animate-pulse" />}
@@ -168,7 +185,7 @@ const nodeTypes = { cellNode: CellNode, artifactNode: ArtifactNode };
 // ═══════════════════════════════════════════════════════════════
 // Main PipelineDAG Component
 // ═══════════════════════════════════════════════════════════════
-export default function PipelineDAG({ cells, graph, executing, onClose, onCellClick }) {
+export default function PipelineDAG({ cells, graph, executing, onClose, onCellClick, onExecuteCell, onExecuteAll, theme }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [highlightedArtifact, setHighlightedArtifact] = useState(null);
   const [showArtifacts, setShowArtifacts] = useState(true);
@@ -229,7 +246,7 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
           variables: cellProductions[cell.id] || [],
           flowymlDetections: detections,
           declaredInputs: io.inputs, declaredOutputs: io.outputs,
-          highlighted: isHighlighted, onCellClick,
+          highlighted: isHighlighted, onCellClick, onExecuteCell,
         },
       });
     });
@@ -316,8 +333,8 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
                 id: eid, source: pid, target: cell.id,
                 label: dep, type: 'smoothstep',
                 animated: executing === cell.id || executing === pid,
-                style: { stroke: 'var(--accent)', strokeWidth: 1.5, strokeDasharray: '4 2' },
-                labelStyle: { fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fill: 'var(--fg-dim)' },
+                style: { stroke: '#818cf8', strokeWidth: 2.5, strokeDasharray: '6 3' },
+                labelStyle: { fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fill: '#a5b4fc' },
               });
             }
           }
@@ -331,7 +348,7 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
         edges.push({
           id: `seq-${i}`, source: cellData[i].cell.id, target: cellData[i + 1].cell.id,
           type: 'smoothstep',
-          style: { stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' },
+          style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '6 4' },
         });
       }
     }
@@ -354,7 +371,7 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
     };
 
     return { initialNodes: nodes, initialEdges: edges, stats, artifactInventory };
-  }, [cells, graph, executing, onCellClick, showArtifacts, highlightedArtifact, layoutDir]);
+  }, [cells, graph, executing, onCellClick, onExecuteCell, showArtifacts, highlightedArtifact, layoutDir]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -390,6 +407,17 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
           </div>
         </div>
         <div className="dag-toolbar-right">
+          {onExecuteAll && (
+            <button
+              className="btn-icon"
+              onClick={onExecuteAll}
+              title="Execute all cells in graph order"
+              style={{ width: 24, height: 24, color: 'var(--green, #22c55e)' }}
+              disabled={!!executing}
+            >
+              <PlayCircle size={13} />
+            </button>
+          )}
           <button className={`btn-icon ${showArtifacts ? 'active' : ''}`}
             onClick={() => setShowArtifacts(!showArtifacts)}
             title={showArtifacts ? 'Hide artifact nodes' : 'Show artifact nodes'}

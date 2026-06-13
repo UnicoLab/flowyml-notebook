@@ -86,11 +86,14 @@ export default function NotebookManager({ onOpenNotebook, currentNotebookName, s
 
   const handleOpen = async (nbId) => {
     try {
-      const res = await fetch(`/api/notebooks/${nbId}/open`, { method: 'PUT' });
+      const res = await fetch(`/api/notebooks/${nbId}/load`);
       if (res.ok && onOpenNotebook) {
-        onOpenNotebook(await res.json());
+        const state = await res.json();
+        onOpenNotebook(state);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to open notebook:', e);
+    }
   };
 
   const formatDate = (isoStr) => {

@@ -1,9 +1,9 @@
-import React, { useCallback, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useRef, useState, useMemo, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import CellOutput from './CellOutput';
 import MarkdownRenderer from './MarkdownRenderer';
 import {
-  Play, Trash2, Copy, ChevronDown, ChevronRight,
+  Play, Trash2, Copy, ChevronDown, ChevronUp, ChevronRight,
   Code, Type, Database, GripVertical, Eye, EyeOff,
   MoreHorizontal, Clock, ArrowUpDown, Check,
   Cpu, HardDrive, Activity, Gauge, Zap, Workflow,
@@ -23,11 +23,15 @@ export default function CellEditor({
   cell, state, focused, executing, theme,
   upstream, downstream,
   onFocus, onUpdate, onExecute, onDelete, onWrapInStep, onClearOutput,
+  onMoveUp, onMoveDown,
+  index, totalCells,
 }) {
   const editorRef = useRef(null);
   const [collapsed, setCollapsed] = useState(false);
   const [outputVisible, setOutputVisible] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [customHeight, setCustomHeight] = useState(null);
+  const resizeStartRef = useRef(null);
   const config = CELL_TYPE_CONFIG[cell.cell_type] || CELL_TYPE_CONFIG.code;
 
   // Detect FlowyML constructs in this cell
@@ -58,17 +62,24 @@ export default function CellEditor({
     state === 'running' ? 'state-running' : '';
 
   const lineCount = useMemo(() => (cell.source?.split('\n').length || 1), [cell.source]);
-  const editorHeight = Math.max(56, Math.min(400, lineCount * 19 + 16));
+  const editorHeight = customHeight || Math.max(56, Math.min(400, lineCount * 19 + 16));
 
-  const handleEditorMount = useCallback((editor) => {
+  const onExecuteRef = useRef(onExecute);
+  useEffect(() => { onExecuteRef.current = onExecute; }, [onExecute]);
+
+  const handleEditorMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
-    // Ctrl+Enter → run cell
-    editor.addCommand(2048 | 3, () => onExecute());
-    // Ctrl+Shift+Enter → run cell
-    editor.addCommand(2048 | 2048 | 3, () => onExecute());
-    // Shift+Enter → run cell and move to next (Jupyter-style)
-    editor.addCommand(1024 | 3, () => onExecute());
-  }, [onExecute]);
+    // Shift+Enter → run cell (Jupyter-style)
+    editor.addCommand(
+      monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+      () => onExecuteRef.current()
+    );
+    // Ctrl/Cmd+Enter → run cell
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => onExecuteRef.current()
+    );
+  }, []);
 
   const handleChange = useCallback((value) => {
     onUpdate(value || '');
@@ -79,6 +90,22 @@ export default function CellEditor({
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }, [cell.source]);
+
+  const handleResizeStart = useCallback((e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = customHeight || Math.max(56, Math.min(400, lineCount * 19 + 16));
+    const onMove = (moveE) => {
+      const delta = moveE.clientY - startY;
+      setCustomHeight(Math.max(56, startHeight + delta));
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [customHeight, lineCount]);
 
   const handleWrapInStep = useCallback(() => {
     if (!onWrapInStep) return;
@@ -248,6 +275,23 @@ export default function CellEditor({
               onClick={(e) => { e.stopPropagation(); setOutputVisible(!outputVisible); }}
               title={outputVisible ? 'Hide output' : 'Show output'}>
               {outputVisible ? <Eye size={11} /> : <EyeOff size={11} />}
+            </button>
+          )}
+
+          {onMoveUp && (
+            <button className="btn-icon" style={{ width: 24, height: 24 }}
+              onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+              disabled={index === 0}
+              title="Move cell up">
+              <ChevronUp size={11} />
+            </button>
+          )}
+          {onMoveDown && (
+            <button className="btn-icon" style={{ width: 24, height: 24 }}
+              onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+              disabled={index >= totalCells - 1}
+              title="Move cell down">
+              <ChevronDown size={11} />
             </button>
           )}
 
@@ -441,6 +485,9 @@ export default function CellEditor({
             }}
           />
         </div>
+      )}
+      {!collapsed && (
+        <div className="cell-resize-handle" onMouseDown={handleResizeStart} />
       )}
 
       {/* Collapsed preview */}

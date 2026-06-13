@@ -227,9 +227,11 @@ export default function App() {
     const path = fileNode.path;
 
     // Notebook files → load them
-    if (ext === 'py' && fileNode.name.includes('notebook')) {
-      // Attempt to load as notebook
-      fetch(`/api/load`, {
+    const isNotebook = (ext === 'py') ||
+      fileNode.name.endsWith('.fml.json') ||
+      ext === 'ipynb';
+    if (isNotebook) {
+      fetch(`/api/load-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
@@ -382,6 +384,15 @@ export default function App() {
                 onOpenNotebook={notebook.loadNotebookState}
                 onScrollToCell={scrollToCell}
                 onFileOpen={handleFileOpen}
+                onNotebookFileOpen={(node) => {
+                  fetch(`/api/load-file`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: node.path }),
+                  }).then(r => r.ok ? r.json() : null)
+                    .then(state => { if (state) notebook.loadNotebookState(state); })
+                    .catch(console.error);
+                }}
                 saveStatus={notebook.saveStatus}
               />
             </Panel>
@@ -402,6 +413,7 @@ export default function App() {
             onDeleteCell={notebook.deleteCell}
             onAddCell={notebook.addCell}
             onClearOutput={notebook.clearCellOutput}
+            onMoveCell={notebook.moveCell}
             onInsertSnippet={(source, name, index) => notebook.insertCellWithSource(source, name, 'code', index ?? null)}
             theme={theme}
           />
@@ -418,7 +430,9 @@ export default function App() {
               minSize={20}
               maxSize={55}
               collapsible
+              style={{ overflow: 'hidden' }}
             >
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {rightPanel === 'ai' && (
                 <AIPanel onClose={() => setRightPanel(null)} />
               )}
@@ -436,6 +450,9 @@ export default function App() {
                   executing={notebook.executing}
                   onClose={() => setRightPanel(null)}
                   onCellClick={scrollToCell}
+                  onExecuteCell={notebook.executeCell}
+                  onExecuteAll={notebook.executeAll}
+                  theme={theme}
                 />
               )}
               {rightPanel === 'comments' && (
@@ -481,6 +498,7 @@ export default function App() {
                   onUpdateCell={notebook.updateCell}
                 />
               )}
+              </div>
             </Panel>
           </>
         )}

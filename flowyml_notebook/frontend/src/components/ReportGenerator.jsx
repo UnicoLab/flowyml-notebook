@@ -10,41 +10,84 @@ export default function ReportGenerator({ onClose, metadata }) {
   const [includeCode, setIncludeCode] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(null);
+  const [error, setError] = useState(null);
 
   const handlePreview = useCallback(async () => {
-    const params = new URLSearchParams({
-      include_code: includeCode.toString(),
-      title: title,
-    });
-    window.open(`/api/report/preview?${params}`, '_blank');
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        include_code: includeCode.toString(),
+        title: title,
+      });
+      window.open(`/api/report/preview?${params}`, '_blank');
+    } catch (e) {
+      setError(`Preview failed: ${e.message}`);
+    }
   }, [title, includeCode]);
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
+    setGenerated(null);
+    setError(null);
     try {
-      const res = await fetch('/api/report/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, format, include_code: includeCode }),
+      const params = new URLSearchParams({
+        format: format,
+        include_code: includeCode.toString(),
+        title: title || '',
       });
-      if (res.ok) {
-        const data = await res.json();
-        setGenerated(data);
+      const res = await fetch(`/api/report/download?${params}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => `HTTP ${res.status}`);
+        throw new Error(errText || `Generation failed (${res.status})`);
       }
+
+      // Trigger browser download
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (metadata?.name || 'report').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `${safeName}.${format === 'pdf' ? 'pdf' : 'html'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setGenerated(true);
     } catch (e) {
       console.error('Report generation failed:', e);
+      setError(e.message || 'Report generation failed. Make sure cells have been executed.');
     }
     setGenerating(false);
-  }, [title, format, includeCode]);
+  }, [title, format, includeCode, metadata]);
 
-  const handleDownload = useCallback(() => {
-    const params = new URLSearchParams({
-      format,
-      include_code: includeCode.toString(),
-      title: title,
-    });
-    window.open(`/api/report/download?${params}`, '_blank');
-  }, [title, format, includeCode]);
+  const handleDownload = useCallback(async () => {
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        format,
+        include_code: includeCode.toString(),
+        title: title,
+      });
+      const res = await fetch(`/api/report/download?${params}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => `HTTP ${res.status}`);
+        setError(errText || `Download failed (${res.status})`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (metadata?.name || 'report').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `${safeName}.${format === 'pdf' ? 'pdf' : 'html'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(`Download failed: ${e.message}`);
+    }
+  }, [title, format, includeCode, metadata]);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)' }}>
@@ -168,6 +211,22 @@ export default function ReportGenerator({ onClose, metadata }) {
           </button>
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div style={{
+            marginTop: 16, padding: 12, borderRadius: 8,
+            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <X size={14} style={{ color: '#f87171' }} />
+              <span style={{ fontWeight: 600, fontSize: 12, color: '#f87171' }}>Error</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#fca5a5', wordBreak: 'break-all' }}>
+              {error}
+            </div>
+          </div>
+        )}
+
         {/* Generated result */}
         {generated && (
           <div style={{
@@ -179,7 +238,7 @@ export default function ReportGenerator({ onClose, metadata }) {
               <span style={{ fontWeight: 600, fontSize: 12, color: '#4ade80' }}>Report Generated</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--fg-muted)', wordBreak: 'break-all' }}>
-              {generated.path}
+              Report downloaded successfully.
             </div>
           </div>
         )}

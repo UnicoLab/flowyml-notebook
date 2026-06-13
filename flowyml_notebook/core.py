@@ -214,6 +214,29 @@ class NotebookSession:
             variables_defined=vars_defined,
         )
 
+    def _capture_matplotlib_figures(self) -> list:
+        """Capture any open matplotlib figures as base64 PNG images."""
+        images = []
+        try:
+            import matplotlib
+            matplotlib.use('Agg')  # Non-interactive backend
+            import matplotlib.pyplot as plt
+            figs = [plt.figure(i) for i in plt.get_fignums()]
+            for fig in figs:
+                import io as _io
+                import base64 as _b64
+                buf = _io.BytesIO()
+                fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
+                           facecolor='#1a1a2e', edgecolor='none')
+                buf.seek(0)
+                img_data = _b64.b64encode(buf.read()).decode('utf-8')
+                images.append(f'data:image/png;base64,{img_data}')
+                buf.close()
+            plt.close('all')
+        except (ImportError, Exception):
+            pass
+        return images
+
     def _execute_code(self, source: str) -> tuple[bool, list[CellOutput], str | None]:
         """Execute Python code cell."""
         import io
@@ -286,6 +309,11 @@ class NotebookSession:
             success = False
             error = traceback.format_exc()
             outputs.append(CellOutput(output_type="error", data=error))
+
+        # Capture any matplotlib figures produced during execution
+        if success:
+            for img_data in self._capture_matplotlib_figures():
+                outputs.append(CellOutput(output_type="image", data=img_data))
 
         return success, outputs, error
 

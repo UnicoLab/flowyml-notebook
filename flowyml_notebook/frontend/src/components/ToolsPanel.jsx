@@ -136,7 +136,7 @@ export default function ToolsPanel({ onClose, cells, variables, focusedCellId, o
 
   return (
     <div style={{
-      width: 420, height: '100%',
+      width: '100%', height: '100%',
       display: 'flex', flexDirection: 'column',
       background: 'var(--bg-primary, #0f1117)',
       borderLeft: '1px solid var(--border, rgba(255,255,255,0.06))',
@@ -144,7 +144,7 @@ export default function ToolsPanel({ onClose, cells, variables, focusedCellId, o
     }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px 0',
+        padding: '12px 16px 0', flexShrink: 0,
         background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(168,85,247,0.06) 50%, rgba(14,165,233,0.05) 100%)',
         borderBottom: '1px solid var(--border, rgba(255,255,255,0.06))',
       }}>
@@ -175,7 +175,7 @@ export default function ToolsPanel({ onClose, cells, variables, focusedCellId, o
         </div>
 
         {/* Tab strip */}
-        <div style={{ display: 'flex', gap: 1, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 1, overflowX: 'auto', flexShrink: 0 }}>
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -203,7 +203,7 @@ export default function ToolsPanel({ onClose, cells, variables, focusedCellId, o
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 0, minHeight: 0 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -551,7 +551,7 @@ function BenchmarkTab({ cellId }) {
           )}
 
           {/* Regression warning */}
-          {result.regression && (
+          {result.regressions?.length > 0 && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '8px 12px', borderRadius: 8,
@@ -563,7 +563,7 @@ function BenchmarkTab({ cellId }) {
               <div>
                 <div style={{ fontWeight: 600 }}>Regression Detected</div>
                 <div style={{ fontSize: '0.62rem', color: '#f59e0b', marginTop: 2 }}>
-                  {result.regression.message || 'Performance variance exceeds threshold'}
+                  {result.regressions[0]?.message || 'Performance variance exceeds threshold'}
                 </div>
               </div>
             </div>
@@ -876,7 +876,7 @@ function LintTab({ cellId, onUpdateCell }) {
       const data = await res.json();
       const fixedSrc = data.fixed_source || data.source;
       if (fixedSrc && onUpdateCell) {
-        onUpdateCell(cellId, { source: fixedSrc });
+        onUpdateCell(cellId, fixedSrc);
       }
       // Re-analyze after fix
       await analyze();

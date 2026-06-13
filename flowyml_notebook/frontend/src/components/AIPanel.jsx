@@ -238,7 +238,7 @@ export default function AIPanel({ onClose }) {
       {showSettings && <AISettings onClose={() => setShowSettings(false)} />}
 
       {/* Quick Actions */}
-      <div className="flex gap-1 p-2 border-b border-white/5">
+      <div className="flex gap-1 p-2 border-b border-white/5" style={{ flexShrink: 0 }}>
         {QUICK_ACTIONS.map(action => (
           <button
             key={action.action}

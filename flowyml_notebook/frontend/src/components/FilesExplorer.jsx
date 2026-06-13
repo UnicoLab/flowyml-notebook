@@ -38,7 +38,7 @@ function getFileIcon(name, isDir) {
   return FILE_ICONS[ext] || { icon: File, color: 'var(--fg-dim)' };
 }
 
-export default function FilesExplorer({ onFileOpen }) {
+export default function FilesExplorer({ onFileOpen, onNotebookOpen }) {
   const [tree, setTree] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(new Set(['']));
@@ -111,6 +111,16 @@ export default function FilesExplorer({ onFileOpen }) {
           onClick={() => {
             if (node.is_dir) toggleDir(node.path);
             else if (onFileOpen) onFileOpen(node);
+          }}
+          onDoubleClick={() => {
+            if (!node.is_dir) {
+              const ext = node.name.split('.').pop()?.toLowerCase();
+              const isNotebook = ['py', 'ipynb', 'json'].includes(ext) && 
+                (node.name.endsWith('.fml.json') || ext === 'ipynb' || ext === 'py');
+              if (isNotebook && onNotebookOpen) {
+                onNotebookOpen(node);
+              }
+            }
           }}
         >
           {node.is_dir && (

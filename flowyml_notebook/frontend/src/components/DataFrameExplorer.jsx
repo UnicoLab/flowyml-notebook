@@ -1482,9 +1482,10 @@ function SmartPrepPanel({ variableName, columns }) {
                     {/* Code Preview */}
                     <pre style={{
                       marginTop: 8, padding: '6px 10px', borderRadius: 6,
-                      background: 'rgba(0,0,0,0.3)', fontSize: '0.6rem',
-                      color: '#a5b4fc', fontFamily: "'JetBrains Mono', monospace",
+                      background: 'var(--bg-tertiary, rgba(0,0,0,0.3))', fontSize: '0.6rem',
+                      color: 'var(--fg-primary)', fontFamily: "'JetBrains Mono', monospace",
                       overflowX: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                      border: '1px solid var(--border)',
                     }}>
                       {s.code}
                     </pre>
@@ -1757,9 +1758,10 @@ function AlgorithmMatchPanel({ variableName, columns }) {
                         <>
                           <pre style={{
                             padding: '8px 10px', borderRadius: 6,
-                            background: 'rgba(0,0,0,0.3)', fontSize: '0.6rem',
-                            color: '#a5b4fc', fontFamily: "'JetBrains Mono', monospace",
+                            background: 'var(--bg-tertiary, rgba(0,0,0,0.3))', fontSize: '0.6rem',
+                            color: 'var(--fg-primary)', fontFamily: "'JetBrains Mono', monospace",
                             overflowX: 'auto', whiteSpace: 'pre-wrap', lineHeight: 1.5,
+                            border: '1px solid var(--border)',
                           }}>
                             {algo.code}
                           </pre>
