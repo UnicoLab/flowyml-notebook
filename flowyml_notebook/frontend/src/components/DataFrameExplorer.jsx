@@ -642,7 +642,7 @@ export default function DataFrameExplorer({ data, metadata, variableName }) {
 function SummaryDeck({ totalRows, columns, stats, profile }) {
   const nullCount = columns.reduce((sum, c) => sum + (stats[c]?.null_count || 0), 0);
   const numericCount = columns.filter(c => stats[c]?.type === 'numeric').length;
-  
+
   return (
     <div className="df-summary-deck">
       <div className="summary-card">
@@ -653,7 +653,7 @@ function SummaryDeck({ totalRows, columns, stats, profile }) {
           <Activity size={10} /> Live Dataset
         </div>
       </div>
-      
+
       <div className="summary-card">
         <div className="summary-card-icon"><Columns size={16} /></div>
         <div className="summary-card-value">{columns.length}</div>

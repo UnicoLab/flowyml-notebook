@@ -206,7 +206,7 @@ export default function NotebookManager({ onOpenNotebook, currentNotebookName, s
                     </>
                   )}
                 </div>
-                
+
                 {/* Action buttons — visible on hover */}
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button className="btn-icon" style={{ width: 18, height: 18 }}

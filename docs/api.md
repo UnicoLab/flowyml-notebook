@@ -299,4 +299,3 @@ See the comprehensive [Killer Features](killer-features.md) page for full API do
 | `flowyml_notebook.snippets` | Code snippet library |
 | `flowyml_notebook.cell_deps` | Cell dependency analysis |
 | `flowyml_notebook.search` | Full-text notebook search |
-

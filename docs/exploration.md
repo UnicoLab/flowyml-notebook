@@ -120,4 +120,3 @@ Every visualization and table can be exported:
 - :camera: **Copy as Image** — For presentations or documents
 - :floppy_disk: **Export as CSV/Parquet** — For downstream processing
 - :bar_chart: **Promote to Dashboard** — Turn exploration cells into interactive dashboards
-

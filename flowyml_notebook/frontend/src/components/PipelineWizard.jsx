@@ -81,7 +81,7 @@ export default function PipelineWizard({ onClose, onGenerateCells }) {
       if (step.outputs) decoratorParts.push(`outputs=[${step.outputs.split(',').map(o => `"${o.trim()}"`).join(', ')}]`);
       if (step.cache) decoratorParts.push('cache=True');
       const decoratorArgs = decoratorParts.length > 0 ? decoratorParts.join(', ') : '';
-      
+
       cells.push({
         name: step.name,
         source: `from flowyml import step\n\n@step(${decoratorArgs})\ndef ${step.name}(${step.inputs ? step.inputs.split(',').map(i => i.trim().split('/').pop()).join(', ') : ''}):\n    """${step.desc || 'TODO: Add description.'}"""\n    # TODO: Implement ${step.name}\n    pass`,

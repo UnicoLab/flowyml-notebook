@@ -49,10 +49,10 @@ export default function ConnectionConfig({ onClose }) {
       const url = config.mode === 'local'
         ? '/api/health'
         : `${config.remoteUrl}/api/health`;
-      
+
       const headers = {};
       if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
-      
+
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();

@@ -97,7 +97,7 @@ export default function FilesExplorer({ onFileOpen, onNotebookOpen }) {
     if (search && !node.name.toLowerCase().includes(search.toLowerCase())) {
       if (!node.is_dir) return null;
       // Check if any children match
-      const childMatches = node.children?.some(c => 
+      const childMatches = node.children?.some(c =>
         c.name.toLowerCase().includes(search.toLowerCase()) || c.is_dir
       );
       if (!childMatches) return null;
@@ -115,7 +115,7 @@ export default function FilesExplorer({ onFileOpen, onNotebookOpen }) {
           onDoubleClick={() => {
             if (!node.is_dir) {
               const ext = node.name.split('.').pop()?.toLowerCase();
-              const isNotebook = ['py', 'ipynb', 'json'].includes(ext) && 
+              const isNotebook = ['py', 'ipynb', 'json'].includes(ext) &&
                 (node.name.endsWith('.fml.json') || ext === 'ipynb' || ext === 'py');
               if (isNotebook && onNotebookOpen) {
                 onNotebookOpen(node);

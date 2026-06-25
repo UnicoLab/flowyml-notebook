@@ -93,11 +93,11 @@ def process_data(raw_input):
     """Process and clean raw input data."""
     import pandas as pd
     df = pd.DataFrame(raw_input)
-    
+
     # Clean and transform
     df = df.dropna()
     df = df.drop_duplicates()
-    
+
     print(f"✅ Processed {len(df)} rows")
     return df`,
   },
@@ -122,7 +122,7 @@ def train_model(train_data, val_data, learning_rate=0.01, epochs=100):
     print(f"🎯 Training: lr={learning_rate}, epochs={epochs}")
     print(f"   Train: {len(train_data)} samples")
     print(f"   Val: {len(val_data)} samples")
-    
+
     # Your training code here
     model = {"weights": "trained", "lr": learning_rate}
     return model`,
@@ -220,13 +220,13 @@ ctx = context(
     data_path="s3://bucket/train.csv",
     test_size=0.2,
     random_seed=42,
-    
+
     # Model hyperparameters
     model_type="xgboost",
     learning_rate=0.1,
     max_depth=6,
     n_estimators=200,
-    
+
     # Deployment
     min_accuracy=0.85,
     deploy_target="staging",
@@ -1642,7 +1642,7 @@ class AppConfig(BaseSettings):
     batch_size: int = Field(32, env="BATCH_SIZE")
     max_workers: int = Field(4, env="MAX_WORKERS")
     log_level: str = Field("INFO", env="LOG_LEVEL")
-    
+
     class Config:
         env_prefix = "ML_"
         env_file = ".env"
@@ -1800,20 +1800,20 @@ from datetime import datetime
 
 class ModelMonitor:
     """Production model monitoring with drift detection."""
-    
+
     def __init__(self, baseline_stats=None):
         self.predictions = []
         self.latencies = []
         self.errors = 0
         self.baseline = baseline_stats or {}
         self._feature_stats = defaultdict(list)
-    
+
     def record_prediction(self, features, prediction, latency_ms):
         self.predictions.append({"pred": prediction, "ts": datetime.now().isoformat()})
         self.latencies.append(latency_ms)
         for i, v in enumerate(features):
             self._feature_stats[f"f{i}"].append(v)
-    
+
     def get_metrics(self):
         return {
             "total_predictions": len(self.predictions),
@@ -1846,18 +1846,18 @@ class ABExperiment:
     treatment_model: object = None
     traffic_pct: float = 0.5
     results: dict = field(default_factory=lambda: {"control": [], "treatment": []})
-    
+
     def assign_variant(self, user_id: str) -> str:
         hash_val = int(hashlib.md5(f"{self.name}:{user_id}".encode()).hexdigest(), 16)
         return "treatment" if (hash_val % 100) < (self.traffic_pct * 100) else "control"
-    
+
     def predict(self, user_id: str, features):
         variant = self.assign_variant(user_id)
         model = self.treatment_model if variant == "treatment" else self.control_model
         pred = model.predict([features])[0]
         self.results[variant].append(pred)
         return {"variant": variant, "prediction": pred}
-    
+
     def get_summary(self):
         import numpy as np
         return {
@@ -2341,7 +2341,7 @@ def objective(trial):
         "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
         "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", None]),
     }
-    
+
     model = RandomForestClassifier(**params, random_state=42, n_jobs=-1)
     scores = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
     return scores.mean()
@@ -2459,26 +2459,26 @@ class ETLPipeline:
     def __init__(self, name):
         self.name = name
         self.stats = {"extracted": 0, "transformed": 0, "loaded": 0, "errors": 0}
-    
+
     def extract(self, source: str) -> pd.DataFrame:
         log.info(f"📥 Extracting from {source}")
         df = pd.read_csv(source)
         self.stats["extracted"] = len(df)
         return df
-    
+
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         log.info(f"🔄 Transforming {len(df)} rows")
         df = df.dropna().drop_duplicates()
         df.columns = [c.lower().replace(" ", "_") for c in df.columns]
         self.stats["transformed"] = len(df)
         return df
-    
+
     def load(self, df: pd.DataFrame, dest: str):
         log.info(f"📤 Loading {len(df)} rows to {dest}")
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(dest, index=False)
         self.stats["loaded"] = len(df)
-    
+
     def run(self, source, dest):
         try:
             df = self.extract(source)
@@ -2505,36 +2505,36 @@ import numpy as np
 
 class DataQualityChecker:
     """Simple data quality validation framework."""
-    
+
     def __init__(self, df: pd.DataFrame, name: str = "dataset"):
         self.df = df
         self.name = name
         self.results = []
-    
+
     def expect_no_nulls(self, columns=None):
         cols = columns or self.df.columns
         for col in cols:
             nulls = self.df[col].isnull().sum()
             self.results.append({"check": f"no_nulls({col})", "passed": nulls == 0, "detail": f"{nulls} nulls"})
         return self
-    
+
     def expect_unique(self, column):
         dupes = self.df[column].duplicated().sum()
         self.results.append({"check": f"unique({column})", "passed": dupes == 0, "detail": f"{dupes} duplicates"})
         return self
-    
+
     def expect_values_in(self, column, allowed):
         invalid = ~self.df[column].isin(allowed)
         self.results.append({"check": f"values_in({column})", "passed": invalid.sum() == 0, "detail": f"{invalid.sum()} invalid"})
         return self
-    
+
     def expect_range(self, column, min_val=None, max_val=None):
         violations = 0
         if min_val is not None: violations += (self.df[column] < min_val).sum()
         if max_val is not None: violations += (self.df[column] > max_val).sum()
         self.results.append({"check": f"range({column}, {min_val}-{max_val})", "passed": violations == 0, "detail": f"{violations} violations"})
         return self
-    
+
     def report(self):
         passed = sum(1 for r in self.results if r["passed"])
         total = len(self.results)
@@ -2572,7 +2572,7 @@ df = pd.DataFrame({
 
 # SQL analytics on DataFrames
 result = con.execute("""
-    SELECT 
+    SELECT
         product,
         region,
         SUM(revenue) as total_revenue,
@@ -2588,7 +2588,7 @@ print(result.to_string(index=False))
 
 # Window functions
 ranked = con.execute("""
-    SELECT *, 
+    SELECT *,
         RANK() OVER (PARTITION BY region ORDER BY revenue DESC) as rank
     FROM df
 """).fetchdf()
@@ -2649,7 +2649,7 @@ def detect_schema_changes(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list[Sc
     changes = []
     old_cols = set(old_df.columns)
     new_cols = set(new_df.columns)
-    
+
     for col in new_cols - old_cols:
         changes.append(SchemaChange("added", col, f"New column (dtype: {new_df[col].dtype})"))
     for col in old_cols - new_cols:

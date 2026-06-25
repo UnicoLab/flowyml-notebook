@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from flowyml_notebook.cells import (
+from flowyml_notebook.cells import (  # noqa: E402
     Cell,
     CellType,
     NotebookFile,
@@ -14,8 +14,12 @@ from flowyml_notebook.cells import (
     parse_notebook,
     serialize_notebook,
 )
-from flowyml_notebook.reactive import CellState, ReactiveGraph, analyze_cell_dependencies
-from flowyml_notebook.ui import dropdown, slider, table
+from flowyml_notebook.reactive import (  # noqa: E402
+    CellState,
+    ReactiveGraph,
+    analyze_cell_dependencies,
+)
+from flowyml_notebook.ui import dropdown, slider, table  # noqa: E402
 
 passed = failed = 0
 

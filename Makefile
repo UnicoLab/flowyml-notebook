@@ -118,4 +118,3 @@ release-dry-run: ## Dry-run semantic release (no changes)
 
 docs-deploy: ## Deploy versioned docs with mike (e.g. make docs-deploy VERSION=0.1.0)
 	mike deploy --push --update-aliases $(VERSION) latest
-

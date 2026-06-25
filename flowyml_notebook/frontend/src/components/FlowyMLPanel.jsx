@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   X, Workflow, FlaskConical, Package, Rocket, Clock, Database,
   BarChart3, GitBranch, Server, Layers, Play, ChevronRight,
-  Upload, Tag, Box, TrendingUp, Settings, Shield, Zap, Globe, 
+  Upload, Tag, Box, TrendingUp, Settings, Shield, Zap, Globe,
   FileCode, Container, Cpu, ArrowRight, CheckCircle2, AlertCircle,
   RefreshCcw, Eye, MoreHorizontal, Loader2, Info, ChevronDown
 } from 'lucide-react';

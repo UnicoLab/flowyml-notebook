@@ -30,11 +30,11 @@ def process_data(raw_data):
     """Process and clean input data."""  # TODO: update docstring
     import pandas as pd
     df = pd.DataFrame(raw_data)
-    
+
     # TODO: Add your processing logic
     df = df.dropna()
     df = df.drop_duplicates()
-    
+
     print(f"✅ Processed {len(df)} rows")
     return df`,
   },
@@ -107,13 +107,13 @@ ctx = context(
     data_path="data.csv",
     test_size=0.2,
     random_seed=42,
-    
+
     # Model hyperparameters
     model_type="xgboost",
     learning_rate=0.1,
     max_depth=6,
     n_estimators=200,
-    
+
     # Deployment
     min_accuracy=0.85,
     deploy_target="staging",
@@ -204,7 +204,7 @@ import pandas as pd
 def create_dataset():
     """Load & register a tracked Dataset artifact."""
     df = pd.read_csv("data.csv")  # TODO: your data source
-    
+
     dataset = Dataset.create(
         data=df.to_dict("records"),
         name="my_dataset",
@@ -216,7 +216,7 @@ def create_dataset():
         },
         tags={"domain": "ml", "version": "1.0"},
     )
-    
+
     print(f"📊 Dataset: {dataset.name} — {len(df)} rows × {len(df.columns)} cols")
     return dataset`,
   },
@@ -236,13 +236,13 @@ def create_dataset():
 def train_model(dataset):
     """Train and register a Model artifact."""
     from sklearn.ensemble import RandomForestClassifier
-    
+
     # TODO: Prepare your data
     # X_train, y_train = dataset.to_xy(target="label")
-    
+
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     # model.fit(X_train, y_train)
-    
+
     model_asset = Model.create(
         data=model,
         name="my_model",
@@ -252,7 +252,7 @@ def train_model(dataset):
             "n_estimators": 100,
         },
     )
-    
+
     print(f"🤖 Model: {model_asset.name} ({model_asset.properties.get('framework')})")
     return model_asset`,
   },
@@ -272,10 +272,10 @@ def train_model(dataset):
 def evaluate_model(model, dataset):
     """Evaluate model and register Metrics artifact."""
     from sklearn.metrics import accuracy_score, f1_score
-    
+
     # TODO: Replace with your evaluation
     # y_pred = model.data.predict(X_test)
-    
+
     metrics = Metrics.create(
         data={
             "accuracy": 0.94,   # TODO: float(accuracy_score(y_test, y_pred)),
@@ -284,7 +284,7 @@ def evaluate_model(model, dataset):
         name="eval_metrics",
         properties={"dataset": "test_set", "model": "my_model"},
     )
-    
+
     for k, v in metrics.data.items():
         print(f"   📊 {k}: {v:.4f}")
     return metrics`,
@@ -306,14 +306,14 @@ import pandas as pd
 def engineer_features(dataset):
     """Create and register a FeatureSet artifact."""
     df = pd.DataFrame(dataset.data if hasattr(dataset, 'data') else dataset)
-    
+
     # TODO: Add your feature engineering
     features_df = pd.DataFrame({
         "user_tenure_days": [120, 30, 365],
         "activity_score": [0.8, 0.2, 0.95],
         "purchase_frequency": [5, 1, 12],
     })
-    
+
     feature_set = FeatureSet.create(
         data=features_df.to_dict("list"),
         name="my_features",
@@ -323,7 +323,7 @@ def engineer_features(dataset):
             "frequency": "daily",
         },
     )
-    
+
     print(f"🔩 FeatureSet: {feature_set.name} — {len(features_df.columns)} features")
     return feature_set`,
   },
@@ -355,7 +355,7 @@ def generate_report(metrics, model):
         name="training_report",
         properties={"pipeline": "training", "author": "data-team"},
     )
-    
+
     print(f"📝 Report: {report.name}")
     return report`,
   },
@@ -378,12 +378,12 @@ def generate_report(metrics, model):
 def log_experiment(model, metrics):
     """Log an experiment run with metrics and model."""
     experiment = Experiment(name="my_experiment", project="ml-team")
-    
+
     with experiment.run(name="run_v1") as run:
         run.log_params({"lr": 0.1, "epochs": 100, "model": model.name})
         run.log_metrics(metrics.data)
         run.log_artifact("model", model)
-    
+
     print(f"🧪 Experiment logged: {experiment.name}")
     return run`,
   },
@@ -403,21 +403,21 @@ def log_experiment(model, metrics):
 def register_model(model, metrics, experiment_run):
     """Register model version in the Model Registry."""
     registry = ModelRegistry()
-    
+
     version = registry.register(
         name="my_model",
         model=model,
         metrics=metrics.data,
         description="Model with engineered features",
     )
-    
+
     # Promote: None → Staging → Production
     registry.transition(
         name="my_model",
         version=version.version,
         stage=ModelStage.STAGING,
     )
-    
+
     print(f"📦 Model registered: v{version.version} [{version.stage}]")
     return version`,
   },
@@ -440,10 +440,10 @@ def register_model(model, metrics, experiment_run):
 def parallel_process(dataset):
     """Process data chunks concurrently."""
     data_chunks = dataset.data if hasattr(dataset, 'data') else dataset
-    
+
     def process_chunk(chunk):
         return chunk ** 2
-    
+
     results = parallel_map(process_chunk, data_chunks, max_workers=4)
     print(f"⚙️ Processed {len(results)} results in parallel")
     return results`,
@@ -625,13 +625,13 @@ def check_drift(reference_data):
     import pandas as pd
     new_data_df = pd.read_csv("production_data.csv")  # TODO: your source
     reference_df = pd.DataFrame(reference_data.data if hasattr(reference_data, 'data') else reference_data)
-    
+
     drift_report = detect_drift(
         reference=reference_df,
         current=new_data_df,
         features=list(reference_df.columns),
     )
-    
+
     print("🔍 Drift Detection Report:")
     for feature, result in drift_report.items():
         status = "⚠️ DRIFT" if result["drifted"] else "✅ OK"
@@ -683,7 +683,7 @@ notifier.send(
 def create_prompts():
     """Create and version prompt templates."""
     store = PromptStore(name="my_prompts", version="1.0")
-    
+
     store.add(PromptTemplate(
         name="summarize",
         template="""Summarize the following text in {style} style:
@@ -694,14 +694,14 @@ Provide a {length} summary.""",
         variables=["text", "style", "length"],
         metadata={"task": "summarization", "model": "gpt-4"},
     ))
-    
+
     store.add(PromptTemplate(
         name="classify",
         template="Classify this text into one of: {categories}\\n\\nText: {text}",
         variables=["text", "categories"],
         metadata={"task": "classification"},
     ))
-    
+
     print(f"💬 Prompt Store: {store.name} — {len(store.templates)} templates")
     return store`,
   },
@@ -722,20 +722,20 @@ def run_rag(documents):
     """Run a RAG pipeline: embed → retrieve → generate."""
     embedder = Embedder(model="text-embedding-3-small")
     vector_store = VectorStore(embedder=embedder)
-    
+
     # Index documents
     vector_store.add_documents(documents.data if hasattr(documents, 'data') else documents)
-    
+
     # Build RAG pipeline
     rag = RAGPipeline(
         retriever=vector_store.as_retriever(top_k=5),
         generator_model="gpt-4",
         system_prompt="Answer based only on the provided context.",
     )
-    
+
     queries = ["What is the main finding?", "Summarize the methodology"]
     results = [rag.query(q) for q in queries]
-    
+
     for q, r in zip(queries, results):
         print(f"  🔎 Q: {q}")
         print(f"     A: {r.answer[:80]}...")
@@ -758,20 +758,20 @@ def run_rag(documents):
 def run_agent(prompts):
     """Trace an autonomous agent with tool calls, reasoning, and actions."""
     tracer = AgentTracer(experiment="agent_v1")
-    
+
     with tracer.trace("research_task") as t:
         # Step 1: Plan
         t.log_thought("I need to research the topic first")
-        
+
         # Step 2: Tool use
         t.log_tool_call("search", {"query": "ML pipeline best practices"})
         t.log_tool_result("search", {"results": ["..."]})
-        
+
         # Step 3: Synthesize
         t.log_thought("Now I'll synthesize the findings")
         answer = "Based on research, best practices include..."
         t.log_output(answer)
-    
+
     print(f"🤝 Agent trace: {tracer.total_steps} steps, {tracer.total_tokens} tokens")
     return tracer.get_trace()`,
   },
@@ -791,17 +791,17 @@ def run_agent(prompts):
 def track_tokens(ai_results):
     """Track token consumption and estimate costs."""
     tracker = TokenTracker()
-    
+
     # Register pricing (per 1K tokens)
     calc = CostCalculator({
         "gpt-4": {"input": 0.03, "output": 0.06},
         "gpt-4-turbo": {"input": 0.01, "output": 0.03},
         "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
     })
-    
+
     summary = tracker.summarize()
     cost = calc.estimate(summary)
-    
+
     print(f"🪙 Token Usage:")
     print(f"   Input:  {summary.get('input_tokens', 0):,} tokens")
     print(f"   Output: {summary.get('output_tokens', 0):,} tokens")
@@ -835,14 +835,14 @@ def apply_guardrails(raw_outputs):
             reference_docs=True
         ),
     ])
-    
+
     validated = []
     for output in raw_outputs:
         result = guards.validate(output)
         status = "✅" if result.passed else "❌"
         print(f"   {status} {result.summary}")
         validated.append(result)
-    
+
     print(f"🛡️ {sum(1 for v in validated if v.passed)}/{len(validated)} passed")
     return validated`,
   },
@@ -868,20 +868,20 @@ def eval_llm(outputs):
         {"input": "What is ML?", "expected": "Machine Learning is..."},
         {"input": "Explain NLP", "expected": "NLP stands for..."},
     ])
-    
+
     def my_model_fn(input_text):
         # TODO: Replace with your actual model
         return "Generated response..."
-    
+
     relevance = make_scorer("relevance", model="gpt-4")
     coherence = make_scorer("coherence", model="gpt-4")
-    
+
     results = evaluate(
         model_fn=my_model_fn,
         dataset=dataset,
         scorers=[relevance, coherence],
     )
-    
+
     print(f"✅ Evaluation: {len(results)} samples scored")
     return results`,
   },
@@ -913,11 +913,11 @@ def build_docker(model, registry_version):
             healthcheck="/health",
         ),
     )
-    
+
     dockerfile = builder.generate_dockerfile()
     print("🐳 Generated Dockerfile:")
     print(dockerfile[:200])
-    
+
     # builder.build(tag="my-pipeline:latest")
     # builder.push(registry="gcr.io/my-project/my-pipeline:latest")
     return {"image": "my-pipeline:latest", "dockerfile": dockerfile}`,
@@ -944,13 +944,13 @@ def deploy_serving(model, registry_version):
         port=8080,
         middleware=["cors", "rate_limit", "auth"],
     )
-    
+
     # Endpoints:
     #   POST /predict        — single prediction
     #   POST /predict/batch  — batch predictions
     #   GET  /health         — health check
     #   GET  /info           — model metadata
-    
+
     # server.start()
     print(f"🌐 Model server configured: {server.name}:{server.port}")
     return {"endpoint": f"http://localhost:{server.port}", "name": server.name}`,
@@ -1058,7 +1058,7 @@ def deploy_k8s(docker_image):
             },
         ),
     )
-    
+
     # deployer.deploy_image(docker_image["image"])
     print(f"☸️ Kubernetes deployment configured: {docker_image.get('image', 'N/A')}")
     return {"endpoint": "https://ml.example.com", "replicas": 3}`,
@@ -1110,11 +1110,11 @@ ${indented}
  */
 export function extractAllArtifacts(source) {
   if (!source) return { inputs: [], outputs: [], assets: [] };
-  
+
   const inputs = [];
   const outputs = [];
   const assets = [];
-  
+
   // 1. @step / @map_task inputs/outputs
   const inputMatch = source.match(/inputs\s*=\s*\[([^\]]*)\]/);
   const outputMatch = source.match(/outputs\s*=\s*\[([^\]]*)\]/);
@@ -1124,61 +1124,61 @@ export function extractAllArtifacts(source) {
   if (outputMatch) {
     outputMatch[1].replace(/["']([^"']+)["']/g, (_, v) => { outputs.push(v); });
   }
-  
+
   // 2. Dataset.create(name="...") → asset
   const datasetMatches = source.matchAll(/Dataset\.create\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of datasetMatches) {
     assets.push({ name: m[1], type: 'dataset', icon: '📊', color: '#22d3ee' });
   }
-  
+
   // 3. Model.create(name="...") → asset
   const modelMatches = source.matchAll(/Model\.create\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of modelMatches) {
     assets.push({ name: m[1], type: 'model', icon: '🤖', color: '#34d399' });
   }
-  
+
   // 4. Metrics.create(name="...") → asset
   const metricsMatches = source.matchAll(/Metrics\.create\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of metricsMatches) {
     assets.push({ name: m[1], type: 'metrics', icon: '📈', color: '#fbbf24' });
   }
-  
+
   // 5. FeatureSet.create(name="...") → asset
   const featureMatches = source.matchAll(/FeatureSet\.create\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of featureMatches) {
     assets.push({ name: m[1], type: 'featureset', icon: '🔩', color: '#fb923c' });
   }
-  
+
   // 6. Report.create(name="...") → asset
   const reportMatches = source.matchAll(/Report\.create\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of reportMatches) {
     assets.push({ name: m[1], type: 'report', icon: '📝', color: '#94a3b8' });
   }
-  
+
   // 7. Experiment(name="...") → asset
   const expMatches = source.matchAll(/Experiment\(\s*name\s*=\s*["']([^"']+)["']/g);
   for (const m of expMatches) {
     assets.push({ name: m[1], type: 'experiment', icon: '🧪', color: '#fb923c' });
   }
-  
+
   // 8. registry.register(name="...") → asset
   const regMatches = source.matchAll(/registry\.register\([^)]*name\s*=\s*["']([^"']+)["']/g);
   for (const m of regMatches) {
     assets.push({ name: m[1], type: 'registry', icon: '📦', color: '#4ade80' });
   }
-  
+
   // 9. DockerBuilder → deploy asset
   if (/DockerBuilder\s*\(/.test(source)) {
     const tagMatch = source.match(/tag\s*=\s*["']([^"']+)["']/);
     assets.push({ name: tagMatch?.[1] || 'docker_image', type: 'docker', icon: '🐳', color: '#38bdf8' });
   }
-  
+
   // 10. ModelServer → serving endpoint
   if (/ModelServer\s*\(/.test(source)) {
     const nameMatch = source.match(/ModelServer\([^)]*name\s*=\s*["']([^"']+)["']/);
     assets.push({ name: nameMatch?.[1] || 'api_endpoint', type: 'serving', icon: '🌐', color: '#34d399' });
   }
-  
+
   return { inputs, outputs, assets };
 }
 

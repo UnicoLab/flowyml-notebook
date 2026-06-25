@@ -55,7 +55,7 @@ renderer.code = function(code, language) {
   // Handle the new marked API where code is an object
   let codeText = typeof code === 'object' ? code.text : code;
   let lang = typeof code === 'object' ? code.lang : language;
-  
+
   let highlighted;
   if (lang && hljs.getLanguage(lang)) {
     try {
@@ -70,7 +70,7 @@ renderer.code = function(code, language) {
       highlighted = escapeHtml(codeText);
     }
   }
-  
+
   return `<div class="md-code-block">
     <div class="md-code-header">
       <span class="md-code-lang">${lang || 'code'}</span>
@@ -84,7 +84,7 @@ renderer.table = function(header, body) {
   // Handle new marked API
   const headerContent = typeof header === 'object' ? header.header : header;
   const bodyContent = typeof header === 'object' ? header.rows : body;
-  
+
   if (typeof header === 'object' && header.header && header.rows) {
     // New marked API - header is the full table object
     let html = '<div class="md-table-wrap"><table class="md-table"><thead><tr>';
@@ -104,7 +104,7 @@ renderer.table = function(header, body) {
     html += '</tbody></table></div>';
     return html;
   }
-  
+
   return `<div class="md-table-wrap"><table class="md-table"><thead>${headerContent}</thead><tbody>${bodyContent}</tbody></table></div>`;
 };
 
@@ -145,12 +145,12 @@ renderer.list = function(body, ordered) {
   const items = typeof body === 'object' ? body.items : null;
   const isOrdered = typeof body === 'object' ? body.ordered : ordered;
   const tag = isOrdered ? 'ol' : 'ul';
-  
+
   if (items) {
     const content = items.map(item => `<li class="md-li">${item.text}</li>`).join('');
     return `<${tag} class="md-list">${content}</${tag}>`;
   }
-  
+
   const content = typeof body === 'object' ? body.body : body;
   return `<${tag} class="md-list">${content}</${tag}>`;
 };
