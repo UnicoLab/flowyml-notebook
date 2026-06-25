@@ -62,7 +62,7 @@ export function useNotebook() {
   }, []);
 
   // Ref for latest handleKernelMessage to avoid stale closure in WS effect
-  const handleKernelMessageRef = useRef(handleKernelMessage);
+  const handleKernelMessageRef = useRef(null);
   useEffect(() => { handleKernelMessageRef.current = handleKernelMessage; }, [handleKernelMessage]);
 
   // WebSocket connection

@@ -8,8 +8,8 @@ ifeq ($(IN_POETRY),1)
   PYTHON := poetry run python
   PIP := poetry run pip
 else ifdef VIRTUAL_ENV
-  PYTHON := python
-  PIP := pip
+  PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
+  PIP := $(shell command -v pip3 2>/dev/null || command -v pip 2>/dev/null || echo pip3)
 else
   PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
   PIP := $(shell command -v pip3 2>/dev/null || command -v pip 2>/dev/null || echo pip3)
