@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ColumnQuality:
     """Quality metrics for a single DataFrame column."""
+
     column: str
     dtype: str
     null_count: int = 0
@@ -50,6 +51,7 @@ class ColumnQuality:
 @dataclass
 class DataQualityReport:
     """Complete data quality report for a DataFrame."""
+
     var_name: str
     cell_id: str
     shape: tuple[int, int] = (0, 0)
@@ -116,7 +118,6 @@ class DataValidator:
                 pass
 
             # Column-level quality
-            import pandas as pd
             total_score = 0.0
             for col in df.columns:
                 col_quality = self._validate_column(df, col)
@@ -138,9 +139,7 @@ class DataValidator:
                     f"🔴 Very high memory: {report.memory_mb:.1f} MB — consider downcasting"
                 )
             elif report.memory_mb > 100:
-                report.warnings.append(
-                    f"⚠ High memory usage: {report.memory_mb:.1f} MB"
-                )
+                report.warnings.append(f"⚠ High memory usage: {report.memory_mb:.1f} MB")
 
         except Exception as e:
             logger.debug(f"Data validation failed for {var_name}: {e}")
@@ -202,6 +201,7 @@ class DataValidator:
                 # Infinite values
                 try:
                     import numpy as np
+
                     inf_count = int(np.isinf(non_null).sum())
                     if inf_count > 0:
                         quality.has_infinite = True
@@ -311,15 +311,15 @@ def format_quality_output(report: DataQualityReport) -> CellOutput:
     bar_width = max(0, min(100, int(report.overall_score)))
 
     html_parts = [
-        f'<div style="font-family:monospace;font-size:0.8rem;padding:12px;'
-        f'background:#1e293b;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">',
-        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">',
+        '<div style="font-family:monospace;font-size:0.8rem;padding:12px;'
+        'background:#1e293b;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">',
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">',
         f'<span style="color:#94a3b8;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em">'
-        f'{score_emoji} Data Quality — {report.var_name} ({report.shape[0]:,}×{report.shape[1]})</span>',
+        f"{score_emoji} Data Quality — {report.var_name} ({report.shape[0]:,}×{report.shape[1]})</span>",
         f'<span style="color:{score_color};font-weight:700;font-size:1.1rem">'
-        f'{report.overall_score:.0f}/100</span></div>',
+        f"{report.overall_score:.0f}/100</span></div>",
         # Score bar
-        f'<div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-bottom:12px">',
+        '<div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-bottom:12px">',
         f'<div style="height:100%;width:{bar_width}%;background:{score_color};border-radius:2px"></div></div>',
     ]
 
@@ -342,7 +342,9 @@ def format_quality_output(report: DataQualityReport) -> CellOutput:
             '<th style="text-align:left;padding:4px">Issues</th></tr>'
         )
         for col in issue_cols[:10]:
-            col_color = "#22c55e" if col.score >= 80 else "#eab308" if col.score >= 60 else "#ef4444"
+            col_color = (
+                "#22c55e" if col.score >= 80 else "#eab308" if col.score >= 60 else "#ef4444"
+            )
             issues_str = "; ".join(col.issues[:3])
             html_parts.append(
                 f'<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">'
@@ -350,9 +352,9 @@ def format_quality_output(report: DataQualityReport) -> CellOutput:
                 f'<td style="text-align:center;padding:3px 4px;color:{col_color}">{col.score:.0f}</td>'
                 f'<td style="padding:3px 4px;color:#94a3b8">{issues_str}</td></tr>'
             )
-        html_parts.append('</table>')
+        html_parts.append("</table>")
 
-    html_parts.append('</div>')
+    html_parts.append("</div>")
 
     return CellOutput(
         output_type="html",

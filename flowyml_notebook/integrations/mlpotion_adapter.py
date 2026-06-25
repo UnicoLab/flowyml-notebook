@@ -116,12 +116,13 @@ def generate_full_ecosystem_pipeline(
     This is the flagship recommendation combining all three packages.
     """
     features_list = [col for col in feature_types if col != target]
-    features_str = ", ".join(f"'{f}'" for f in features_list[:8])
+    _features_str = ", ".join(f"'{f}'" for f in features_list[:8])
     output_activation = "sigmoid" if task_type == "classification" else "linear"
     loss = "binary_crossentropy" if task_type == "classification" else "mse"
 
     # Build KDP feature specs
     from flowyml_notebook.integrations.kdp_adapter import _FEATURE_TYPE_MAP
+
     specs_lines = []
     for col in features_list[:10]:
         ftype = feature_types.get(col, "continuous")

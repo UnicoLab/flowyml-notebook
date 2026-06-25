@@ -1,18 +1,17 @@
 """Tests for the .ipynb ↔ FlowyML notebook converter."""
 
 import json
+
 import pytest
+
 from flowyml_notebook.cells import (
-    Cell,
     CellOutput,
     CellType,
     NotebookFile,
     NotebookMetadata,
     serialize_notebook,
-    parse_notebook,
 )
-from flowyml_notebook.ipynb_converter import from_ipynb, to_ipynb, convert_file
-
+from flowyml_notebook.ipynb_converter import convert_file, from_ipynb, to_ipynb
 
 # --- Sample .ipynb data for testing ---
 
@@ -166,14 +165,18 @@ class TestFromIpynb:
         ipynb = {
             **MINIMAL_IPYNB,
             "cells": [
-                _make_ipynb_cell("code", "1/0", outputs=[
-                    {
-                        "output_type": "error",
-                        "ename": "ZeroDivisionError",
-                        "evalue": "division by zero",
-                        "traceback": ["ZeroDivisionError: division by zero"],
-                    },
-                ]),
+                _make_ipynb_cell(
+                    "code",
+                    "1/0",
+                    outputs=[
+                        {
+                            "output_type": "error",
+                            "ename": "ZeroDivisionError",
+                            "evalue": "division by zero",
+                            "traceback": ["ZeroDivisionError: division by zero"],
+                        },
+                    ],
+                ),
             ],
         }
         nb = from_ipynb(ipynb)
@@ -185,13 +188,17 @@ class TestFromIpynb:
         ipynb = {
             **MINIMAL_IPYNB,
             "cells": [
-                _make_ipynb_cell("code", "display(HTML('<b>Hello</b>'))", outputs=[
-                    {
-                        "output_type": "display_data",
-                        "data": {"text/html": "<b>Hello</b>", "text/plain": "Hello"},
-                        "metadata": {},
-                    },
-                ]),
+                _make_ipynb_cell(
+                    "code",
+                    "display(HTML('<b>Hello</b>'))",
+                    outputs=[
+                        {
+                            "output_type": "display_data",
+                            "data": {"text/html": "<b>Hello</b>", "text/plain": "Hello"},
+                            "metadata": {},
+                        },
+                    ],
+                ),
             ],
         }
         nb = from_ipynb(ipynb)
@@ -202,13 +209,17 @@ class TestFromIpynb:
         ipynb = {
             **MINIMAL_IPYNB,
             "cells": [
-                _make_ipynb_cell("code", "plt.plot([1,2,3])", outputs=[
-                    {
-                        "output_type": "display_data",
-                        "data": {"image/png": "iVBOR==", "text/plain": "<Figure>"},
-                        "metadata": {},
-                    },
-                ]),
+                _make_ipynb_cell(
+                    "code",
+                    "plt.plot([1,2,3])",
+                    outputs=[
+                        {
+                            "output_type": "display_data",
+                            "data": {"image/png": "iVBOR==", "text/plain": "<Figure>"},
+                            "metadata": {},
+                        },
+                    ],
+                ),
             ],
         }
         nb = from_ipynb(ipynb)
@@ -276,12 +287,14 @@ class TestToIpynb:
         assert ipynb["cells"][0]["outputs"][0]["output_type"] == "stream"
 
     def test_export_preserves_metadata(self):
-        nb = NotebookFile(metadata=NotebookMetadata(
-            name="My Notebook",
-            description="Test",
-            author="Alice",
-            tags=["ml", "test"],
-        ))
+        nb = NotebookFile(
+            metadata=NotebookMetadata(
+                name="My Notebook",
+                description="Test",
+                author="Alice",
+                tags=["ml", "test"],
+            )
+        )
         ipynb = to_ipynb(nb)
         flowyml_meta = ipynb["metadata"]["flowyml"]
         assert flowyml_meta["name"] == "My Notebook"
@@ -371,7 +384,6 @@ class TestConvertFile:
         nb.add_cell("## Title", CellType.MARKDOWN)
 
         py_path = tmp_path / "test.py"
-        from flowyml_notebook.cells import serialize_notebook
         py_path.write_text(serialize_notebook(nb), encoding="utf-8")
 
         # Convert

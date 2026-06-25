@@ -1,10 +1,8 @@
 """Tests for the reactive dependency graph."""
 
-import pytest
 from flowyml_notebook.reactive import (
-    ReactiveGraph,
     CellState,
-    CellDependency,
+    ReactiveGraph,
     analyze_cell_dependencies,
 )
 

@@ -6,15 +6,16 @@ import {
   FolderPlus, Tag, Check, ExternalLink, RefreshCw, TrendingUp,
   Share2, Eye, Brain, Languages, Clock, Shield, Layers
 } from 'lucide-react';
+import { useFlowyMLAvailability } from '../hooks/useFlowyMLAvailability';
 
 // Built-in recipe categories
-const CATEGORIES = [
-  { id: 'flowyml-core', label: 'Core', icon: Zap, color: 'var(--accent)' },
-  { id: 'flowyml-assets', label: 'Assets', icon: Database, color: 'var(--cyan)' },
-  { id: 'flowyml-parallel', label: 'Parallel', icon: Zap, color: '#a855f7' },
-  { id: 'flowyml-observe', label: 'Observability', icon: Eye, color: '#f59e0b' },
-  { id: 'flowyml-evals', label: 'Evals', icon: TrendingUp, color: '#10b981' },
-  { id: 'production', label: 'Production', icon: Shield, color: '#ef4444' },
+const _ALL_CATEGORIES = [
+  { id: 'flowyml-core', label: 'Core', icon: Zap, color: 'var(--accent)', requiresFlowyML: true },
+  { id: 'flowyml-assets', label: 'Assets', icon: Database, color: 'var(--cyan)', requiresFlowyML: true },
+  { id: 'flowyml-parallel', label: 'Parallel', icon: Zap, color: '#a855f7', requiresFlowyML: true },
+  { id: 'flowyml-observe', label: 'Observability', icon: Eye, color: '#f59e0b', requiresFlowyML: true },
+  { id: 'flowyml-evals', label: 'Evals', icon: TrendingUp, color: '#10b981', requiresFlowyML: true },
+  { id: 'production', label: 'Production', icon: Shield, color: '#ef4444', requiresFlowyML: true },
   { id: 'nlp', label: 'NLP', icon: Languages, color: '#06b6d4' },
   { id: 'time-series', label: 'Time Series', icon: Clock, color: '#f97316' },
   { id: 'deep-learning', label: 'Deep Learning', icon: Brain, color: '#8b5cf6' },
@@ -25,6 +26,10 @@ const CATEGORIES = [
   { id: 'custom', label: 'Custom', icon: Puzzle, color: 'var(--fg-dim)' },
   { id: 'shared', label: 'Shared', icon: Share2, color: '#60a5fa' },
 ];
+
+const _FLOWYML_CATEGORY_IDS = new Set(
+  _ALL_CATEGORIES.filter(c => c.requiresFlowyML).map(c => c.id)
+);
 
 // Default built-in recipes — comprehensive FlowyML collection
 
@@ -3028,6 +3033,11 @@ const SORT_OPTIONS = [
 ];
 
 export default function CellRecipes({ onInsertRecipe }) {
+  const { flowymlAvailable } = useFlowyMLAvailability();
+  const CATEGORIES = useMemo(() =>
+    flowymlAvailable ? _ALL_CATEGORIES : _ALL_CATEGORIES.filter(c => !c.requiresFlowyML),
+    [flowymlAvailable]
+  );
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [sortBy, setSortBy] = useState('popular');
@@ -3059,10 +3069,13 @@ export default function CellRecipes({ onInsertRecipe }) {
       .catch(() => {});
   }, []);
 
-  // Merge builtin + custom
+  // Merge builtin + custom, filtering out FlowyML recipes when unavailable
   const allRecipes = useMemo(() => {
-    return [...BUILTIN_RECIPES, ...customRecipes];
-  }, [customRecipes]);
+    const builtin = flowymlAvailable
+      ? BUILTIN_RECIPES
+      : BUILTIN_RECIPES.filter(r => !_FLOWYML_CATEGORY_IDS.has(r.category));
+    return [...builtin, ...customRecipes];
+  }, [customRecipes, flowymlAvailable]);
 
   // Filter and sort recipes
   const filteredRecipes = useMemo(() => {

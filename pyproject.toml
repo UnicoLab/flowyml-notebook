@@ -1,7 +1,7 @@
 [project]
 name = "flowyml-notebook"
 version = "2.0.1"
-description = "Production-grade reactive notebook for FlowyML — the Jupyter replacement for ML pipelines"
+description = "Production-grade reactive notebook — the Jupyter replacement for ML pipelines. Works standalone or with FlowyML."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10,<4.0"
@@ -25,7 +25,6 @@ keywords = [
 
 
 dependencies = [
-    "flowyml>=1.8.0",
     "ipython>=8.0",
     "rich>=13.0",
     "httpx>=0.24",
@@ -39,6 +38,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+flowyml = ["flowyml>=1.8.0"]
 ai = [
     "openai>=1.0",
     "google-generativeai>=0.3",
@@ -62,6 +62,7 @@ docs = [
     "mkdocs-macros-plugin>=1.0.0",
 ]
 all = [
+    "flowyml>=1.8.0",
     "openai>=1.0",
     "google-generativeai>=0.3",
     "sqlalchemy>=2.0", "duckdb>=0.9",

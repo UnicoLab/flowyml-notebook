@@ -84,16 +84,18 @@ class UnicoLabEcosystem:
             if is_installed:
                 installed_count += 1
 
-            packages.append({
-                "key": key,
-                "name": info["display_name"],
-                "description": info["description"],
-                "installed": is_installed,
-                "version": version,
-                "install_command": info["install"],
-                "docs_url": info["docs"],
-                "repo_url": info["repo"],
-            })
+            packages.append(
+                {
+                    "key": key,
+                    "name": info["display_name"],
+                    "description": info["description"],
+                    "installed": is_installed,
+                    "version": version,
+                    "install_command": info["install"],
+                    "docs_url": info["docs"],
+                    "repo_url": info["repo"],
+                }
+            )
 
         return {
             "packages": packages,

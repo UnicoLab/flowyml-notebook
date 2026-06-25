@@ -223,6 +223,7 @@ export default function NotebookHeader({
           DAG
         </button>
 
+        {onToggleFlowyML && (
         <button
           className={`btn btn-ghost ${rightPanel === 'flowyml' ? 'text-indigo-400 bg-indigo-500/10' : ''}`}
           onClick={onToggleFlowyML}
@@ -231,6 +232,7 @@ export default function NotebookHeader({
           <Rocket size={13} />
           Production
         </button>
+        )}
 
         <button
           className={`btn btn-ghost ${rightPanel === 'ai' ? 'text-purple-400 bg-purple-500/10' : ''}`}

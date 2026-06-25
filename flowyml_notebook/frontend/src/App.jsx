@@ -19,9 +19,11 @@ import SaveAsDialog from './components/SaveAsDialog';
 import OpenFileDialog from './components/OpenFileDialog';
 import { FLOWYML_SNIPPETS } from './data/flowymlSnippets';
 import { wrapInStep } from './data/flowymlSnippets';
+import { useFlowyMLAvailability } from './hooks/useFlowyMLAvailability';
 
 export default function App() {
   const notebook = useNotebook();
+  const { flowymlAvailable } = useFlowyMLAvailability();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanel, setRightPanel] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -56,9 +58,9 @@ export default function App() {
       case 'clear-cell-output': if (focusedCellId) notebook.clearCellOutput(focusedCellId); break;
       case 'export-pipeline': handleAction('export', { format: 'pipeline' }); break;
       case 'export-html': handleAction('export', { format: 'html' }); break;
-      case 'promote': handleAction('promote'); break;
-      case 'deploy-model': handleAction('deploy-model'); break;
-      case 'schedule': setRightPanel('flowyml'); break;
+      case 'promote': if (flowymlAvailable) handleAction('promote'); break;
+      case 'deploy-model': if (flowymlAvailable) handleAction('deploy-model'); break;
+      case 'schedule': if (flowymlAvailable) setRightPanel('flowyml'); break;
       case 'show-dag': setRightPanel(p => p === 'dag' ? null : 'dag'); break;
       case 'connect': break;
       case 'ai-assist': setRightPanel(p => p === 'ai' ? null : 'ai'); break;
@@ -70,39 +72,41 @@ export default function App() {
       case 'find': break;
     }
 
-    // FlowyML snippet insertion commands from CommandPalette
-    const snippetMap = {
-      'insert-step': 'fml-step',
-      'insert-pipeline': 'fml-pipeline',
-      'insert-branch': 'fml-branch',
-      'insert-context': 'fml-context',
-      'insert-dataset': 'fml-dataset',
-      'insert-model': 'fml-model',
-      'insert-metrics': 'fml-metrics',
-      'insert-parallel': 'fml-parallel',
-      'insert-experiment': 'fml-experiment',
-      'insert-registry': 'fml-registry',
-    };
-    if (snippetMap[cmd]) {
-      const snippet = FLOWYML_SNIPPETS.find(s => s.id === snippetMap[cmd]);
-      if (snippet) notebook.insertCellWithSource(snippet.source, snippet.name);
-      return;
-    }
-    if (cmd === 'pipeline-wizard') {
-      setWizardOpen(true);
-      return;
-    }
-    if (cmd === 'wrap-in-step') {
-      if (focusedCellId) {
-        const cell = notebook.cells.find(c => c.id === focusedCellId);
-        if (cell && cell.source) {
-          const wrapped = wrapInStep(cell.source, cell.name);
-          notebook.updateCell(focusedCellId, wrapped);
-        }
+    // FlowyML snippet insertion commands (only when FlowyML is installed)
+    if (flowymlAvailable) {
+      const snippetMap = {
+        'insert-step': 'fml-step',
+        'insert-pipeline': 'fml-pipeline',
+        'insert-branch': 'fml-branch',
+        'insert-context': 'fml-context',
+        'insert-dataset': 'fml-dataset',
+        'insert-model': 'fml-model',
+        'insert-metrics': 'fml-metrics',
+        'insert-parallel': 'fml-parallel',
+        'insert-experiment': 'fml-experiment',
+        'insert-registry': 'fml-registry',
+      };
+      if (snippetMap[cmd]) {
+        const snippet = FLOWYML_SNIPPETS.find(s => s.id === snippetMap[cmd]);
+        if (snippet) notebook.insertCellWithSource(snippet.source, snippet.name);
+        return;
       }
-      return;
+      if (cmd === 'pipeline-wizard') {
+        setWizardOpen(true);
+        return;
+      }
+      if (cmd === 'wrap-in-step') {
+        if (focusedCellId) {
+          const cell = notebook.cells.find(c => c.id === focusedCellId);
+          if (cell && cell.source) {
+            const wrapped = wrapInStep(cell.source, cell.name);
+            notebook.updateCell(focusedCellId, wrapped);
+          }
+        }
+        return;
+      }
     }
-  }, [notebook, focusedCellId]);
+  }, [notebook, focusedCellId, flowymlAvailable]);
 
   const handleAction = useCallback(async (action, payload) => {
     switch (action) {
@@ -342,7 +346,7 @@ export default function App() {
         onRenameNotebook={notebook.renameNotebook}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onToggleAI={() => setRightPanel(p => p === 'ai' ? null : 'ai')}
-        onToggleFlowyML={() => setRightPanel(p => p === 'flowyml' ? null : 'flowyml')}
+        onToggleFlowyML={flowymlAvailable ? (() => setRightPanel(p => p === 'flowyml' ? null : 'flowyml')) : undefined}
         onToggleDAG={() => setRightPanel(p => p === 'dag' ? null : 'dag')}
         onToggleComments={() => setRightPanel(p => p === 'comments' ? null : 'comments')}
         onToggleReport={() => setRightPanel(p => p === 'report' ? null : 'report')}
@@ -415,6 +419,7 @@ export default function App() {
             onClearOutput={notebook.clearCellOutput}
             onMoveCell={notebook.moveCell}
             onInsertSnippet={(source, name, index) => notebook.insertCellWithSource(source, name, 'code', index ?? null)}
+            flowymlAvailable={flowymlAvailable}
             theme={theme}
           />
         </Panel>
@@ -436,7 +441,7 @@ export default function App() {
               {rightPanel === 'ai' && (
                 <AIPanel onClose={() => setRightPanel(null)} />
               )}
-              {rightPanel === 'flowyml' && (
+              {rightPanel === 'flowyml' && flowymlAvailable && (
                 <FlowyMLPanel
                   onClose={() => setRightPanel(null)}
                   connected={notebook.connected}
@@ -526,10 +531,11 @@ export default function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onCommand={handleCommand}
+        flowymlAvailable={flowymlAvailable}
       />
 
-      {/* Pipeline Builder Wizard */}
-      {wizardOpen && (
+      {/* Pipeline Builder Wizard (FlowyML only) */}
+      {flowymlAvailable && wizardOpen && (
         <PipelineWizard
           onClose={() => setWizardOpen(false)}
           onGenerateCells={async (cells) => {

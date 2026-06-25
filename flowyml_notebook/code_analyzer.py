@@ -11,7 +11,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CodeSuggestion:
     """A single code improvement suggestion."""
+
     rule: str
     severity: str  # "info", "warning", "performance", "style", "security"
     message: str
@@ -40,6 +40,7 @@ class CodeSuggestion:
 @dataclass
 class LintReport:
     """Complete lint report for a code cell."""
+
     cell_id: str
     suggestions: list[CodeSuggestion] = field(default_factory=list)
     auto_fixes_available: int = 0
@@ -124,16 +125,19 @@ class CodeAnalyzer:
         for name, lineno in imported_names.items():
             # Count uses outside the import line
             uses = sum(
-                1 for i, line in enumerate(lines, 1)
-                if i != lineno and re.search(rf'\b{re.escape(name)}\b', line)
+                1
+                for i, line in enumerate(lines, 1)
+                if i != lineno and re.search(rf"\b{re.escape(name)}\b", line)
             )
             if uses == 0:
-                suggestions.append(CodeSuggestion(
-                    rule="unused-import",
-                    severity="style",
-                    message=f"'{name}' is imported but never used in this cell",
-                    line=lineno,
-                ))
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="unused-import",
+                        severity="style",
+                        message=f"'{name}' is imported but never used in this cell",
+                        line=lineno,
+                    )
+                )
 
         return suggestions
 
@@ -147,55 +151,67 @@ class CodeAnalyzer:
 
             # .iterrows() anti-pattern
             if ".iterrows()" in stripped:
-                suggestions.append(CodeSuggestion(
-                    rule="pandas-iterrows",
-                    severity="performance",
-                    message="iterrows() is slow — use vectorized operations, .apply(), or .itertuples()",
-                    line=i,
-                    original=stripped,
-                ))
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="pandas-iterrows",
+                        severity="performance",
+                        message="iterrows() is slow — use vectorized operations, .apply(), or .itertuples()",
+                        line=i,
+                        original=stripped,
+                    )
+                )
 
             # .append() on DataFrame (deprecated & slow)
-            if re.search(r'\.append\(', stripped) and "df" in stripped.lower():
-                suggestions.append(CodeSuggestion(
-                    rule="pandas-append",
-                    severity="performance",
-                    message="df.append() is deprecated and slow — use pd.concat() instead",
-                    line=i,
-                    original=stripped,
-                ))
+            if re.search(r"\.append\(", stripped) and "df" in stripped.lower():
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="pandas-append",
+                        severity="performance",
+                        message="df.append() is deprecated and slow — use pd.concat() instead",
+                        line=i,
+                        original=stripped,
+                    )
+                )
 
             # for loop with iloc
-            if re.search(r'for\s+.*range\(len\(', stripped):
-                suggestions.append(CodeSuggestion(
-                    rule="pandas-loop-range",
-                    severity="performance",
-                    message="for i in range(len(df)) is slow — use vectorized operations or .apply()",
-                    line=i,
-                    original=stripped,
-                ))
+            if re.search(r"for\s+.*range\(len\(", stripped):
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="pandas-loop-range",
+                        severity="performance",
+                        message="for i in range(len(df)) is slow — use vectorized operations or .apply()",
+                        line=i,
+                        original=stripped,
+                    )
+                )
 
             # inplace=True anti-pattern
             if "inplace=True" in stripped:
-                suggestions.append(CodeSuggestion(
-                    rule="pandas-inplace",
-                    severity="style",
-                    message="inplace=True is discouraged — use assignment instead (df = df.drop(...))",
-                    line=i,
-                    original=stripped,
-                ))
-
-            # Chained indexing
-            if re.search(r'\]\[', stripped) and ("df" in stripped.lower() or "series" in stripped.lower()):
-                # Check if it looks like chained indexing not slicing
-                if not stripped.startswith("#"):
-                    suggestions.append(CodeSuggestion(
-                        rule="pandas-chained-index",
-                        severity="warning",
-                        message="Possible chained indexing — use .loc[] or .iloc[] to avoid SettingWithCopyWarning",
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="pandas-inplace",
+                        severity="style",
+                        message="inplace=True is discouraged — use assignment instead (df = df.drop(...))",
                         line=i,
                         original=stripped,
-                    ))
+                    )
+                )
+
+            # Chained indexing
+            if re.search(r"\]\[", stripped) and (
+                "df" in stripped.lower() or "series" in stripped.lower()
+            ):
+                # Check if it looks like chained indexing not slicing
+                if not stripped.startswith("#"):
+                    suggestions.append(
+                        CodeSuggestion(
+                            rule="pandas-chained-index",
+                            severity="warning",
+                            message="Possible chained indexing — use .loc[] or .iloc[] to avoid SettingWithCopyWarning",
+                            line=i,
+                            original=stripped,
+                        )
+                    )
 
         return suggestions
 
@@ -208,36 +224,42 @@ class CodeAnalyzer:
             stripped = line.strip()
 
             # List comprehension inside sum/len/any/all
-            if re.search(r'(sum|len|any|all)\(\[', stripped):
-                suggestions.append(CodeSuggestion(
-                    rule="use-generator",
-                    severity="performance",
-                    message="Use generator expression instead of list comprehension inside sum/len/any/all",
-                    line=i,
-                    original=stripped,
-                ))
+            if re.search(r"(sum|len|any|all)\(\[", stripped):
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="use-generator",
+                        severity="performance",
+                        message="Use generator expression instead of list comprehension inside sum/len/any/all",
+                        line=i,
+                        original=stripped,
+                    )
+                )
 
             # String concatenation in loop
             if "+" in stripped and ('""' in stripped or "''" in stripped):
                 if re.search(r'(\+=\s*["\'])|(\+\s*str\()', stripped):
-                    suggestions.append(CodeSuggestion(
-                        rule="string-concat",
-                        severity="performance",
-                        message="String concatenation in loop is slow — use list + join() or f-strings",
-                        line=i,
-                    ))
+                    suggestions.append(
+                        CodeSuggestion(
+                            rule="string-concat",
+                            severity="performance",
+                            message="String concatenation in loop is slow — use list + join() or f-strings",
+                            line=i,
+                        )
+                    )
 
             # Global variable shadowing common names
-            if re.search(r'^(list|dict|set|type|id|input|print|len|range)\s*=', stripped):
-                match = re.match(r'^(\w+)', stripped)
+            if re.search(r"^(list|dict|set|type|id|input|print|len|range)\s*=", stripped):
+                match = re.match(r"^(\w+)", stripped)
                 if match:
-                    suggestions.append(CodeSuggestion(
-                        rule="builtin-shadow",
-                        severity="warning",
-                        message=f"'{match.group(1)}' shadows a Python builtin — use a different name",
-                        line=i,
-                        original=stripped,
-                    ))
+                    suggestions.append(
+                        CodeSuggestion(
+                            rule="builtin-shadow",
+                            severity="warning",
+                            message=f"'{match.group(1)}' shadows a Python builtin — use a different name",
+                            line=i,
+                            original=stripped,
+                        )
+                    )
 
         return suggestions
 
@@ -252,23 +274,28 @@ class CodeAnalyzer:
             # Credential patterns
             if re.search(
                 r'(api_key|secret|password|token|aws_access|aws_secret)\s*=\s*["\'][^"\']+["\']',
-                stripped, re.IGNORECASE
+                stripped,
+                re.IGNORECASE,
             ):
-                suggestions.append(CodeSuggestion(
-                    rule="hardcoded-credential",
-                    severity="security",
-                    message="Possible hardcoded credential — use environment variables or a secrets manager",
-                    line=i,
-                ))
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="hardcoded-credential",
+                        severity="security",
+                        message="Possible hardcoded credential — use environment variables or a secrets manager",
+                        line=i,
+                    )
+                )
 
             # eval/exec usage
-            if re.search(r'\beval\s*\(', stripped) and not stripped.startswith("#"):
-                suggestions.append(CodeSuggestion(
-                    rule="eval-usage",
-                    severity="security",
-                    message="eval() is a security risk — avoid with untrusted input",
-                    line=i,
-                ))
+            if re.search(r"\beval\s*\(", stripped) and not stripped.startswith("#"):
+                suggestions.append(
+                    CodeSuggestion(
+                        rule="eval-usage",
+                        severity="security",
+                        message="eval() is a security risk — avoid with untrusted input",
+                        line=i,
+                    )
+                )
 
         return suggestions
 
@@ -293,27 +320,31 @@ class CodeAnalyzer:
                             and "_" not in name
                             and len(name) > 2
                         ):
-                            snake = re.sub(r'([A-Z])', r'_\1', name).lower().lstrip("_")
-                            suggestions.append(CodeSuggestion(
-                                rule="naming-convention",
-                                severity="style",
-                                message=f"'{name}' uses camelCase — Python convention is snake_case: '{snake}'",
-                                line=node.lineno,
-                                fix=snake,
-                                original=name,
-                            ))
+                            snake = re.sub(r"([A-Z])", r"_\1", name).lower().lstrip("_")
+                            suggestions.append(
+                                CodeSuggestion(
+                                    rule="naming-convention",
+                                    severity="style",
+                                    message=f"'{name}' uses camelCase — Python convention is snake_case: '{snake}'",
+                                    line=node.lineno,
+                                    fix=snake,
+                                    original=name,
+                                )
+                            )
 
             # Function name check
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 name = node.name
                 if any(c.isupper() for c in name) and not name.startswith("_"):
-                    snake = re.sub(r'([A-Z])', r'_\1', name).lower().lstrip("_")
-                    suggestions.append(CodeSuggestion(
-                        rule="naming-convention",
-                        severity="style",
-                        message=f"Function '{name}' uses camelCase — use '{snake}'",
-                        line=node.lineno,
-                    ))
+                    snake = re.sub(r"([A-Z])", r"_\1", name).lower().lstrip("_")
+                    suggestions.append(
+                        CodeSuggestion(
+                            rule="naming-convention",
+                            severity="style",
+                            message=f"Function '{name}' uses camelCase — use '{snake}'",
+                            line=node.lineno,
+                        )
+                    )
 
         return suggestions
 
@@ -341,12 +372,14 @@ class CodeAnalyzer:
                 # This is a simple heuristic — just flag large unusual numbers
                 if isinstance(node.value, (int, float)) and abs(node.value) > 100:
                     if not isinstance(node.value, bool):
-                        suggestions.append(CodeSuggestion(
-                            rule="magic-number",
-                            severity="info",
-                            message=f"Consider naming the constant {node.value} for readability",
-                            line=node.lineno,
-                        ))
+                        suggestions.append(
+                            CodeSuggestion(
+                                rule="magic-number",
+                                severity="info",
+                                message=f"Consider naming the constant {node.value} for readability",
+                                line=node.lineno,
+                            )
+                        )
 
         # Limit to avoid noise
         return suggestions[:3]
@@ -371,13 +404,15 @@ class CodeAnalyzer:
             stripped = line.strip()
             for old, (replacement, since) in DEPRECATED.items():
                 if old in stripped and not stripped.startswith("#"):
-                    suggestions.append(CodeSuggestion(
-                        rule="deprecated-api",
-                        severity="warning",
-                        message=f"'{old.strip()}' is deprecated since {since} — use '{replacement}'",
-                        line=i,
-                        original=stripped,
-                    ))
+                    suggestions.append(
+                        CodeSuggestion(
+                            rule="deprecated-api",
+                            severity="warning",
+                            message=f"'{old.strip()}' is deprecated since {since} — use '{replacement}'",
+                            line=i,
+                            original=stripped,
+                        )
+                    )
 
         return suggestions
 

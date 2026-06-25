@@ -51,8 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     export_parser = subparsers.add_parser("export", help="Export notebook")
     export_parser.add_argument("file", help="Notebook .py file")
     export_parser.add_argument(
-        "--format", choices=["pipeline", "html", "pdf", "docker", "ipynb", "requirements"], default="pipeline",
-        help="Export format"
+        "--format",
+        choices=["pipeline", "html", "pdf", "docker", "ipynb", "requirements"],
+        default="pipeline",
+        help="Export format",
     )
     export_parser.add_argument("--output", "-o", help="Output file path")
 
@@ -60,8 +62,12 @@ def main(argv: list[str] | None = None) -> int:
     app_parser = subparsers.add_parser("app", help="Deploy notebook as web app")
     app_parser.add_argument("file", help="Notebook .py file")
     app_parser.add_argument("--port", type=int, default=8501, help="App server port")
-    app_parser.add_argument("--layout", choices=["linear", "grid", "tabs", "sidebar", "dashboard"],
-                           default="linear", help="App layout")
+    app_parser.add_argument(
+        "--layout",
+        choices=["linear", "grid", "tabs", "sidebar", "dashboard"],
+        default="linear",
+        help="App layout",
+    )
 
     # --- list ---
     list_parser = subparsers.add_parser("list", help="List notebooks on server")
@@ -184,14 +190,17 @@ def _cmd_export(args) -> int:
 
     if args.format == "pipeline":
         from flowyml_notebook.deployer import promote_to_pipeline
+
         path = promote_to_pipeline(nb.notebook, args.output)
         print(f"📄 Pipeline exported: {path}")
     elif args.format in ("html", "pdf"):
         from flowyml_notebook.reporting import generate_report
+
         path = generate_report(nb.notebook, format=args.format, output_path=args.output)
         print(f"📊 Report exported: {path}")
     elif args.format == "docker":
         from flowyml_notebook.deployer import generate_dockerfile
+
         path = generate_dockerfile(nb.notebook, args.output or "Dockerfile")
         print(f"🐳 Dockerfile generated: {path}")
     elif args.format == "ipynb":
@@ -207,7 +216,7 @@ def _cmd_export(args) -> int:
 def _cmd_app(args) -> int:
     """Deploy notebook as a web app."""
     from flowyml_notebook.core import Notebook
-    from flowyml_notebook.ui.app_mode import AppMode, LayoutType
+    from flowyml_notebook.ui.app_mode import AppMode
 
     nb = Notebook(file_path=args.file)
 
@@ -219,19 +228,21 @@ def _cmd_app(args) -> int:
     app = AppMode(nb)
     app.configure(layout=args.layout)
 
-    print(f"\n🌊 FlowyML App")
+    print("\n🌊 FlowyML App")
     print(f"   Source: {args.file}")
     print(f"   Layout: {args.layout}")
     print(f"   URL:    http://localhost:{args.port}")
-    print(f"\n   Press Ctrl+C to stop\n")
+    print("\n   Press Ctrl+C to stop\n")
 
     # Start app server
     import uvicorn
+
     from flowyml_notebook.server import create_app_server
 
     app_server = create_app_server(nb, app)
 
     import webbrowser
+
     webbrowser.open(f"http://localhost:{args.port}")
 
     uvicorn.run(app_server, host="0.0.0.0", port=args.port, log_level="warning")
@@ -283,7 +294,7 @@ def _cmd_convert(args) -> int:
 
 def _cmd_diff(args) -> int:
     """Compare two notebooks."""
-    from flowyml_notebook.diff import diff_notebooks, render_diff_terminal, render_diff_html
+    from flowyml_notebook.diff import diff_notebooks, render_diff_html, render_diff_terminal
 
     diff = diff_notebooks(args.file_a, args.file_b)
     if args.html:

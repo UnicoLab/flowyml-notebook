@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 class LayoutType(str, Enum):
     """App layout types."""
 
-    LINEAR = "linear"       # Top-to-bottom (default)
-    GRID = "grid"           # CSS grid layout
-    TABS = "tabs"           # Tabbed sections
-    SIDEBAR = "sidebar"     # Sidebar + main area
-    DASHBOARD = "dashboard" # KPI cards + charts grid
+    LINEAR = "linear"  # Top-to-bottom (default)
+    GRID = "grid"  # CSS grid layout
+    TABS = "tabs"  # Tabbed sections
+    SIDEBAR = "sidebar"  # Sidebar + main area
+    DASHBOARD = "dashboard"  # KPI cards + charts grid
 
 
 @dataclass
@@ -39,7 +39,9 @@ class AppConfig:
     password: str = ""  # Optional password protection
     grid_columns: int = 2
     cell_visibility: dict[str, bool] = field(default_factory=dict)  # cell_id → visible
-    cell_layout: dict[str, dict] = field(default_factory=dict)  # cell_id → {row, col, width, height}
+    cell_layout: dict[str, dict] = field(
+        default_factory=dict
+    )  # cell_id → {row, col, width, height}
 
     def to_dict(self) -> dict:
         return {
@@ -92,7 +94,10 @@ class AppMode:
         self, cell_id: str, row: int = 0, col: int = 0, width: int = 1, height: int = 1
     ) -> AppMode:
         self.config.cell_layout[cell_id] = {
-            "row": row, "col": col, "width": width, "height": height,
+            "row": row,
+            "col": col,
+            "width": width,
+            "height": height,
         }
         return self
 
@@ -104,11 +109,13 @@ class AppMode:
                 continue
             if cell.cell_type.value == "code" and not cell.outputs and not self.config.show_code:
                 continue
-            visible_cells.append({
-                "cell": cell.to_dict(),
-                "layout": self.config.cell_layout.get(cell.id, {}),
-                "show_source": self.config.show_code,
-            })
+            visible_cells.append(
+                {
+                    "cell": cell.to_dict(),
+                    "layout": self.config.cell_layout.get(cell.id, {}),
+                    "show_source": self.config.show_code,
+                }
+            )
 
         return {
             "config": self.config.to_dict(),
@@ -119,7 +126,9 @@ class AppMode:
     def to_html(self) -> str:
         """Export app as standalone HTML file with rich rendering."""
         state = self.get_app_state()
-        layout_class = "grid-layout" if self.config.layout in (LayoutType.GRID, LayoutType.DASHBOARD) else ""
+        layout_class = (
+            "grid-layout" if self.config.layout in (LayoutType.GRID, LayoutType.DASHBOARD) else ""
+        )
         cols = self.config.grid_columns
 
         return f"""<!DOCTYPE html>

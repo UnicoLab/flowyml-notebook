@@ -13,7 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, distributions, version
 from typing import Any
 from urllib.error import URLError

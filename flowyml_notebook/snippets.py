@@ -48,6 +48,7 @@ class Snippet:
 
 # ── Built-in snippets ───────────────────────────────────────────────────
 
+
 def _builtin_snippets() -> list[Snippet]:
     """Return the full set of built-in data science snippets."""
     return [
@@ -924,7 +925,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "import functools\n"
                 "\n"
                 "def timer(func):\n"
-                "    \"\"\"Decorator that prints the execution time of a function.\"\"\"\n"
+                '    """Decorator that prints the execution time of a function."""\n'
                 "    @functools.wraps(func)\n"
                 "    def wrapper(*args, **kwargs):\n"
                 "        start = time.perf_counter()\n"
@@ -1091,7 +1092,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "class AppConfig(BaseSettings):\n"
-                "    \"\"\"Application configuration loaded from env vars / .env file.\"\"\"\n"
+                '    """Application configuration loaded from env vars / .env file."""\n'
                 "\n"
                 "    app_name: str = 'MyApp'\n"
                 "    debug: bool = False\n"
@@ -1127,17 +1128,17 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "class AppError(Exception):\n"
-                "    \"\"\"Base application error.\"\"\"\n"
+                '    """Base application error."""\n'
                 "\n"
                 "class DataError(AppError):\n"
-                "    \"\"\"Raised when data validation fails.\"\"\"\n"
+                '    """Raised when data validation fails."""\n'
                 "\n"
                 "class ServiceError(AppError):\n"
-                "    \"\"\"Raised when an external service call fails.\"\"\"\n"
+                '    """Raised when an external service call fails."""\n'
                 "\n"
                 "\n"
                 "def retry(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):\n"
-                "    \"\"\"Retry decorator with exponential backoff.\"\"\"\n"
+                '    """Retry decorator with exponential backoff."""\n'
                 "    def decorator(func):\n"
                 "        @functools.wraps(func)\n"
                 "        def wrapper(*args, **kwargs):\n"
@@ -1184,7 +1185,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def extract(source: str) -> pd.DataFrame:\n"
-                "    \"\"\"Extract data from source.\"\"\"\n"
+                '    """Extract data from source."""\n'
                 "    logger.info(f'Extracting from {source}')\n"
                 "    df = pd.read_csv(source)\n"
                 "    logger.info(f'Extracted {len(df)} rows')\n"
@@ -1192,7 +1193,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def transform(df: pd.DataFrame) -> pd.DataFrame:\n"
-                "    \"\"\"Apply transformations: clean, enrich, validate.\"\"\"\n"
+                '    """Apply transformations: clean, enrich, validate."""\n'
                 "    logger.info('Transforming data…')\n"
                 "    # Drop duplicates\n"
                 "    df = df.drop_duplicates().reset_index(drop=True)\n"
@@ -1206,14 +1207,14 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def load(df: pd.DataFrame, dest: str) -> None:\n"
-                "    \"\"\"Load data to destination.\"\"\"\n"
+                '    """Load data to destination."""\n'
                 "    logger.info(f'Loading {len(df)} rows to {dest}')\n"
                 "    df.to_csv(dest, index=False)\n"
                 "    logger.info('Load complete ✓')\n"
                 "\n"
                 "\n"
                 "def run_pipeline(source: str, dest: str) -> None:\n"
-                "    \"\"\"Run the full ETL pipeline.\"\"\"\n"
+                '    """Run the full ETL pipeline."""\n'
                 "    start = datetime.now()\n"
                 "    raw = extract(source)\n"
                 "    clean = transform(raw)\n"
@@ -1308,7 +1309,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "    CMD curl -f http://localhost:8000/health || exit 1\n"
                 "\n"
                 "# Run the server\n"
-                "CMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]\n"
+                'CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]\n'
                 "'''.strip()\n"
                 "\n"
                 "from pathlib import Path\n"
@@ -1389,7 +1390,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "class AttentionLayer(keras.layers.Layer):\n"
-                "    \"\"\"Simple single-head attention layer.\"\"\"\n"
+                '    """Simple single-head attention layer."""\n'
                 "\n"
                 "    def __init__(self, units: int = 64, **kwargs):\n"
                 "        super().__init__(**kwargs)\n"
@@ -1570,7 +1571,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def preprocess_text(text: str) -> str:\n"
-                "    \"\"\"Clean and normalize text for NLP.\"\"\"\n"
+                '    """Clean and normalize text for NLP."""\n'
                 "    # Lowercase\n"
                 "    text = text.lower()\n"
                 "    # Remove URLs\n"
@@ -1860,7 +1861,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def test_stationarity(series: pd.Series, name: str = 'Series') -> dict:\n"
-                "    \"\"\"Run ADF test and interpret results.\"\"\"\n"
+                '    """Run ADF test and interpret results."""\n'
                 "    result = adfuller(series.dropna(), autolag='AIC')\n"
                 "    adf_stat, p_value, used_lag, n_obs, critical_values, icbest = result\n"
                 "\n"
@@ -1875,7 +1876,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "        print(f'  {key}: {val:.4f}{marker}')\n"
                 "\n"
                 "    is_stationary = p_value < 0.05\n"
-                "    print(f'\\nConclusion: {\"✓ STATIONARY\" if is_stationary else \"✗ NON-STATIONARY\"} '\n"
+                '    print(f\'\\nConclusion: {"✓ STATIONARY" if is_stationary else "✗ NON-STATIONARY"} \'\n'
                 "          f'(p={p_value:.4f})')\n"
                 "    return {'adf': adf_stat, 'p_value': p_value, 'stationary': is_stationary}\n"
                 "\n"
@@ -2002,11 +2003,11 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "class TestMyFeature:\n"
-                "    \"\"\"Tests for MyFeature.\"\"\"\n"
+                '    """Tests for MyFeature."""\n'
                 "\n"
                 "    @pytest.fixture(autouse=True)\n"
                 "    def setup(self):\n"
-                "        \"\"\"Set up test fixtures.\"\"\"\n"
+                '        """Set up test fixtures."""\n'
                 "        self.data = [1, 2, 3, 4, 5]\n"
                 "        self.expected_sum = 15\n"
                 "        yield\n"
@@ -2049,7 +2050,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def validate_dataframe(df: pd.DataFrame, config: dict) -> list[str]:\n"
-                "    \"\"\"Validate a DataFrame against a config spec. Returns list of errors.\"\"\"\n"
+                '    """Validate a DataFrame against a config spec. Returns list of errors."""\n'
                 "    errors = []\n"
                 "\n"
                 "    # Check required columns\n"
@@ -2126,7 +2127,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "def check_classification_quality(\n"
                 "    y_true, y_pred, thresholds: dict | None = None\n"
                 ") -> bool:\n"
-                "    \"\"\"Check classification metrics meet minimum thresholds.\"\"\"\n"
+                '    """Check classification metrics meet minimum thresholds."""\n'
                 "    defaults = {'accuracy': 0.80, 'precision': 0.75, 'recall': 0.75, 'f1': 0.75}\n"
                 "    thresholds = thresholds or defaults\n"
                 "\n"
@@ -2147,7 +2148,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "        if not passed:\n"
                 "            all_pass = False\n"
                 "\n"
-                "    print(f'\\nOverall: {\"PASS ✓\" if all_pass else \"FAIL ✗\"}')\n"
+                '    print(f\'\\nOverall: {"PASS ✓" if all_pass else "FAIL ✗"}\')\n'
                 "    return all_pass\n"
                 "\n"
                 "\n"
@@ -2170,7 +2171,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def benchmark(funcs: dict, number: int = 1000, repeat: int = 5) -> None:\n"
-                "    \"\"\"Benchmark multiple functions and compare performance.\"\"\"\n"
+                '    """Benchmark multiple functions and compare performance."""\n'
                 "    results = {}\n"
                 "    for name, func in funcs.items():\n"
                 "        times = timeit.repeat(func, number=number, repeat=repeat)\n"
@@ -2190,8 +2191,8 @@ def _builtin_snippets() -> list[Snippet]:
                 "        ratio = r['mean'] / results[fastest]['mean']\n"
                 "        badge = ' 🏆' if name == fastest else ''\n"
                 "        print(\n"
-                "            f'  {name:25s}: {r[\"mean\"]:.4f}ms ± {r[\"std\"]:.4f}ms '\n"
-                "            f'(min={r[\"min\"]:.4f}, max={r[\"max\"]:.4f}) '\n"
+                '            f\'  {name:25s}: {r["mean"]:.4f}ms ± {r["std"]:.4f}ms \'\n'
+                '            f\'(min={r["min"]:.4f}, max={r["max"]:.4f}) \'\n'
                 "            f'x{ratio:.2f}{badge}'\n"
                 "        )\n"
                 "\n"
@@ -2403,7 +2404,7 @@ def _builtin_snippets() -> list[Snippet]:
                 "\n"
                 "\n"
                 "def health_check() -> bool:\n"
-                "    \"\"\"Check database connection health.\"\"\"\n"
+                '    """Check database connection health."""\n'
                 "    try:\n"
                 "        with engine.connect() as conn:\n"
                 "            conn.execute(text('SELECT 1'))\n"
@@ -2418,13 +2419,14 @@ def _builtin_snippets() -> list[Snippet]:
                 "print(f'Pool size:      {p.size()}')\n"
                 "print(f'Checked out:    {p.checkedout()}')\n"
                 "print(f'Overflow:       {p.overflow()}')\n"
-                "print(f'Health check:   {\"✓\" if health_check() else \"✗\"}')"
+                'print(f\'Health check:   {"✓" if health_check() else "✗"}\')'
             ),
         ),
     ]
 
 
 # ── Snippet Library ─────────────────────────────────────────────────────
+
 
 class SnippetLibrary:
     """Searchable library of built-in and custom code snippets.
@@ -2470,13 +2472,15 @@ class SnippetLibrary:
 
             # Text search (empty query matches everything)
             if q:
-                searchable = " ".join([
-                    snippet.title.lower(),
-                    snippet.description.lower(),
-                    snippet.code.lower(),
-                    " ".join(t.lower() for t in snippet.tags),
-                    snippet.category.lower(),
-                ])
+                searchable = " ".join(
+                    [
+                        snippet.title.lower(),
+                        snippet.description.lower(),
+                        snippet.code.lower(),
+                        " ".join(t.lower() for t in snippet.tags),
+                        snippet.category.lower(),
+                    ]
+                )
                 if q not in searchable:
                     continue
 

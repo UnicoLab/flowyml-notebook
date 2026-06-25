@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from flowyml_notebook.cells import CellType, NotebookFile, serialize_notebook
+from flowyml_notebook.cells import CellType, serialize_notebook
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +70,15 @@ def _schedule_remote(
     return result
 
 
-def _schedule_local(
-    notebook: Any, name: str, cron: str | None, interval_hours: int | None
-) -> dict:
+def _schedule_local(notebook: Any, name: str, cron: str | None, interval_hours: int | None) -> dict:
     """Schedule using FlowyML's local PipelineScheduler."""
     try:
         from flowyml import PipelineScheduler
     except ImportError:
-        raise ImportError("FlowyML is required for local scheduling") from None
+        raise ImportError(
+            "FlowyML is required for local scheduling. "
+            "Install with: pip install 'flowyml-notebook[flowyml]'"
+        ) from None
 
     # Export notebook as pipeline script
     script_path = _export_pipeline_script(notebook, name)
@@ -106,8 +107,6 @@ def _schedule_local(
 
 def _export_pipeline_script(notebook: Any, name: str) -> str:
     """Export notebook code cells as a runnable pipeline script."""
-    import tempfile
-    from pathlib import Path
 
     lines = [
         '"""Auto-generated pipeline from FlowyML Notebook."""',
@@ -125,8 +124,9 @@ def _export_pipeline_script(notebook: Any, name: str) -> str:
 
     content = "\n".join(lines) + "\n"
 
-    # Save to a persistent location
-    scripts_dir = Path.home() / ".flowyml" / "scheduled_scripts"
+    from flowyml_notebook.config import SCHEDULED_SCRIPTS_DIR
+
+    scripts_dir = SCHEDULED_SCRIPTS_DIR
     scripts_dir.mkdir(parents=True, exist_ok=True)
     script_path = scripts_dir / f"{name}.py"
     script_path.write_text(content, encoding="utf-8")

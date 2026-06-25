@@ -16,26 +16,35 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from flowyml_notebook import __version__
-from flowyml_notebook.core import Notebook
-from flowyml_notebook.kernel import NotebookKernel
 from flowyml_notebook.cells import CellType
-from flowyml_notebook.notebook_manager import NotebookManager
+from flowyml_notebook.config import (
+    AI_CONFIG_FILE,
+    APP_CONFIG_DIR,
+    APP_SNAPSHOTS_DIR,
+    HISTORY_DIR,
+    PUBLISHED_APPS_DIR,
+    RECENT_FILES_FILE,
+)
+from flowyml_notebook.core import Notebook
 from flowyml_notebook.github_sync import GitHubSync
-from flowyml_notebook.recipes_store import RecipeStore
-from flowyml_notebook.integrations.ecosystem import UnicoLabEcosystem
 from flowyml_notebook.integrations import builtin_recipes as _builtin_recipes
+from flowyml_notebook.integrations.ecosystem import UnicoLabEcosystem
+from flowyml_notebook.kernel import NotebookKernel
+from flowyml_notebook.notebook_manager import NotebookManager
+from flowyml_notebook.recipes_store import RecipeStore
 
 logger = logging.getLogger(__name__)
 
 
 # --- Pydantic Models ---
+
 
 class CellCreate(BaseModel):
     source: str = ""
@@ -86,6 +95,7 @@ class WidgetUpdate(BaseModel):
 
 # --- Server ---
 
+
 class NotebookServer:
     """Main server for the FlowyML Notebook GUI."""
 
@@ -112,7 +122,7 @@ class NotebookServer:
     @staticmethod
     def _load_ai_config() -> dict:
         """Load AI provider config from disk."""
-        config_file = Path.home() / ".flowyml" / "ai_config.json"
+        config_file = AI_CONFIG_FILE
         if config_file.exists():
             try:
                 return json.loads(config_file.read_text(encoding="utf-8"))
@@ -128,13 +138,13 @@ class NotebookServer:
 
     def _save_ai_config(self) -> None:
         """Persist AI provider config to disk."""
-        config_file = Path.home() / ".flowyml" / "ai_config.json"
+        config_file = AI_CONFIG_FILE
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text(json.dumps(self._ai_config, indent=2), encoding="utf-8")
 
     def _track_recent_file(self, path: str, name: str) -> None:
         """Track a recently opened/saved file."""
-        recent_file = Path.home() / ".flowyml" / "recent_files.json"
+        recent_file = RECENT_FILES_FILE
         recent_file.parent.mkdir(parents=True, exist_ok=True)
         recent: list[dict] = []
         if recent_file.exists():
@@ -145,18 +155,21 @@ class NotebookServer:
         # Remove existing entry for this path
         recent = [r for r in recent if r.get("path") != path]
         # Prepend new entry
-        recent.insert(0, {
-            "path": path,
-            "name": name,
-            "opened_at": datetime.now().isoformat(),
-        })
+        recent.insert(
+            0,
+            {
+                "path": path,
+                "name": name,
+                "opened_at": datetime.now().isoformat(),
+            },
+        )
         # Keep only 20 most recent
         recent = recent[:20]
         recent_file.write_text(json.dumps(recent, indent=2), encoding="utf-8")
 
     def _get_recent_files(self) -> list[dict]:
         """Get list of recently opened/saved files."""
-        recent_file = Path.home() / ".flowyml" / "recent_files.json"
+        recent_file = RECENT_FILES_FILE
         if recent_file.exists():
             try:
                 recent = json.loads(recent_file.read_text(encoding="utf-8"))
@@ -178,7 +191,9 @@ class NotebookServer:
         seen_paths = set()
 
         def _add_kernel(name: str, python_path: str, source: str, version: str = ""):
-            real_path = str(Path(python_path).resolve()) if Path(python_path).exists() else python_path
+            real_path = (
+                str(Path(python_path).resolve()) if Path(python_path).exists() else python_path
+            )
             if real_path in seen_paths:
                 return
             seen_paths.add(real_path)
@@ -187,7 +202,9 @@ class NotebookServer:
                 try:
                     result = subprocess.run(
                         [python_path, "--version"],
-                        capture_output=True, text=True, timeout=5,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     version = result.stdout.strip().replace("Python ", "")
                 except Exception:
@@ -198,24 +215,38 @@ class NotebookServer:
             for pkg in ["pandas", "numpy", "scikit-learn", "torch", "tensorflow"]:
                 try:
                     result = subprocess.run(
-                        [python_path, "-c", f"import {pkg.replace('-', '_').split('-')[0]}; print('ok')"],
-                        capture_output=True, text=True, timeout=5,
+                        [
+                            python_path,
+                            "-c",
+                            f"import {pkg.replace('-', '_').split('-')[0]}; print('ok')",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     packages[pkg] = result.returncode == 0
                 except Exception:
                     packages[pkg] = False
 
-            kernels.append({
-                "name": name,
-                "python_path": python_path,
-                "version": version,
-                "source": source,
-                "packages": packages,
-                "is_current": python_path == sys.executable or real_path == str(Path(sys.executable).resolve()),
-            })
+            kernels.append(
+                {
+                    "name": name,
+                    "python_path": python_path,
+                    "version": version,
+                    "source": source,
+                    "packages": packages,
+                    "is_current": python_path == sys.executable
+                    or real_path == str(Path(sys.executable).resolve()),
+                }
+            )
 
         # 1. Current Python
-        _add_kernel(f"Python {sys.version.split()[0]} (current)", sys.executable, "current", sys.version.split()[0])
+        _add_kernel(
+            f"Python {sys.version.split()[0]} (current)",
+            sys.executable,
+            "current",
+            sys.version.split()[0],
+        )
 
         # 2. Local venv / virtualenv
         cwd = os.getcwd()
@@ -228,7 +259,10 @@ class NotebookServer:
         try:
             result = subprocess.run(
                 ["poetry", "env", "info", "--executable"],
-                capture_output=True, text=True, timeout=10, cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=cwd,
             )
             if result.returncode == 0 and result.stdout.strip():
                 _add_kernel("Poetry env", result.stdout.strip(), "poetry")
@@ -239,7 +273,10 @@ class NotebookServer:
         try:
             result = subprocess.run(
                 ["pipenv", "--py"],
-                capture_output=True, text=True, timeout=10, cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=cwd,
             )
             if result.returncode == 0 and result.stdout.strip():
                 _add_kernel("Pipenv env", result.stdout.strip(), "pipenv")
@@ -250,7 +287,9 @@ class NotebookServer:
         try:
             result = subprocess.run(
                 ["conda", "env", "list", "--json"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 conda_data = json.loads(result.stdout)
@@ -266,21 +305,29 @@ class NotebookServer:
         try:
             result = subprocess.run(
                 ["pyenv", "versions", "--bare"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 for version_str in result.stdout.strip().split("\n"):
                     version_str = version_str.strip()
                     if version_str:
                         pyenv_root = os.environ.get("PYENV_ROOT", os.path.expanduser("~/.pyenv"))
-                        pyenv_python = os.path.join(pyenv_root, "versions", version_str, "bin", "python")
+                        pyenv_python = os.path.join(
+                            pyenv_root, "versions", version_str, "bin", "python"
+                        )
                         if os.path.isfile(pyenv_python):
                             _add_kernel(f"pyenv: {version_str}", pyenv_python, "pyenv", version_str)
         except FileNotFoundError:
             pass
 
         # 7. System Pythons
-        for sys_python in ["/usr/bin/python3", "/usr/local/bin/python3", "/opt/homebrew/bin/python3"]:
+        for sys_python in [
+            "/usr/bin/python3",
+            "/usr/local/bin/python3",
+            "/opt/homebrew/bin/python3",
+        ]:
             if os.path.isfile(sys_python):
                 _add_kernel("System Python", sys_python, "system")
 
@@ -308,10 +355,19 @@ class NotebookServer:
         @app.get("/api/health")
         async def health():
             """Health check endpoint."""
+            # Detect if FlowyML SDK is available
+            try:
+                import flowyml  # noqa: F401
+
+                flowyml_available = True
+            except ImportError:
+                flowyml_available = False
+
             return {
                 "status": "ok",
                 "version": __version__,
                 "kernel": "active",
+                "flowyml_available": flowyml_available,
             }
 
         @app.post("/api/config/connection")
@@ -467,8 +523,8 @@ class NotebookServer:
         async def explore_dataframe(var_name: str):
             """Get comprehensive profiling data for a DataFrame variable."""
             try:
-                import pandas as pd
                 import numpy as np
+                import pandas as pd
             except ImportError:
                 raise HTTPException(400, "pandas and numpy are required")
 
@@ -499,7 +555,9 @@ class NotebookServer:
             }
 
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            categorical_cols = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+            categorical_cols = df.select_dtypes(
+                include=["object", "category", "bool"]
+            ).columns.tolist()
 
             # Per-column stats (enhanced with ML-relevant metrics)
             for col in df.columns:
@@ -520,7 +578,11 @@ class NotebookServer:
                     # Outlier detection (IQR method)
                     lower_fence = q1 - 1.5 * iqr
                     upper_fence = q3 + 1.5 * iqr
-                    outlier_count = int(((clean < lower_fence) | (clean > upper_fence)).sum()) if len(clean) > 0 else 0
+                    outlier_count = (
+                        int(((clean < lower_fence) | (clean > upper_fence)).sum())
+                        if len(clean) > 0
+                        else 0
+                    )
 
                     # Distribution shape classification
                     if abs(skew_val) < 0.5:
@@ -533,36 +595,46 @@ class NotebookServer:
                     # Coefficient of variation
                     cv = abs(std_val / mean_val) if mean_val != 0 else float("inf")
 
-                    col_stat.update({
-                        "type": "numeric",
-                        "mean": round(mean_val, 4),
-                        "std": round(std_val, 4),
-                        "min": round(float(desc.get("min", 0)), 4),
-                        "q25": round(q1, 4),
-                        "median": round(float(desc.get("50%", 0)), 4),
-                        "q75": round(q3, 4),
-                        "max": round(float(desc.get("max", 0)), 4),
-                        "skew": round(skew_val, 4),
-                        "kurtosis": round(kurt_val, 4),
-                        "zeros": int((s == 0).sum()),
-                        "negative": int((s < 0).sum()),
-                        # ML-specific
-                        "outliers": outlier_count,
-                        "outlier_pct": round(outlier_count / len(clean) * 100, 1) if len(clean) > 0 else 0,
-                        "lower_fence": round(lower_fence, 4),
-                        "upper_fence": round(upper_fence, 4),
-                        "iqr": round(iqr, 4),
-                        "cv": round(cv, 4) if cv != float("inf") else None,
-                        "shape": shape,
-                        "is_integer": bool(clean.apply(lambda x: float(x).is_integer()).all()) if len(clean) > 0 else False,
-                        "range": round(float(desc.get("max", 0)) - float(desc.get("min", 0)), 4),
-                        "variance": round(float(s.var()), 4) if len(clean) > 1 else 0,
-                    })
+                    col_stat.update(
+                        {
+                            "type": "numeric",
+                            "mean": round(mean_val, 4),
+                            "std": round(std_val, 4),
+                            "min": round(float(desc.get("min", 0)), 4),
+                            "q25": round(q1, 4),
+                            "median": round(float(desc.get("50%", 0)), 4),
+                            "q75": round(q3, 4),
+                            "max": round(float(desc.get("max", 0)), 4),
+                            "skew": round(skew_val, 4),
+                            "kurtosis": round(kurt_val, 4),
+                            "zeros": int((s == 0).sum()),
+                            "negative": int((s < 0).sum()),
+                            # ML-specific
+                            "outliers": outlier_count,
+                            "outlier_pct": round(outlier_count / len(clean) * 100, 1)
+                            if len(clean) > 0
+                            else 0,
+                            "lower_fence": round(lower_fence, 4),
+                            "upper_fence": round(upper_fence, 4),
+                            "iqr": round(iqr, 4),
+                            "cv": round(cv, 4) if cv != float("inf") else None,
+                            "shape": shape,
+                            "is_integer": bool(clean.apply(lambda x: float(x).is_integer()).all())
+                            if len(clean) > 0
+                            else False,
+                            "range": round(
+                                float(desc.get("max", 0)) - float(desc.get("min", 0)), 4
+                            ),
+                            "variance": round(float(s.var()), 4) if len(clean) > 1 else 0,
+                        }
+                    )
 
                     # Histogram
                     try:
                         if len(clean) > 0:
-                            counts, edges = np.histogram(clean, bins=min(20, max(5, len(clean) // 5)))
+                            counts, edges = np.histogram(
+                                clean, bins=min(20, max(5, len(clean) // 5))
+                            )
                             result["histograms"][col] = {
                                 "counts": counts.tolist(),
                                 "bin_edges": [round(float(e), 4) for e in edges],
@@ -581,25 +653,38 @@ class NotebookServer:
                                 "max": round(float(clean.max()), 4),
                                 "lower_fence": round(max(float(clean.min()), lower_fence), 4),
                                 "upper_fence": round(min(float(clean.max()), upper_fence), 4),
-                                "outlier_values": sorted([round(float(v), 2) for v in clean[(clean < lower_fence) | (clean > upper_fence)].head(20)]),
+                                "outlier_values": sorted(
+                                    [
+                                        round(float(v), 2)
+                                        for v in clean[
+                                            (clean < lower_fence) | (clean > upper_fence)
+                                        ].head(20)
+                                    ]
+                                ),
                             }
                     except Exception:
                         pass
                 else:
                     vc = s.value_counts()
                     n_unique = int(s.nunique())
-                    col_stat.update({
-                        "type": "categorical",
-                        "unique": n_unique,
-                        "top_values": {str(k): int(v) for k, v in vc.head(10).items()},
-                        "most_common": str(vc.index[0]) if len(vc) > 0 else None,
-                        "most_common_pct": round(float(vc.iloc[0] / len(s) * 100), 1) if len(vc) > 0 else 0,
-                        # ML-specific
-                        "cardinality_ratio": round(n_unique / max(len(s), 1), 4),
-                        "is_binary": n_unique == 2,
-                        "is_potential_target": n_unique <= 20 and n_unique >= 2,
-                        "entropy": round(float(-(vc / len(s) * np.log2(vc / len(s))).sum()), 4) if len(vc) > 0 else 0,
-                    })
+                    col_stat.update(
+                        {
+                            "type": "categorical",
+                            "unique": n_unique,
+                            "top_values": {str(k): int(v) for k, v in vc.head(10).items()},
+                            "most_common": str(vc.index[0]) if len(vc) > 0 else None,
+                            "most_common_pct": round(float(vc.iloc[0] / len(s) * 100), 1)
+                            if len(vc) > 0
+                            else 0,
+                            # ML-specific
+                            "cardinality_ratio": round(n_unique / max(len(s), 1), 4),
+                            "is_binary": n_unique == 2,
+                            "is_potential_target": n_unique <= 20 and n_unique >= 2,
+                            "entropy": round(float(-(vc / len(s) * np.log2(vc / len(s))).sum()), 4)
+                            if len(vc) > 0
+                            else 0,
+                        }
+                    )
 
                     # Class balance for potential targets
                     if n_unique <= 20 and n_unique >= 2:
@@ -620,9 +705,10 @@ class NotebookServer:
                     corr = df[numeric_cols].corr()
                     result["correlations"] = {
                         "columns": numeric_cols,
-                        "matrix": [[round(float(corr.iloc[i, j]), 4)
-                                     for j in range(len(numeric_cols))]
-                                    for i in range(len(numeric_cols))],
+                        "matrix": [
+                            [round(float(corr.iloc[i, j]), 4) for j in range(len(numeric_cols))]
+                            for i in range(len(numeric_cols))
+                        ],
                     }
                 except Exception:
                     pass
@@ -630,13 +716,23 @@ class NotebookServer:
             # Data quality summary
             total = len(df)
             result["data_quality"] = {
-                "completeness": round(float(1 - df.isnull().sum().sum() / (total * len(df.columns))) * 100, 1) if total > 0 else 100,
+                "completeness": round(
+                    float(1 - df.isnull().sum().sum() / (total * len(df.columns))) * 100, 1
+                )
+                if total > 0
+                else 100,
                 "duplicate_rows": int(df.duplicated().sum()),
-                "duplicate_pct": round(float(df.duplicated().sum() / total * 100), 1) if total > 0 else 0,
+                "duplicate_pct": round(float(df.duplicated().sum() / total * 100), 1)
+                if total > 0
+                else 0,
                 "total_nulls": int(df.isnull().sum().sum()),
                 "columns_with_nulls": int((df.isnull().sum() > 0).sum()),
                 "constant_columns": [col for col in df.columns if df[col].nunique() <= 1],
-                "high_cardinality": [col for col in df.select_dtypes(include=["object"]).columns if df[col].nunique() > 50],
+                "high_cardinality": [
+                    col
+                    for col in df.select_dtypes(include=["object"]).columns
+                    if df[col].nunique() > 50
+                ],
             }
 
             # === ML Insights ===
@@ -644,10 +740,17 @@ class NotebookServer:
 
             # Feature importance by variance (for numeric)
             if numeric_cols:
-                variances = {col: round(float(df[col].var()), 4) for col in numeric_cols if df[col].var() == df[col].var()}
+                variances = {
+                    col: round(float(df[col].var()), 4)
+                    for col in numeric_cols
+                    if df[col].var() == df[col].var()
+                }
                 if variances:
                     max_var = max(variances.values()) or 1
-                    ml["feature_variance"] = {col: {"variance": v, "normalized": round(v / max_var, 4)} for col, v in sorted(variances.items(), key=lambda x: -x[1])}
+                    ml["feature_variance"] = {
+                        col: {"variance": v, "normalized": round(v / max_var, 4)}
+                        for col, v in sorted(variances.items(), key=lambda x: -x[1])
+                    }
 
             # Scaling recommendations
             scaling_recs = {}
@@ -662,15 +765,24 @@ class NotebookServer:
                 skew_v = float(clean.skew()) if len(clean) > 2 else 0
 
                 if abs(skew_v) > 1:
-                    scaling_recs[col] = {"method": "log_transform", "reason": f"High skewness ({skew_v:.2f}) — log/power transform recommended"}
+                    scaling_recs[col] = {
+                        "method": "log_transform",
+                        "reason": f"High skewness ({skew_v:.2f}) — log/power transform recommended",
+                    }
                 elif mx - mn > 100 * std_v:
-                    scaling_recs[col] = {"method": "robust_scaler", "reason": "Large range relative to std — use RobustScaler"}
+                    scaling_recs[col] = {
+                        "method": "robust_scaler",
+                        "reason": "Large range relative to std — use RobustScaler",
+                    }
                 elif mn >= 0 and mx <= 1:
                     scaling_recs[col] = {"method": "none", "reason": "Already in [0, 1] range"}
                 elif abs(mean_v) < 1 and std_v < 2:
                     scaling_recs[col] = {"method": "none", "reason": "Already near-standard scale"}
                 else:
-                    scaling_recs[col] = {"method": "standard_scaler", "reason": "StandardScaler (zero mean, unit variance)"}
+                    scaling_recs[col] = {
+                        "method": "standard_scaler",
+                        "reason": "StandardScaler (zero mean, unit variance)",
+                    }
             ml["scaling"] = scaling_recs
 
             # Target variable detection
@@ -678,12 +790,41 @@ class NotebookServer:
             for col in df.columns:
                 s = df[col]
                 n_unique = int(s.nunique())
-                if col.lower() in ("target", "label", "class", "y", "outcome", "status", "category"):
-                    potential_targets.append({"column": col, "reason": "Name suggests target variable", "n_classes": n_unique, "type": "classification" if n_unique <= 20 else "regression"})
+                if col.lower() in (
+                    "target",
+                    "label",
+                    "class",
+                    "y",
+                    "outcome",
+                    "status",
+                    "category",
+                ):
+                    potential_targets.append(
+                        {
+                            "column": col,
+                            "reason": "Name suggests target variable",
+                            "n_classes": n_unique,
+                            "type": "classification" if n_unique <= 20 else "regression",
+                        }
+                    )
                 elif pd.api.types.is_numeric_dtype(s) and n_unique == 2:
-                    potential_targets.append({"column": col, "reason": "Binary numeric column", "n_classes": 2, "type": "classification"})
+                    potential_targets.append(
+                        {
+                            "column": col,
+                            "reason": "Binary numeric column",
+                            "n_classes": 2,
+                            "type": "classification",
+                        }
+                    )
                 elif not pd.api.types.is_numeric_dtype(s) and 2 <= n_unique <= 10:
-                    potential_targets.append({"column": col, "reason": f"Low-cardinality categorical ({n_unique} classes)", "n_classes": n_unique, "type": "classification"})
+                    potential_targets.append(
+                        {
+                            "column": col,
+                            "reason": f"Low-cardinality categorical ({n_unique} classes)",
+                            "n_classes": n_unique,
+                            "type": "classification",
+                        }
+                    )
             ml["potential_targets"] = potential_targets
 
             # Algorithm suggestions
@@ -693,19 +834,61 @@ class NotebookServer:
             has_categorical = len(categorical_cols) > 0
 
             if n_rows < 100:
-                suggestions.append({"algo": "Simple models (Logistic Regression, KNN)", "reason": "Small dataset — avoid complex models that may overfit", "icon": "caution"})
+                suggestions.append(
+                    {
+                        "algo": "Simple models (Logistic Regression, KNN)",
+                        "reason": "Small dataset — avoid complex models that may overfit",
+                        "icon": "caution",
+                    }
+                )
             elif n_rows < 10000:
-                suggestions.append({"algo": "Random Forest / Gradient Boosting", "reason": f"Medium dataset ({n_rows} rows) — tree-based models work well", "icon": "recommended"})
-                suggestions.append({"algo": "SVM", "reason": "Good for medium datasets with clear margins", "icon": "alternative"})
+                suggestions.append(
+                    {
+                        "algo": "Random Forest / Gradient Boosting",
+                        "reason": f"Medium dataset ({n_rows} rows) — tree-based models work well",
+                        "icon": "recommended",
+                    }
+                )
+                suggestions.append(
+                    {
+                        "algo": "SVM",
+                        "reason": "Good for medium datasets with clear margins",
+                        "icon": "alternative",
+                    }
+                )
             else:
-                suggestions.append({"algo": "XGBoost / LightGBM / CatBoost", "reason": f"Large dataset ({n_rows:,} rows) — gradient boosting excels", "icon": "recommended"})
-                suggestions.append({"algo": "Neural Network", "reason": "Consider deep learning for very large datasets", "icon": "alternative"})
+                suggestions.append(
+                    {
+                        "algo": "XGBoost / LightGBM / CatBoost",
+                        "reason": f"Large dataset ({n_rows:,} rows) — gradient boosting excels",
+                        "icon": "recommended",
+                    }
+                )
+                suggestions.append(
+                    {
+                        "algo": "Neural Network",
+                        "reason": "Consider deep learning for very large datasets",
+                        "icon": "alternative",
+                    }
+                )
 
             if has_categorical:
-                suggestions.append({"algo": "CatBoost", "reason": "Handles categorical features natively", "icon": "recommended"})
+                suggestions.append(
+                    {
+                        "algo": "CatBoost",
+                        "reason": "Handles categorical features natively",
+                        "icon": "recommended",
+                    }
+                )
 
             if n_features > 50:
-                suggestions.append({"algo": "PCA / Feature Selection", "reason": f"High dimensionality ({n_features} features) — consider dimensionality reduction", "icon": "preprocessing"})
+                suggestions.append(
+                    {
+                        "algo": "PCA / Feature Selection",
+                        "reason": f"High dimensionality ({n_features} features) — consider dimensionality reduction",
+                        "icon": "preprocessing",
+                    }
+                )
 
             # Check for multicollinearity
             if result["correlations"]:
@@ -717,7 +900,14 @@ class NotebookServer:
                         if abs(matrix[i][j]) > 0.9:
                             highly_corr.append({"a": cols[i], "b": cols[j], "corr": matrix[i][j]})
                 if highly_corr:
-                    suggestions.append({"algo": "Remove multicollinear features", "reason": f"{len(highly_corr)} feature pair(s) with |r| > 0.9", "icon": "warning", "pairs": highly_corr})
+                    suggestions.append(
+                        {
+                            "algo": "Remove multicollinear features",
+                            "reason": f"{len(highly_corr)} feature pair(s) with |r| > 0.9",
+                            "icon": "warning",
+                            "pairs": highly_corr,
+                        }
+                    )
             ml["suggestions"] = suggestions
 
             # Feature type classification
@@ -728,7 +918,10 @@ class NotebookServer:
                 if pd.api.types.is_numeric_dtype(s):
                     if n_unique == 2:
                         feature_types[col] = "binary"
-                    elif n_unique <= 10 and s.apply(lambda x: float(x).is_integer() if pd.notna(x) else True).all():
+                    elif (
+                        n_unique <= 10
+                        and s.apply(lambda x: float(x).is_integer() if pd.notna(x) else True).all()
+                    ):
                         feature_types[col] = "ordinal"
                     else:
                         feature_types[col] = "continuous"
@@ -769,8 +962,8 @@ class NotebookServer:
         async def get_correlation(var_name: str, method: str = "pearson"):
             """Get correlation matrix for a DataFrame."""
             try:
-                import pandas as pd
                 import numpy as np
+                import pandas as pd  # noqa: F401
             except ImportError:
                 raise HTTPException(400, "pandas and numpy required")
 
@@ -790,9 +983,10 @@ class NotebookServer:
             corr = df[numeric_cols].corr(method=method)
             return {
                 "columns": numeric_cols,
-                "matrix": [[round(float(corr.iloc[i, j]), 4)
-                             for j in range(len(numeric_cols))]
-                            for i in range(len(numeric_cols))],
+                "matrix": [
+                    [round(float(corr.iloc[i, j]), 4) for j in range(len(numeric_cols))]
+                    for i in range(len(numeric_cols))
+                ],
                 "method": method,
             }
 
@@ -801,8 +995,8 @@ class NotebookServer:
         async def smartprep_advisor(var_name: str, target: str | None = None):
             """Analyze a DataFrame and return actionable preprocessing suggestions with code."""
             try:
-                import pandas as pd
                 import numpy as np
+                import pandas as pd
             except ImportError:
                 raise HTTPException(400, "pandas and numpy required")
 
@@ -825,28 +1019,40 @@ class NotebookServer:
                     continue
                 is_numeric = pd.api.types.is_numeric_dtype(df[col])
                 if null_pct > 60:
-                    suggestions.append({
-                        "type": "drop_column", "severity": "high", "column": col,
-                        "title": f"Drop '{col}' — {null_pct}% missing",
-                        "reason": f"Column has {null_pct}% missing values ({null_count}/{n_rows}). Too sparse to impute reliably.",
-                        "code": f"{var_name} = {var_name}.drop(columns=['{col}'])",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "drop_column",
+                            "severity": "high",
+                            "column": col,
+                            "title": f"Drop '{col}' — {null_pct}% missing",
+                            "reason": f"Column has {null_pct}% missing values ({null_count}/{n_rows}). Too sparse to impute reliably.",
+                            "code": f"{var_name} = {var_name}.drop(columns=['{col}'])",
+                        }
+                    )
                 elif is_numeric:
-                    median_val = round(float(df[col].median()), 4)
-                    suggestions.append({
-                        "type": "impute_numeric", "severity": "medium", "column": col,
-                        "title": f"Impute '{col}' — {null_pct}% missing",
-                        "reason": f"Numeric column with {null_count} missing values. Median imputation preserves distribution shape.",
-                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna({var_name}['{col}'].median())",
-                    })
+                    _median_val = round(float(df[col].median()), 4)
+                    suggestions.append(
+                        {
+                            "type": "impute_numeric",
+                            "severity": "medium",
+                            "column": col,
+                            "title": f"Impute '{col}' — {null_pct}% missing",
+                            "reason": f"Numeric column with {null_count} missing values. Median imputation preserves distribution shape.",
+                            "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna({var_name}['{col}'].median())",
+                        }
+                    )
                 else:
                     mode_val = df[col].mode().iloc[0] if len(df[col].mode()) > 0 else "unknown"
-                    suggestions.append({
-                        "type": "impute_categorical", "severity": "medium", "column": col,
-                        "title": f"Impute '{col}' — {null_pct}% missing",
-                        "reason": f"Categorical column with {null_count} missing values. Mode imputation is safest.",
-                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna('{mode_val}')",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "impute_categorical",
+                            "severity": "medium",
+                            "column": col,
+                            "title": f"Impute '{col}' — {null_pct}% missing",
+                            "reason": f"Categorical column with {null_count} missing values. Mode imputation is safest.",
+                            "code": f"{var_name}['{col}'] = {var_name}['{col}'].fillna('{mode_val}')",
+                        }
+                    )
 
             # --- 2. Skewed distributions ---
             for col in df.select_dtypes(include=[np.number]).columns:
@@ -855,19 +1061,27 @@ class NotebookServer:
                     continue
                 skew = float(clean.skew())
                 if abs(skew) > 1.5 and (clean > 0).all():
-                    suggestions.append({
-                        "type": "fix_skew", "severity": "medium", "column": col,
-                        "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
-                        "reason": f"Heavily {'right' if skew > 0 else 'left'}-skewed. Log transform normalizes the distribution for better model performance.",
-                        "code": f"import numpy as np\n{var_name}['{col}'] = np.log1p({var_name}['{col}'])",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "fix_skew",
+                            "severity": "medium",
+                            "column": col,
+                            "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
+                            "reason": f"Heavily {'right' if skew > 0 else 'left'}-skewed. Log transform normalizes the distribution for better model performance.",
+                            "code": f"import numpy as np\n{var_name}['{col}'] = np.log1p({var_name}['{col}'])",
+                        }
+                    )
                 elif abs(skew) > 1.5:
-                    suggestions.append({
-                        "type": "fix_skew", "severity": "low", "column": col,
-                        "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
-                        "reason": f"Skewed distribution with negative values. Power transform handles both positive and negative values.",
-                        "code": f"from sklearn.preprocessing import PowerTransformer\npt = PowerTransformer(method='yeo-johnson')\n{var_name}['{col}'] = pt.fit_transform({var_name}[['{col}']])",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "fix_skew",
+                            "severity": "low",
+                            "column": col,
+                            "title": f"Fix skew in '{col}' (skew={round(skew, 2)})",
+                            "reason": "Skewed distribution with negative values. Power transform handles both positive and negative values.",
+                            "code": f"from sklearn.preprocessing import PowerTransformer\npt = PowerTransformer(method='yeo-johnson')\n{var_name}['{col}'] = pt.fit_transform({var_name}[['{col}']])",
+                        }
+                    )
 
             # --- 3. Outliers ---
             for col in df.select_dtypes(include=[np.number]).columns:
@@ -884,30 +1098,42 @@ class NotebookServer:
                 if outlier_pct > 5:
                     lower = round(q1 - 1.5 * iqr, 4)
                     upper = round(q3 + 1.5 * iqr, 4)
-                    suggestions.append({
-                        "type": "clip_outliers", "severity": "medium", "column": col,
-                        "title": f"Clip outliers in '{col}' — {outlier_pct}% ({n_outliers} values)",
-                        "reason": f"IQR method detected {n_outliers} outliers. Clipping to [{lower}, {upper}] preserves data while limiting extreme values.",
-                        "code": f"{var_name}['{col}'] = {var_name}['{col}'].clip(lower={lower}, upper={upper})",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "clip_outliers",
+                            "severity": "medium",
+                            "column": col,
+                            "title": f"Clip outliers in '{col}' — {outlier_pct}% ({n_outliers} values)",
+                            "reason": f"IQR method detected {n_outliers} outliers. Clipping to [{lower}, {upper}] preserves data while limiting extreme values.",
+                            "code": f"{var_name}['{col}'] = {var_name}['{col}'].clip(lower={lower}, upper={upper})",
+                        }
+                    )
 
             # --- 4. High cardinality ---
             for col in df.select_dtypes(include=["object", "category"]).columns:
                 n_unique = int(df[col].nunique())
                 if n_unique > 50:
-                    suggestions.append({
-                        "type": "reduce_cardinality", "severity": "medium", "column": col,
-                        "title": f"Reduce cardinality of '{col}' ({n_unique} unique values)",
-                        "reason": f"High cardinality makes one-hot encoding impractical. Frequency encoding preserves information compactly.",
-                        "code": f"freq = {var_name}['{col}'].value_counts()\n{var_name}['{col}_encoded'] = {var_name}['{col}'].map(freq)",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "reduce_cardinality",
+                            "severity": "medium",
+                            "column": col,
+                            "title": f"Reduce cardinality of '{col}' ({n_unique} unique values)",
+                            "reason": "High cardinality makes one-hot encoding impractical. Frequency encoding preserves information compactly.",
+                            "code": f"freq = {var_name}['{col}'].value_counts()\n{var_name}['{col}_encoded'] = {var_name}['{col}'].map(freq)",
+                        }
+                    )
                 elif 2 < n_unique <= 50:
-                    suggestions.append({
-                        "type": "encode_categorical", "severity": "low", "column": col,
-                        "title": f"Encode '{col}' ({n_unique} categories)",
-                        "reason": f"Categorical column suitable for one-hot encoding.",
-                        "code": f"{var_name} = pd.get_dummies({var_name}, columns=['{col}'], prefix='{col}')",
-                    })
+                    suggestions.append(
+                        {
+                            "type": "encode_categorical",
+                            "severity": "low",
+                            "column": col,
+                            "title": f"Encode '{col}' ({n_unique} categories)",
+                            "reason": "Categorical column suitable for one-hot encoding.",
+                            "code": f"{var_name} = pd.get_dummies({var_name}, columns=['{col}'], prefix='{col}')",
+                        }
+                    )
 
             # --- 5. Class imbalance (if target specified) ---
             if target and target in df.columns:
@@ -917,28 +1143,44 @@ class NotebookServer:
                     minority = int(vc.iloc[-1])
                     ratio = round(majority / minority, 1) if minority > 0 else 999
                     if ratio > 3:
-                        suggestions.append({
-                            "type": "class_imbalance", "severity": "high", "column": target,
-                            "title": f"Class imbalance in '{target}' — {ratio}:1 ratio",
-                            "reason": f"Majority class has {majority} samples vs {minority} for minority. Models will be biased toward majority.",
-                            "code": f"# Option 1: Class weights (no data modification)\n# In your model: class_weight='balanced'\n\n# Option 2: SMOTE oversampling\nfrom imblearn.over_sampling import SMOTE\nsmote = SMOTE(random_state=42)\nX_resampled, y_resampled = smote.fit_resample(X_train, y_train)",
-                        })
+                        suggestions.append(
+                            {
+                                "type": "class_imbalance",
+                                "severity": "high",
+                                "column": target,
+                                "title": f"Class imbalance in '{target}' — {ratio}:1 ratio",
+                                "reason": f"Majority class has {majority} samples vs {minority} for minority. Models will be biased toward majority.",
+                                "code": "# Option 1: Class weights (no data modification)\n# In your model: class_weight='balanced'\n\n# Option 2: SMOTE oversampling\nfrom imblearn.over_sampling import SMOTE\nsmote = SMOTE(random_state=42)\nX_resampled, y_resampled = smote.fit_resample(X_train, y_train)",
+                            }
+                        )
 
             # --- 6. Feature scaling suggestion ---
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             if len(numeric_cols) >= 2:
-                ranges = {col: float(df[col].max() - df[col].min()) for col in numeric_cols if df[col].notna().sum() > 0}
+                ranges = {
+                    col: float(df[col].max() - df[col].min())
+                    for col in numeric_cols
+                    if df[col].notna().sum() > 0
+                }
                 if ranges:
                     max_range = max(ranges.values())
-                    min_range = min(v for v in ranges.values() if v > 0) if any(v > 0 for v in ranges.values()) else 1
+                    min_range = (
+                        min(v for v in ranges.values() if v > 0)
+                        if any(v > 0 for v in ranges.values())
+                        else 1
+                    )
                     if max_range / min_range > 100:
                         cols_str = ", ".join(f"'{c}'" for c in numeric_cols[:8])
-                        suggestions.append({
-                            "type": "scale_features", "severity": "medium", "column": "__all_numeric__",
-                            "title": f"Scale features — {round(max_range/min_range, 0)}x range difference",
-                            "reason": f"Numeric features have very different scales. StandardScaler ensures equal contribution to distance-based models.",
-                            "code": f"from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\ncols_to_scale = [{cols_str}]\n{var_name}[cols_to_scale] = scaler.fit_transform({var_name}[cols_to_scale])",
-                        })
+                        suggestions.append(
+                            {
+                                "type": "scale_features",
+                                "severity": "medium",
+                                "column": "__all_numeric__",
+                                "title": f"Scale features — {round(max_range / min_range, 0)}x range difference",
+                                "reason": "Numeric features have very different scales. StandardScaler ensures equal contribution to distance-based models.",
+                                "code": f"from sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\ncols_to_scale = [{cols_str}]\n{var_name}[cols_to_scale] = scaler.fit_transform({var_name}[cols_to_scale])",
+                            }
+                        )
 
             # Sort by severity
             severity_order = {"high": 0, "medium": 1, "low": 2, "recommended": 0}
@@ -961,7 +1203,9 @@ class NotebookServer:
                         elif pd.api.types.is_datetime64_any_dtype(s):
                             _feature_types[col] = "temporal"
                         else:
-                            _feature_types[col] = "nominal" if _n_unique <= 20 else "high_cardinality"
+                            _feature_types[col] = (
+                                "nominal" if _n_unique <= 20 else "high_cardinality"
+                            )
 
                     kdp_suggestion = generate_preprocessing_suggestion(
                         var_name=var_name,
@@ -988,8 +1232,8 @@ class NotebookServer:
         async def algorithm_matchmaker(var_name: str, target: str | None = None):
             """Analyze data characteristics and recommend ML algorithms with reasoning."""
             try:
-                import pandas as pd
                 import numpy as np
+                import pandas as pd
             except ImportError:
                 raise HTTPException(400, "pandas and numpy required")
 
@@ -1014,12 +1258,18 @@ class NotebookServer:
                 n_unique = int(t.nunique())
                 if pd.api.types.is_numeric_dtype(t) and n_unique > 20:
                     task_type = "regression"
-                    target_info = {"dtype": "numeric", "unique": n_unique, "mean": round(float(t.mean()), 4)}
+                    target_info = {
+                        "dtype": "numeric",
+                        "unique": n_unique,
+                        "mean": round(float(t.mean()), 4),
+                    }
                 else:
                     task_type = "classification"
                     vc = t.value_counts()
                     target_info = {
-                        "dtype": "categorical" if not pd.api.types.is_numeric_dtype(t) else "numeric",
+                        "dtype": "categorical"
+                        if not pd.api.types.is_numeric_dtype(t)
+                        else "numeric",
                         "classes": n_unique,
                         "class_distribution": {str(k): int(v) for k, v in vc.head(10).items()},
                         "balanced": bool(vc.max() / vc.min() < 3) if vc.min() > 0 else False,
@@ -1042,169 +1292,210 @@ class NotebookServer:
 
             if task_type == "classification":
                 # Always recommend
-                recommendations.append({
-                    "name": "Random Forest",
-                    "category": "ensemble",
-                    "score": 90 if not chars["high_dimensional"] else 75,
-                    "speed": "medium",
-                    "interpretability": "medium",
-                    "reasons": [
-                        "Handles mixed feature types (numeric + categorical)",
-                        "Robust to outliers and missing values",
-                        f"Works well with {n_rows} samples",
-                        "Built-in feature importance",
-                    ],
-                    "caveats": ["Can overfit on noisy data", "Slower than linear models"],
-                    "code": f"from sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
-                })
-
-                if n_rows > 1000:
-                    recommendations.append({
-                        "name": "XGBoost",
-                        "category": "gradient_boosting",
-                        "score": 95 if n_rows > 5000 else 85,
+                recommendations.append(
+                    {
+                        "name": "Random Forest",
+                        "category": "ensemble",
+                        "score": 90 if not chars["high_dimensional"] else 75,
                         "speed": "medium",
                         "interpretability": "medium",
                         "reasons": [
-                            "State-of-the-art for tabular data",
-                            f"Excellent with your {n_rows} samples",
-                            "Handles missing values natively",
-                            "GPU acceleration available",
+                            "Handles mixed feature types (numeric + categorical)",
+                            "Robust to outliers and missing values",
+                            f"Works well with {n_rows} samples",
+                            "Built-in feature importance",
                         ],
-                        "caveats": ["Requires hyperparameter tuning", "Can overfit small datasets"],
-                        "code": f"from xgboost import XGBClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=6, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
-                    })
+                        "caveats": ["Can overfit on noisy data", "Slower than linear models"],
+                        "code": f"from sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestClassifier(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
+                    }
+                )
+
+                if n_rows > 1000:
+                    recommendations.append(
+                        {
+                            "name": "XGBoost",
+                            "category": "gradient_boosting",
+                            "score": 95 if n_rows > 5000 else 85,
+                            "speed": "medium",
+                            "interpretability": "medium",
+                            "reasons": [
+                                "State-of-the-art for tabular data",
+                                f"Excellent with your {n_rows} samples",
+                                "Handles missing values natively",
+                                "GPU acceleration available",
+                            ],
+                            "caveats": [
+                                "Requires hyperparameter tuning",
+                                "Can overfit small datasets",
+                            ],
+                            "code": f"from xgboost import XGBClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import classification_report\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBClassifier(n_estimators=200, learning_rate=0.1, max_depth=6, random_state=42)\nmodel.fit(X_train, y_train)\nprint(classification_report(y_test, model.predict(X_test)))",
+                        }
+                    )
 
                 if chars["small_dataset"] or chars["high_dimensional"]:
-                    recommendations.append({
-                        "name": "Logistic Regression",
-                        "category": "linear",
-                        "score": 80 if chars["high_dimensional"] else 70,
-                        "speed": "fast",
-                        "interpretability": "high",
-                        "reasons": [
-                            "Fast training and inference",
-                            "Highly interpretable coefficients",
-                            "Works well with small datasets",
-                            "Good baseline model",
-                        ],
-                        "caveats": ["Assumes linear decision boundary", "Needs feature scaling"],
-                        "code": f"from sklearn.linear_model import LogisticRegression\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('lr', LogisticRegression(max_iter=1000))])\npipe.fit(X_train, y_train)\nprint(f'Accuracy: {{pipe.score(X_test, y_test):.4f}}')",
-                    })
+                    recommendations.append(
+                        {
+                            "name": "Logistic Regression",
+                            "category": "linear",
+                            "score": 80 if chars["high_dimensional"] else 70,
+                            "speed": "fast",
+                            "interpretability": "high",
+                            "reasons": [
+                                "Fast training and inference",
+                                "Highly interpretable coefficients",
+                                "Works well with small datasets",
+                                "Good baseline model",
+                            ],
+                            "caveats": [
+                                "Assumes linear decision boundary",
+                                "Needs feature scaling",
+                            ],
+                            "code": f"from sklearn.linear_model import LogisticRegression\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('lr', LogisticRegression(max_iter=1000))])\npipe.fit(X_train, y_train)\nprint(f'Accuracy: {{pipe.score(X_test, y_test):.4f}}')",
+                        }
+                    )
 
-                recommendations.append({
-                    "name": "LightGBM",
-                    "category": "gradient_boosting",
-                    "score": 88,
-                    "speed": "fast",
-                    "interpretability": "medium",
-                    "reasons": [
-                        "Faster than XGBoost on large datasets",
-                        "Handles categorical features natively",
-                        "Memory efficient",
-                    ],
-                    "caveats": ["Can overfit with too many leaves"],
-                    "code": f"from lightgbm import LGBMClassifier\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = LGBMClassifier(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\nprint(f'Accuracy: {{model.score(X_test, y_test):.4f}}')",
-                })
+                recommendations.append(
+                    {
+                        "name": "LightGBM",
+                        "category": "gradient_boosting",
+                        "score": 88,
+                        "speed": "fast",
+                        "interpretability": "medium",
+                        "reasons": [
+                            "Faster than XGBoost on large datasets",
+                            "Handles categorical features natively",
+                            "Memory efficient",
+                        ],
+                        "caveats": ["Can overfit with too many leaves"],
+                        "code": f"from lightgbm import LGBMClassifier\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = LGBMClassifier(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\nprint(f'Accuracy: {{model.score(X_test, y_test):.4f}}')",
+                    }
+                )
 
             elif task_type == "regression":
-                recommendations.append({
-                    "name": "XGBoost Regressor",
-                    "category": "gradient_boosting",
-                    "score": 92,
-                    "speed": "medium",
-                    "interpretability": "medium",
-                    "reasons": [
-                        "Best overall for tabular regression",
-                        "Handles non-linear relationships",
-                        "Built-in regularization",
-                    ],
-                    "caveats": ["Cannot extrapolate beyond training range"],
-                    "code": f"from xgboost import XGBRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBRegressor(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')\nprint(f'R²:   {{r2_score(y_test, y_pred):.4f}}')",
-                })
+                recommendations.append(
+                    {
+                        "name": "XGBoost Regressor",
+                        "category": "gradient_boosting",
+                        "score": 92,
+                        "speed": "medium",
+                        "interpretability": "medium",
+                        "reasons": [
+                            "Best overall for tabular regression",
+                            "Handles non-linear relationships",
+                            "Built-in regularization",
+                        ],
+                        "caveats": ["Cannot extrapolate beyond training range"],
+                        "code": f"from xgboost import XGBRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = XGBRegressor(n_estimators=200, learning_rate=0.1, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')\nprint(f'R²:   {{r2_score(y_test, y_pred):.4f}}')",
+                    }
+                )
 
-                recommendations.append({
-                    "name": "Random Forest Regressor",
-                    "category": "ensemble",
-                    "score": 85,
-                    "speed": "medium",
-                    "interpretability": "medium",
-                    "reasons": [
-                        "Robust to outliers",
-                        "No feature scaling needed",
-                        "Good out-of-the-box performance",
-                    ],
-                    "caveats": ["Predictions bounded by training range", "Can be slow for large datasets"],
-                    "code": f"from sklearn.ensemble import RandomForestRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestRegressor(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')",
-                })
+                recommendations.append(
+                    {
+                        "name": "Random Forest Regressor",
+                        "category": "ensemble",
+                        "score": 85,
+                        "speed": "medium",
+                        "interpretability": "medium",
+                        "reasons": [
+                            "Robust to outliers",
+                            "No feature scaling needed",
+                            "Good out-of-the-box performance",
+                        ],
+                        "caveats": [
+                            "Predictions bounded by training range",
+                            "Can be slow for large datasets",
+                        ],
+                        "code": f"from sklearn.ensemble import RandomForestRegressor\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport numpy as np\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nmodel = RandomForestRegressor(n_estimators=100, random_state=42)\nmodel.fit(X_train, y_train)\ny_pred = model.predict(X_test)\nprint(f'RMSE: {{np.sqrt(mean_squared_error(y_test, y_pred)):.4f}}')",
+                    }
+                )
 
                 if not chars["high_dimensional"]:
-                    recommendations.append({
-                        "name": "Ridge Regression",
-                        "category": "linear",
-                        "score": 72,
+                    recommendations.append(
+                        {
+                            "name": "Ridge Regression",
+                            "category": "linear",
+                            "score": 72,
+                            "speed": "fast",
+                            "interpretability": "high",
+                            "reasons": [
+                                "Fast and interpretable baseline",
+                                "Handles multicollinearity well",
+                                "Good when features have linear relationships",
+                            ],
+                            "caveats": ["Cannot capture non-linear patterns"],
+                            "code": f"from sklearn.linear_model import Ridge\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('ridge', Ridge(alpha=1.0))])\npipe.fit(X_train, y_train)\nprint(f'R²: {{pipe.score(X_test, y_test):.4f}}')",
+                        }
+                    )
+
+            else:  # clustering
+                recommendations.append(
+                    {
+                        "name": "K-Means",
+                        "category": "clustering",
+                        "score": 85,
                         "speed": "fast",
                         "interpretability": "high",
                         "reasons": [
-                            "Fast and interpretable baseline",
-                            "Handles multicollinearity well",
-                            "Good when features have linear relationships",
+                            "Simple, fast, and widely understood",
+                            "Good for spherical clusters",
+                            "Scalable to large datasets",
                         ],
-                        "caveats": ["Cannot capture non-linear patterns"],
-                        "code": f"from sklearn.linear_model import Ridge\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.pipeline import Pipeline\nfrom sklearn.model_selection import train_test_split\n\nX = {var_name}.drop(columns=['{target}'])\ny = {var_name}['{target}']\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\npipe = Pipeline([('scaler', StandardScaler()), ('ridge', Ridge(alpha=1.0))])\npipe.fit(X_train, y_train)\nprint(f'R²: {{pipe.score(X_test, y_test):.4f}}')",
-                    })
+                        "caveats": [
+                            "Must specify k",
+                            "Sensitive to outliers",
+                            "Assumes spherical clusters",
+                        ],
+                        "code": f"from sklearn.cluster import KMeans\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.metrics import silhouette_score\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\nscores = {{}}\nfor k in range(2, 11):\n    km = KMeans(n_clusters=k, random_state=42, n_init=10)\n    labels = km.fit_predict(X_scaled)\n    scores[k] = silhouette_score(X_scaled, labels)\n    print(f'k={{k}}: silhouette={{scores[k]:.3f}}')\n\nbest_k = max(scores, key=scores.get)\nprint(f'\\nBest k={{best_k}} (silhouette={{scores[best_k]:.3f}}')",
+                    }
+                )
 
-            else:  # clustering
-                recommendations.append({
-                    "name": "K-Means",
-                    "category": "clustering",
-                    "score": 85,
-                    "speed": "fast",
-                    "interpretability": "high",
-                    "reasons": [
-                        "Simple, fast, and widely understood",
-                        "Good for spherical clusters",
-                        "Scalable to large datasets",
-                    ],
-                    "caveats": ["Must specify k", "Sensitive to outliers", "Assumes spherical clusters"],
-                    "code": f"from sklearn.cluster import KMeans\nfrom sklearn.preprocessing import StandardScaler\nfrom sklearn.metrics import silhouette_score\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\nscores = {{}}\nfor k in range(2, 11):\n    km = KMeans(n_clusters=k, random_state=42, n_init=10)\n    labels = km.fit_predict(X_scaled)\n    scores[k] = silhouette_score(X_scaled, labels)\n    print(f'k={{k}}: silhouette={{scores[k]:.3f}}')\n\nbest_k = max(scores, key=scores.get)\nprint(f'\\nBest k={{best_k}} (silhouette={{scores[best_k]:.3f}}')",
-                })
-
-                recommendations.append({
-                    "name": "DBSCAN",
-                    "category": "clustering",
-                    "score": 78,
-                    "speed": "medium",
-                    "interpretability": "medium",
-                    "reasons": [
-                        "Finds clusters of arbitrary shape",
-                        "Detects outliers automatically",
-                        "No need to specify number of clusters",
-                    ],
-                    "caveats": ["Sensitive to eps parameter", "Struggles with varying densities"],
-                    "code": f"from sklearn.cluster import DBSCAN\nfrom sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\ndb = DBSCAN(eps=0.5, min_samples=5)\nlabels = db.fit_predict(X_scaled)\nprint(f'Clusters found: {{len(set(labels)) - (1 if -1 in labels else 0)}}')\nprint(f'Noise points: {{(labels == -1).sum()}}')",
-                })
+                recommendations.append(
+                    {
+                        "name": "DBSCAN",
+                        "category": "clustering",
+                        "score": 78,
+                        "speed": "medium",
+                        "interpretability": "medium",
+                        "reasons": [
+                            "Finds clusters of arbitrary shape",
+                            "Detects outliers automatically",
+                            "No need to specify number of clusters",
+                        ],
+                        "caveats": [
+                            "Sensitive to eps parameter",
+                            "Struggles with varying densities",
+                        ],
+                        "code": f"from sklearn.cluster import DBSCAN\nfrom sklearn.preprocessing import StandardScaler\n\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform({var_name}.select_dtypes(include='number').dropna())\n\ndb = DBSCAN(eps=0.5, min_samples=5)\nlabels = db.fit_predict(X_scaled)\nprint(f'Clusters found: {{len(set(labels)) - (1 if -1 in labels else 0)}}')\nprint(f'Noise points: {{(labels == -1).sum()}}')",
+                    }
+                )
 
             # ── UnicoLab Ecosystem: KerasFactory + MLPotion ──
             if target and task_type in ("classification", "regression"):
                 try:
                     if UnicoLabEcosystem.is_available("kerasfactory"):
                         from flowyml_notebook.integrations.kerasfactory_adapter import (
-                            generate_model_recommendation,
                             generate_advanced_model_recommendation,
+                            generate_model_recommendation,
                         )
+
                         _feature_names = [c for c in df.columns if c != target]
                         kf_rec = generate_model_recommendation(
-                            var_name=var_name, task_type=task_type,
-                            target=target, feature_names=_feature_names,
-                            n_rows=n_rows, n_features=len(_feature_names),
+                            var_name=var_name,
+                            task_type=task_type,
+                            target=target,
+                            feature_names=_feature_names,
+                            n_rows=n_rows,
+                            n_features=len(_feature_names),
                             has_categorical=len(cat_cols) > 0,
                         )
                         recommendations.append(kf_rec)
                         kf_adv = generate_advanced_model_recommendation(
-                            var_name=var_name, task_type=task_type,
-                            target=target, feature_names=_feature_names,
-                            n_rows=n_rows, n_features=len(_feature_names),
+                            var_name=var_name,
+                            task_type=task_type,
+                            target=target,
+                            feature_names=_feature_names,
+                            n_rows=n_rows,
+                            n_features=len(_feature_names),
                         )
                         recommendations.append(kf_adv)
                 except Exception as _kf_err:
@@ -1215,10 +1506,13 @@ class NotebookServer:
                         from flowyml_notebook.integrations.mlpotion_adapter import (
                             generate_training_pipeline,
                         )
+
                         _feature_names_ml = [c for c in df.columns if c != target]
                         mlp_rec = generate_training_pipeline(
-                            var_name=var_name, task_type=task_type,
-                            target=target, n_rows=n_rows,
+                            var_name=var_name,
+                            task_type=task_type,
+                            target=target,
+                            n_rows=n_rows,
                             n_features=len(_feature_names_ml),
                         )
                         recommendations.append(mlp_rec)
@@ -1232,6 +1526,7 @@ class NotebookServer:
                         from flowyml_notebook.integrations.mlpotion_adapter import (
                             generate_full_ecosystem_pipeline,
                         )
+
                         _feature_names_e2e = [c for c in df.columns if c != target]
                         _ftypes: dict[str, str] = {}
                         for col in df.columns:
@@ -1244,9 +1539,12 @@ class NotebookServer:
                             else:
                                 _ftypes[col] = "nominal" if _n_u <= 20 else "high_cardinality"
                         e2e_rec = generate_full_ecosystem_pipeline(
-                            var_name=var_name, task_type=task_type,
-                            target=target, feature_types=_ftypes,
-                            n_rows=n_rows, n_features=len(_feature_names_e2e),
+                            var_name=var_name,
+                            task_type=task_type,
+                            target=target,
+                            feature_types=_ftypes,
+                            n_rows=n_rows,
+                            n_features=len(_feature_names_e2e),
                         )
                         recommendations.append(e2e_rec)
                 except Exception as _e2e_err:
@@ -1288,7 +1586,8 @@ class NotebookServer:
             try:
                 import hashlib
                 from datetime import datetime as dt_now
-                history_dir = Path.home() / ".flowyml" / "history"
+
+                history_dir = HISTORY_DIR
                 history_dir.mkdir(parents=True, exist_ok=True)
                 ts = dt_now.now().isoformat()
                 snapshot_id = hashlib.sha256(ts.encode()).hexdigest()[:12]
@@ -1301,9 +1600,18 @@ class NotebookServer:
                     "cell_count": len(cells_data_snap),
                     "additions": 0,
                     "deletions": 0,
-                    "cells": [{"id": c.get("id", ""), "name": c.get("name", ""), "cell_type": c.get("cell_type", "code"), "source": c.get("source", "")} for c in cells_data_snap],
+                    "cells": [
+                        {
+                            "id": c.get("id", ""),
+                            "name": c.get("name", ""),
+                            "cell_type": c.get("cell_type", "code"),
+                            "source": c.get("source", ""),
+                        }
+                        for c in cells_data_snap
+                    ],
                 }
                 import json as _json
+
                 (history_dir / f"{snapshot_id}.json").write_text(_json.dumps(snapshot, indent=2))
             except Exception:
                 pass
@@ -1335,6 +1643,7 @@ class NotebookServer:
                 json_path = os.path.join(target_dir, f"{safe_name}.fml.json")
                 # Save as JSON with outputs
                 import json as json_mod
+
                 notebook_data = {
                     "metadata": {
                         **self.notebook.notebook.metadata.to_dict(),
@@ -1371,21 +1680,25 @@ class NotebookServer:
                     if entry.startswith("."):
                         continue
                     if os.path.isdir(full):
-                        entries.append({
-                            "name": entry,
-                            "path": full,
-                            "is_dir": True,
-                        })
+                        entries.append(
+                            {
+                                "name": entry,
+                                "path": full,
+                                "is_dir": True,
+                            }
+                        )
                     elif entry.endswith((".py", ".fml.json", ".ipynb")):
                         try:
                             stat = os.stat(full)
-                            entries.append({
-                                "name": entry,
-                                "path": full,
-                                "is_dir": False,
-                                "size": stat.st_size,
-                                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                            })
+                            entries.append(
+                                {
+                                    "name": entry,
+                                    "path": full,
+                                    "is_dir": False,
+                                    "size": stat.st_size,
+                                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                                }
+                            )
                         except OSError:
                             pass
 
@@ -1397,9 +1710,19 @@ class NotebookServer:
                     "entries": entries,
                 }
             except PermissionError:
-                return {"current": target, "parent": os.path.dirname(target), "entries": [], "error": "Permission denied"}
+                return {
+                    "current": target,
+                    "parent": os.path.dirname(target),
+                    "entries": [],
+                    "error": "Permission denied",
+                }
             except FileNotFoundError:
-                return {"current": os.getcwd(), "parent": None, "entries": [], "error": "Directory not found"}
+                return {
+                    "current": os.getcwd(),
+                    "parent": None,
+                    "entries": [],
+                    "error": "Directory not found",
+                }
 
         @app.post("/api/load-file")
         async def load_file(data: dict):
@@ -1477,29 +1800,35 @@ class NotebookServer:
 
             # Extract undefined names from error
             import re as re_mod
+
             name_error = re_mod.search(r"name '(\w+)' is not defined", error_text)
             if name_error:
                 name = name_error.group(1)
                 if name in IMPORT_MAP:
-                    suggestions.append({
-                        "name": name,
-                        "import_statement": IMPORT_MAP[name],
-                        "confidence": "high",
-                    })
+                    suggestions.append(
+                        {
+                            "name": name,
+                            "import_statement": IMPORT_MAP[name],
+                            "confidence": "high",
+                        }
+                    )
 
             # Also analyze the source for potential imports
             try:
                 from flowyml_notebook.reactive import analyze_cell_dependencies
+
                 reads, _ = analyze_cell_dependencies(source)
                 for name in reads:
                     if name in IMPORT_MAP:
                         # Check if it's already imported in the namespace
                         if name not in self.notebook.session._namespace:
-                            suggestions.append({
-                                "name": name,
-                                "import_statement": IMPORT_MAP[name],
-                                "confidence": "medium",
-                            })
+                            suggestions.append(
+                                {
+                                    "name": name,
+                                    "import_statement": IMPORT_MAP[name],
+                                    "confidence": "medium",
+                                }
+                            )
             except Exception:
                 pass
 
@@ -1513,9 +1842,18 @@ class NotebookServer:
 
             cwd = os.getcwd()
             ignore = {
-                "__pycache__", ".git", "node_modules", ".venv", "venv",
-                ".mypy_cache", ".pytest_cache", ".tox", "dist", "build",
-                ".egg-info", ".eggs",
+                "__pycache__",
+                ".git",
+                "node_modules",
+                ".venv",
+                "venv",
+                ".mypy_cache",
+                ".pytest_cache",
+                ".tox",
+                "dist",
+                "build",
+                ".egg-info",
+                ".eggs",
             }
 
             def build_tree(path: str, name: str) -> dict:
@@ -1535,9 +1873,7 @@ class NotebookServer:
                             child_path = os.path.join(path, item)
                             children.append(build_tree(child_path, item))
                         # Sort: dirs first, then files
-                        children.sort(
-                            key=lambda x: (0 if x["is_dir"] else 1, x["name"].lower())
-                        )
+                        children.sort(key=lambda x: (0 if x["is_dir"] else 1, x["name"].lower()))
                         node["children"] = children
                     except PermissionError:
                         node["children"] = []
@@ -1554,25 +1890,25 @@ class NotebookServer:
         @app.get("/api/version/history")
         async def get_version_history():
             """Get notebook snapshot history."""
-            import os
             import json as json_mod
-            from pathlib import Path
 
-            history_dir = Path.home() / ".flowyml" / "history"
+            history_dir = HISTORY_DIR
             history_dir.mkdir(parents=True, exist_ok=True)
 
             commits = []
             for f in sorted(history_dir.glob("*.json"), reverse=True):
                 try:
                     meta = json_mod.loads(f.read_text())
-                    commits.append({
-                        "id": f.stem,
-                        "message": meta.get("message", "Snapshot"),
-                        "timestamp": meta.get("timestamp"),
-                        "cell_count": meta.get("cell_count", 0),
-                        "additions": meta.get("additions", 0),
-                        "deletions": meta.get("deletions", 0),
-                    })
+                    commits.append(
+                        {
+                            "id": f.stem,
+                            "message": meta.get("message", "Snapshot"),
+                            "timestamp": meta.get("timestamp"),
+                            "cell_count": meta.get("cell_count", 0),
+                            "additions": meta.get("additions", 0),
+                            "deletions": meta.get("deletions", 0),
+                        }
+                    )
                 except Exception:
                     continue
 
@@ -1581,12 +1917,11 @@ class NotebookServer:
         @app.post("/api/version/snapshot")
         async def create_snapshot():
             """Create a snapshot of the current notebook state."""
-            import json as json_mod
-            from pathlib import Path
-            from datetime import datetime
             import hashlib
+            import json as json_mod
+            from datetime import datetime
 
-            history_dir = Path.home() / ".flowyml" / "history"
+            history_dir = HISTORY_DIR
             history_dir.mkdir(parents=True, exist_ok=True)
 
             state = self.notebook.get_state()
@@ -1637,9 +1972,7 @@ class NotebookServer:
                 ],
             }
 
-            (history_dir / f"{snapshot_id}.json").write_text(
-                json_mod.dumps(snapshot, indent=2)
-            )
+            (history_dir / f"{snapshot_id}.json").write_text(json_mod.dumps(snapshot, indent=2))
 
             return {"id": snapshot_id, "message": snapshot["message"]}
 
@@ -1647,9 +1980,8 @@ class NotebookServer:
         async def get_version_diff(commit_id: str):
             """Get diff between a snapshot and the current state."""
             import json as json_mod
-            from pathlib import Path
 
-            history_dir = Path.home() / ".flowyml" / "history"
+            history_dir = HISTORY_DIR
             snapshot_file = history_dir / f"{commit_id}.json"
 
             if not snapshot_file.exists():
@@ -1659,47 +1991,50 @@ class NotebookServer:
             snap_cells = {c["id"]: c for c in snap.get("cells", [])}
 
             state = self.notebook.get_state()
-            curr_cells = {
-                c["id"]: c
-                for c in state.get("notebook", {}).get("cells", [])
-            }
+            curr_cells = {c["id"]: c for c in state.get("notebook", {}).get("cells", [])}
 
             changes = []
             # Changed and added cells
             for cid, cell in curr_cells.items():
                 if cid not in snap_cells:
-                    changes.append({
-                        "cell_id": cid,
-                        "cell_name": cell.get("name", ""),
-                        "type": "added",
-                        "lines": [
-                            {"type": "add", "content": line}
-                            for line in (cell.get("source", "")).split("\n")
-                        ],
-                    })
+                    changes.append(
+                        {
+                            "cell_id": cid,
+                            "cell_name": cell.get("name", ""),
+                            "type": "added",
+                            "lines": [
+                                {"type": "add", "content": line}
+                                for line in (cell.get("source", "")).split("\n")
+                            ],
+                        }
+                    )
                 elif cell.get("source", "") != snap_cells[cid].get("source", ""):
                     old_lines = snap_cells[cid].get("source", "").split("\n")
                     new_lines = cell.get("source", "").split("\n")
                     diff_lines = _compute_diff_lines(old_lines, new_lines)
-                    changes.append({
-                        "cell_id": cid,
-                        "cell_name": cell.get("name", ""),
-                        "type": "modified",
-                        "lines": diff_lines,
-                    })
+                    changes.append(
+                        {
+                            "cell_id": cid,
+                            "cell_name": cell.get("name", ""),
+                            "type": "modified",
+                            "lines": diff_lines,
+                        }
+                    )
 
             # Deleted cells
             for cid, cell in snap_cells.items():
                 if cid not in curr_cells:
-                    changes.append({
-                        "cell_id": cid,
-                        "cell_name": cell.get("name", ""),
-                        "type": "deleted",
-                        "lines": [
-                            {"type": "remove", "content": line}
-                            for line in cell.get("source", "").split("\n")
-                        ],
-                    })
+                    changes.append(
+                        {
+                            "cell_id": cid,
+                            "cell_name": cell.get("name", ""),
+                            "type": "deleted",
+                            "lines": [
+                                {"type": "remove", "content": line}
+                                for line in cell.get("source", "").split("\n")
+                            ],
+                        }
+                    )
 
             return {"changes": changes}
 
@@ -1707,9 +2042,8 @@ class NotebookServer:
         async def restore_version(commit_id: str):
             """Restore notebook to a specific snapshot."""
             import json as json_mod
-            from pathlib import Path
 
-            history_dir = Path.home() / ".flowyml" / "history"
+            history_dir = HISTORY_DIR
             snapshot_file = history_dir / f"{commit_id}.json"
 
             if not snapshot_file.exists():
@@ -1722,7 +2056,7 @@ class NotebookServer:
             # Clear current cells and restore from snapshot
             self.notebook.cells.clear()
             for cell_data in snap.get("cells", []):
-                cell = self.notebook.cell(
+                _cell = self.notebook.cell(
                     source=cell_data.get("source", ""),
                     cell_type=CellType(cell_data.get("cell_type", "code")),
                     name=cell_data.get("name", ""),
@@ -1744,10 +2078,12 @@ class NotebookServer:
             """Export notebook to various formats."""
             if req.format == "pipeline":
                 from flowyml_notebook.deployer import promote_to_pipeline
+
                 path = promote_to_pipeline(self.notebook.notebook)
                 return {"format": "pipeline", "path": path}
             elif req.format in ("html", "pdf"):
                 from flowyml_notebook.reporting import generate_report
+
                 path = generate_report(
                     self.notebook.notebook,
                     format=req.format,
@@ -1756,6 +2092,7 @@ class NotebookServer:
                 return {"format": req.format, "path": path}
             elif req.format == "presentation":
                 from flowyml_notebook.reporting import generate_report
+
                 path = generate_report(
                     self.notebook.notebook,
                     format="presentation",
@@ -1771,6 +2108,7 @@ class NotebookServer:
         async def generate_report_endpoint(req: ReportRequest):
             """Generate a report and return download path."""
             from flowyml_notebook.reporting import generate_report
+
             # Auto-execute all cells to populate outputs
             try:
                 self.notebook.run()
@@ -1789,6 +2127,7 @@ class NotebookServer:
         async def preview_report(include_code: bool = False, title: str = ""):
             """Generate and serve report as HTML for preview."""
             from flowyml_notebook.reporting import _generate_html_report
+
             # Auto-execute all cells to populate outputs
             try:
                 self.notebook.run()
@@ -1806,9 +2145,12 @@ class NotebookServer:
                 )
 
         @app.get("/api/report/download")
-        async def download_report(format: str = "html", include_code: bool = False, title: str = ""):
+        async def download_report(
+            format: str = "html", include_code: bool = False, title: str = ""
+        ):
             """Generate report and return as downloadable file."""
             from flowyml_notebook.reporting import generate_report
+
             report_title = title or f"{self.notebook.notebook.metadata.name} — Report"
             try:
                 path = generate_report(
@@ -1817,8 +2159,11 @@ class NotebookServer:
                     title=report_title,
                     include_code=include_code,
                 )
-                return FileResponse(path, filename=os.path.basename(path),
-                                    media_type="text/html" if format == "html" else "application/pdf")
+                return FileResponse(
+                    path,
+                    filename=os.path.basename(path),
+                    media_type="text/html" if format == "html" else "application/pdf",
+                )
             except Exception as e:
                 logger.error(f"Report download failed: {e}", exc_info=True)
                 raise HTTPException(500, detail=f"Report generation failed: {e}")
@@ -1828,7 +2173,7 @@ class NotebookServer:
         @app.post("/api/app/publish")
         async def publish_app(req: AppPublishRequest):
             """Generate and store app mode HTML. Auto-executes all cells first."""
-            from flowyml_notebook.ui.app_mode import AppMode, LayoutType
+            from flowyml_notebook.ui.app_mode import AppMode
 
             # Auto-execute all cells to ensure outputs are populated
             try:
@@ -1852,9 +2197,11 @@ class NotebookServer:
 
             html = app.to_html()
             # Save to file
-            save_dir = os.path.join(os.path.expanduser("~"), ".flowyml", "published_apps")
+            save_dir = str(PUBLISHED_APPS_DIR)
             os.makedirs(save_dir, exist_ok=True)
-            safe_name = (req.title or self.notebook.notebook.metadata.name).replace(" ", "_").lower()
+            safe_name = (
+                (req.title or self.notebook.notebook.metadata.name).replace(" ", "_").lower()
+            )
             save_path = os.path.join(save_dir, f"{safe_name}.html")
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(html)
@@ -1868,6 +2215,7 @@ class NotebookServer:
             if not html:
                 # Generate default app view
                 from flowyml_notebook.ui.app_mode import AppMode
+
                 app = AppMode(self.notebook)
                 app.configure(title=self.notebook.notebook.metadata.name)
                 html = app.to_html()
@@ -1876,10 +2224,9 @@ class NotebookServer:
         @app.post("/api/app/snapshot")
         async def snapshot_app():
             """Create a snapshot of the current published app state."""
-            from pathlib import Path
             import json as json_mod
 
-            snapshots_dir = Path.home() / ".flowyml" / "app_snapshots"
+            snapshots_dir = APP_SNAPSHOTS_DIR
             snapshots_dir.mkdir(parents=True, exist_ok=True)
 
             snap_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1920,7 +2267,9 @@ class NotebookServer:
             import sys
 
             is_ready = self.notebook.session._initialized
-            current_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            current_version = (
+                f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            )
 
             # Use the comprehensive kernel detector
             available_kernels = self._detect_kernels()
@@ -1951,17 +2300,20 @@ class NotebookServer:
             if not python_path or not Path(python_path).exists():
                 raise HTTPException(400, f"Invalid Python path: {python_path}")
 
-            import sys
             import subprocess
 
             # Verify the Python executable works
             try:
                 result = subprocess.run(
                     [python_path, "-c", "import sys; print(sys.version)"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 if result.returncode != 0:
-                    raise HTTPException(400, f"Python at {python_path} is not functional: {result.stderr}")
+                    raise HTTPException(
+                        400, f"Python at {python_path} is not functional: {result.stderr}"
+                    )
                 version = result.stdout.strip()
             except FileNotFoundError:
                 raise HTTPException(400, f"Python not found: {python_path}")
@@ -1975,6 +2327,7 @@ class NotebookServer:
             # What we CAN do is reset the IPython kernel and set up the new
             # Python path in the environment so subprocess calls use it.
             import os
+
             os.environ["PYTHON_PATH_OVERRIDE"] = python_path
 
             # Record the switch
@@ -1993,7 +2346,6 @@ class NotebookServer:
         async def load_demo():
             """Load a pre-populated demo notebook with fake data."""
             import uuid as _uuid
-            from datetime import datetime as _dt
 
             demo_cells = [
                 {
@@ -2095,6 +2447,7 @@ class NotebookServer:
             self.notebook.notebook.cells.clear()
             for cell_data in demo_cells:
                 from flowyml_notebook.cells import Cell, CellType
+
                 ct = CellType.CODE if cell_data["cell_type"] == "code" else CellType.MARKDOWN
                 cell = Cell(
                     id=cell_data["id"],
@@ -2163,7 +2516,7 @@ class NotebookServer:
             return self.notebook.get_state()
 
         @app.get("/api/notebooks/{nb_id}/load")
-        async def load_notebook(nb_id: str):
+        async def load_notebook_by_id(nb_id: str):
             """Load a specific notebook by ID into the current session."""
             nb_data = self.nb_manager.get_notebook(nb_id)
             if not nb_data:
@@ -2194,7 +2547,11 @@ class NotebookServer:
                         cells_data,
                         {"name": self.notebook.notebook.metadata.name},
                     )
-                return {"saved": True, "path": saved_path, "timestamp": __import__("datetime").datetime.now().isoformat()}
+                return {
+                    "saved": True,
+                    "path": saved_path,
+                    "timestamp": __import__("datetime").datetime.now().isoformat(),
+                }
             except Exception as e:
                 return {"saved": False, "error": str(e)}
 
@@ -2217,36 +2574,43 @@ class NotebookServer:
         @app.get("/api/production/pipelines")
         async def get_pipelines():
             """Get real pipeline data from notebook cells and execution history."""
-            pipelines = []
+            _pipelines = []
             # Build pipeline info from cells that use @step or Pipeline()
             step_cells = []
             for cell in self.notebook.cells:
                 if cell.cell_type.value == "code" and cell.source:
                     if "@step" in cell.source or "Pipeline(" in cell.source:
-                        step_cells.append({
-                            "cell_id": cell.id,
-                            "name": cell.name or f"cell_{cell.id[:6]}",
-                            "source": cell.source[:200],
-                            "has_step": "@step" in cell.source,
-                            "has_pipeline": "Pipeline(" in cell.source,
-                            "executed": cell.execution_count > 0,
-                            "last_executed": cell.last_executed,
-                        })
+                        step_cells.append(
+                            {
+                                "cell_id": cell.id,
+                                "name": cell.name or f"cell_{cell.id[:6]}",
+                                "source": cell.source[:200],
+                                "has_step": "@step" in cell.source,
+                                "has_pipeline": "Pipeline(" in cell.source,
+                                "executed": cell.execution_count > 0,
+                                "last_executed": cell.last_executed,
+                            }
+                        )
 
             # Check if notebook was promoted to pipeline
             import os
+
             pipeline_dir = Path(os.getcwd())
             promoted = []
             for f in pipeline_dir.glob("*_pipeline.py"):
                 stat = f.stat()
-                promoted.append({
-                    "name": f.stem,
-                    "path": str(f),
-                    "status": "success",
-                    "steps": len(step_cells),
-                    "last_run": __import__("datetime").datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "size_bytes": stat.st_size,
-                })
+                promoted.append(
+                    {
+                        "name": f.stem,
+                        "path": str(f),
+                        "status": "success",
+                        "steps": len(step_cells),
+                        "last_run": __import__("datetime")
+                        .datetime.fromtimestamp(stat.st_mtime)
+                        .isoformat(),
+                        "size_bytes": stat.st_size,
+                    }
+                )
 
             return {
                 "step_cells": step_cells,
@@ -2269,7 +2633,13 @@ class NotebookServer:
                 type_name = type(obj).__name__
 
                 # Detect metrics objects
-                if type_name == "Metrics" or (isinstance(obj, dict) and any(k in str(obj) for k in ["accuracy", "f1", "precision", "recall", "loss", "mse"])):
+                if type_name == "Metrics" or (
+                    isinstance(obj, dict)
+                    and any(
+                        k in str(obj)
+                        for k in ["accuracy", "f1", "precision", "recall", "loss", "mse"]
+                    )
+                ):
                     if isinstance(obj, dict):
                         metrics_summary.update(obj)
                     elif hasattr(obj, "to_dict"):
@@ -2286,7 +2656,9 @@ class NotebookServer:
                     if hasattr(obj, "get_params"):
                         try:
                             params = obj.get_params()
-                            model_info["params"] = {k: _safe_serialize(v) for k, v in list(params.items())[:10]}
+                            model_info["params"] = {
+                                k: _safe_serialize(v) for k, v in list(params.items())[:10]
+                            }
                         except Exception:
                             pass
                     # Try to get score
@@ -2345,6 +2717,7 @@ class NotebookServer:
                 # ML Models
                 elif hasattr(obj, "predict") and hasattr(obj, "fit"):
                     import sys
+
                     size = sys.getsizeof(obj)
                     asset_info = {
                         "name": name,
@@ -2363,7 +2736,10 @@ class NotebookServer:
                             "type": "metrics",
                             "subtype": "dict",
                             "size": f"{len(obj)} entries",
-                            "entries": {k: round(v, 6) if isinstance(v, float) else v for k, v in list(obj.items())[:20]},
+                            "entries": {
+                                k: round(v, 6) if isinstance(v, float) else v
+                                for k, v in list(obj.items())[:20]
+                            },
                         }
 
                 if asset_info:
@@ -2377,7 +2753,7 @@ class NotebookServer:
             # Return actual schedules if connected to server, otherwise local state
             schedules = []
             try:
-                if hasattr(self.notebook, '_connection') and self.notebook._connection:
+                if hasattr(self.notebook, "_connection") and self.notebook._connection:
                     schedules = self.notebook._connection.get_schedules()
             except Exception:
                 pass
@@ -2387,6 +2763,7 @@ class NotebookServer:
         async def promote_notebook():
             """Promote notebook to production pipeline."""
             from flowyml_notebook.deployer import promote_to_pipeline
+
             path = promote_to_pipeline(self.notebook.notebook)
             return {"path": path, "status": "promoted"}
 
@@ -2415,10 +2792,12 @@ class NotebookServer:
 
             if mode == "docker":
                 from flowyml_notebook.deployer import generate_dockerfile
+
                 dockerfile_path = generate_dockerfile(self.notebook.notebook)
                 result["dockerfile"] = dockerfile_path
             elif mode == "api":
                 from flowyml_notebook.deployer import deploy_model as do_deploy
+
                 result.update(do_deploy(model))
 
             return result
@@ -2433,7 +2812,9 @@ class NotebookServer:
             if safe_config.get("api_key"):
                 key = safe_config["api_key"]
                 safe_config["api_key_set"] = True
-                safe_config["api_key_preview"] = key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
+                safe_config["api_key_preview"] = (
+                    key[:4] + "..." + key[-4:] if len(key) > 8 else "****"
+                )
             else:
                 safe_config["api_key_set"] = False
                 safe_config["api_key_preview"] = ""
@@ -2474,6 +2855,7 @@ class NotebookServer:
             """Test the current AI provider connection."""
             try:
                 from flowyml_notebook.ai.assistant import NotebookAIAssistant
+
                 provider = self._ai_config.get("provider", "openai")
                 model = self._ai_config.get("model") or None
                 base_url = self._ai_config.get("base_url") or None
@@ -2519,6 +2901,7 @@ class NotebookServer:
 
             try:
                 from flowyml_notebook.ai.assistant import NotebookAIAssistant
+
                 assistant = NotebookAIAssistant(
                     notebook=self.notebook,
                     provider=ai_provider,
@@ -2537,7 +2920,9 @@ class NotebookServer:
         # --- AI Data Analysis ---
 
         @app.post("/api/ai/analyze")
-        async def ai_analyze(variable_name: str, provider: str = "openai", api_key: str | None = None):
+        async def ai_analyze(
+            variable_name: str, provider: str = "openai", api_key: str | None = None
+        ):
             """Get AI-powered analysis of a DataFrame."""
             ns = self.notebook.session._namespace if self.notebook.session._initialized else {}
             if variable_name not in ns:
@@ -2550,6 +2935,7 @@ class NotebookServer:
 
             # Build a data profile summary for the LLM
             import pandas as pd
+
             df = obj
             profile = {
                 "shape": list(df.shape),
@@ -2561,18 +2947,22 @@ class NotebookServer:
                 col_info = {"dtype": str(df[col].dtype), "null_count": int(df[col].isnull().sum())}
                 if pd.api.types.is_numeric_dtype(df[col]):
                     desc = df[col].describe()
-                    col_info.update({
-                        "mean": round(float(desc.get("mean", 0)), 4),
-                        "std": round(float(desc.get("std", 0)), 4),
-                        "min": round(float(desc.get("min", 0)), 4),
-                        "max": round(float(desc.get("max", 0)), 4),
-                        "unique": int(df[col].nunique()),
-                    })
+                    col_info.update(
+                        {
+                            "mean": round(float(desc.get("mean", 0)), 4),
+                            "std": round(float(desc.get("std", 0)), 4),
+                            "min": round(float(desc.get("min", 0)), 4),
+                            "max": round(float(desc.get("max", 0)), 4),
+                            "unique": int(df[col].nunique()),
+                        }
+                    )
                 else:
-                    col_info.update({
-                        "unique": int(df[col].nunique()),
-                        "top_values": df[col].value_counts().head(5).to_dict(),
-                    })
+                    col_info.update(
+                        {
+                            "unique": int(df[col].nunique()),
+                            "top_values": df[col].value_counts().head(5).to_dict(),
+                        }
+                    )
                 profile["columns"][col] = col_info
 
             # Use stored AI config (prefer stored config over request params)
@@ -2593,11 +2983,12 @@ class NotebookServer:
 5. **ML Model Recommendations** — which models would work best and why
 
 Dataset profile:
-- Shape: {profile['shape'][0]} rows × {profile['shape'][1]} columns
-- Columns: {json.dumps(profile['columns'], indent=2, default=str)}
+- Shape: {profile["shape"][0]} rows × {profile["shape"][1]} columns
+- Columns: {json.dumps(profile["columns"], indent=2, default=str)}
 """
             try:
                 from flowyml_notebook.ai.assistant import NotebookAIAssistant
+
                 assistant = NotebookAIAssistant(
                     notebook=self.notebook,
                     provider=ai_provider,
@@ -2660,32 +3051,43 @@ Dataset profile:
                 if obj_type == "Step" or (hasattr(obj, "_flowyml_step") and obj._flowyml_step):
                     inputs = getattr(obj, "inputs", []) or []
                     outputs = getattr(obj, "outputs", []) or []
-                    info["steps"].append({
-                        "name": name,
-                        "inputs": list(inputs)[:10],
-                        "outputs": list(outputs)[:10],
-                    })
+                    info["steps"].append(
+                        {
+                            "name": name,
+                            "inputs": list(inputs)[:10],
+                            "outputs": list(outputs)[:10],
+                        }
+                    )
 
                 # Pipelines
                 elif obj_type == "Pipeline":
                     step_names = []
                     if hasattr(obj, "steps"):
-                        step_names = [
-                            getattr(s, "name", str(s))
-                            for s in (obj.steps or [])
-                        ][:20]
-                    info["pipelines"].append({
-                        "name": getattr(obj, "name", name),
-                        "steps": step_names,
-                        "variable": name,
-                    })
+                        step_names = [getattr(s, "name", str(s)) for s in (obj.steps or [])][:20]
+                    info["pipelines"].append(
+                        {
+                            "name": getattr(obj, "name", name),
+                            "steps": step_names,
+                            "variable": name,
+                        }
+                    )
 
                 # Assets (Dataset, Model, Metrics, etc.)
                 elif "flowyml.assets" in obj_module or obj_type in (
-                    "Dataset", "Model", "Metrics", "Artifact",
-                    "FeatureSet", "Report", "Prompt", "Checkpoint",
+                    "Dataset",
+                    "Model",
+                    "Metrics",
+                    "Artifact",
+                    "FeatureSet",
+                    "Report",
+                    "Prompt",
+                    "Checkpoint",
                 ):
-                    asset_info = {"name": getattr(obj, "name", name), "type": obj_type, "variable": name}
+                    asset_info = {
+                        "name": getattr(obj, "name", name),
+                        "type": obj_type,
+                        "variable": name,
+                    }
                     if hasattr(obj, "shape"):
                         asset_info["shape"] = str(obj.shape)
                     elif hasattr(obj, "data") and hasattr(obj.data, "shape"):
@@ -2694,7 +3096,11 @@ Dataset profile:
 
                 # Experiments & Runs
                 elif obj_type in ("Experiment", "Run"):
-                    exp_info = {"name": getattr(obj, "name", name), "type": obj_type, "variable": name}
+                    exp_info = {
+                        "name": getattr(obj, "name", name),
+                        "type": obj_type,
+                        "variable": name,
+                    }
                     if hasattr(obj, "status"):
                         exp_info["status"] = str(obj.status)
                     info["experiments"].append(exp_info)
@@ -2707,22 +3113,27 @@ Dataset profile:
             # Also check StepRegistry for globally registered steps
             try:
                 from flowyml import get_registered_steps
+
                 registered = get_registered_steps()
                 existing_names = {s["name"] for s in info["steps"]}
                 for s in registered:
                     sname = getattr(s, "name", str(s))
                     if sname not in existing_names:
-                        info["steps"].append({
-                            "name": sname,
-                            "inputs": list(getattr(s, "inputs", []))[:10],
-                            "outputs": list(getattr(s, "outputs", []))[:10],
-                        })
+                        info["steps"].append(
+                            {
+                                "name": sname,
+                                "inputs": list(getattr(s, "inputs", []))[:10],
+                                "outputs": list(getattr(s, "outputs", []))[:10],
+                            }
+                        )
             except Exception:
                 pass
 
             info["total"] = (
-                len(info["steps"]) + len(info["pipelines"])
-                + len(info["assets"]) + len(info["experiments"])
+                len(info["steps"])
+                + len(info["pipelines"])
+                + len(info["assets"])
+                + len(info["experiments"])
             )
             return info
 
@@ -2771,7 +3182,9 @@ Dataset profile:
         # --- GitHub Sync Endpoints ---
 
         @app.post("/api/github/init")
-        async def github_init(repo_url: str, local_path: str | None = None, flowyml_url: str | None = None):
+        async def github_init(
+            repo_url: str, local_path: str | None = None, flowyml_url: str | None = None
+        ):
             """Initialize or connect to a GitHub repository."""
             try:
                 result = self.github_sync.init_repo(repo_url, local_path, flowyml_url)
@@ -2894,9 +3307,8 @@ Dataset profile:
             """Restore notebook to a specific version (by commit SHA or snapshot ID)."""
             # Try the legacy snapshot system first
             import json as json_mod
-            from pathlib import Path
 
-            history_dir = Path.home() / ".flowyml" / "history"
+            history_dir = HISTORY_DIR
             snapshot_file = history_dir / f"{sha}.json"
 
             if snapshot_file.exists():
@@ -2908,7 +3320,11 @@ Dataset profile:
                         cell_type=CellType(cell_data.get("cell_type", "code")),
                         name=cell_data.get("name", ""),
                     )
-                return {"restored": True, "source": "snapshot", "cell_count": len(self.notebook.cells)}
+                return {
+                    "restored": True,
+                    "source": "snapshot",
+                    "cell_count": len(self.notebook.cells),
+                }
 
             # Fall back to git checkout
             try:
@@ -2940,9 +3356,12 @@ Dataset profile:
         async def add_comment(comment: dict):
             """Add a comment (cell-level or notebook-level) with rich features."""
             import uuid
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             new_comment = {
                 "id": str(uuid.uuid4())[:8],
                 "cell_id": comment.get("cell_id"),
@@ -2978,27 +3397,33 @@ Dataset profile:
         @app.post("/api/comments/{comment_id}/reply")
         async def reply_to_comment(comment_id: str, reply: dict):
             """Add a reply to a comment thread."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             for c in self._comments:
                 if c["id"] == comment_id:
-                    c["replies"].append({
-                        "id": str(__import__("uuid").uuid4())[:8],
-                        "text": reply.get("text", ""),
-                        "author": git_user,
-                        "created_at": datetime.now().isoformat(),
-                        "reactions": {},
-                    })
+                    c["replies"].append(
+                        {
+                            "id": str(__import__("uuid").uuid4())[:8],
+                            "text": reply.get("text", ""),
+                            "author": git_user,
+                            "created_at": datetime.now().isoformat(),
+                            "reactions": {},
+                        }
+                    )
                     return c
             raise HTTPException(404, "Comment not found")
 
         @app.post("/api/comments/{comment_id}/react")
         async def react_to_comment(comment_id: str, emoji: str = "👍"):
             """Add an emoji reaction to a comment."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             user_name = git_user.get("name", "Local User")
             for c in self._comments:
                 if c["id"] == comment_id:
@@ -3034,9 +3459,12 @@ Dataset profile:
         async def request_review(review: dict):
             """Request a review for the current notebook (PR-like workflow)."""
             import uuid
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             new_review = {
                 "id": str(uuid.uuid4())[:8],
                 "requested_by": git_user,
@@ -3057,21 +3485,25 @@ Dataset profile:
         @app.put("/api/reviews/{review_id}")
         async def update_review(review_id: str, update: dict):
             """Approve, request changes, or close a review."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             for r in self._reviews:
                 if r["id"] == review_id:
                     r["status"] = update.get("status", r["status"])
                     if update.get("comments"):
                         r["comments"] = update["comments"]
                     if update.get("review_comment"):
-                        r.setdefault("review_comments", []).append({
-                            "author": git_user,
-                            "text": update["review_comment"],
-                            "status": update.get("status", "comment"),
-                            "created_at": datetime.now().isoformat(),
-                        })
+                        r.setdefault("review_comments", []).append(
+                            {
+                                "author": git_user,
+                                "text": update["review_comment"],
+                                "status": update.get("status", "comment"),
+                                "created_at": datetime.now().isoformat(),
+                            }
+                        )
                     if r["status"] in ("approved", "rejected", "changes_requested"):
                         r["resolved_at"] = datetime.now().isoformat()
                         r["reviewer"] = git_user
@@ -3093,6 +3525,7 @@ Dataset profile:
             """Generate a shareable link for the current notebook."""
             import hashlib
             from datetime import timedelta
+
             share_id = hashlib.sha256(
                 f"{self.notebook.name}:{datetime.now().isoformat()}".encode()
             ).hexdigest()[:12]
@@ -3105,7 +3538,7 @@ Dataset profile:
                 "cell_count": len(self.notebook.cells),
                 "url": f"/shared/{share_id}",
             }
-            if not hasattr(self, '_shares'):
+            if not hasattr(self, "_shares"):
                 self._shares = {}
             self._shares[share_id] = share_info
             return share_info
@@ -3113,7 +3546,7 @@ Dataset profile:
         @app.get("/api/shares")
         async def list_shares():
             """List all active notebook shares."""
-            shares = getattr(self, '_shares', {})
+            shares = getattr(self, "_shares", {})
             # Filter expired shares
             now = datetime.now().isoformat()
             active = [s for s in shares.values() if s.get("expires_at", "") > now]
@@ -3122,7 +3555,7 @@ Dataset profile:
         @app.delete("/api/shares/{share_id}")
         async def revoke_share(share_id: str):
             """Revoke a notebook share."""
-            shares = getattr(self, '_shares', {})
+            shares = getattr(self, "_shares", {})
             if share_id in shares:
                 del shares[share_id]
                 return {"revoked": True, "share_id": share_id}
@@ -3133,48 +3566,62 @@ Dataset profile:
         @app.post("/api/reviews/{review_id}/approve")
         async def approve_review(review_id: str, comment: str = ""):
             """Approve a review."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             for r in self._reviews:
                 if r["id"] == review_id:
                     r["status"] = "approved"
                     r["resolved_at"] = datetime.now().isoformat()
                     r["reviewer"] = git_user
                     if comment:
-                        r.setdefault("review_comments", []).append({
-                            "author": git_user,
-                            "text": comment,
-                            "status": "approved",
-                            "created_at": datetime.now().isoformat(),
-                        })
+                        r.setdefault("review_comments", []).append(
+                            {
+                                "author": git_user,
+                                "text": comment,
+                                "status": "approved",
+                                "created_at": datetime.now().isoformat(),
+                            }
+                        )
                     return r
             raise HTTPException(404, "Review not found")
 
         @app.post("/api/reviews/{review_id}/request-changes")
         async def request_changes(review_id: str, comment: str = "Changes needed"):
             """Request changes on a review."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             for r in self._reviews:
                 if r["id"] == review_id:
                     r["status"] = "changes_requested"
                     r["resolved_at"] = datetime.now().isoformat()
                     r["reviewer"] = git_user
-                    r.setdefault("review_comments", []).append({
-                        "author": git_user,
-                        "text": comment,
-                        "status": "changes_requested",
-                        "created_at": datetime.now().isoformat(),
-                    })
+                    r.setdefault("review_comments", []).append(
+                        {
+                            "author": git_user,
+                            "text": comment,
+                            "status": "changes_requested",
+                            "created_at": datetime.now().isoformat(),
+                        }
+                    )
                     return r
             raise HTTPException(404, "Review not found")
 
         @app.get("/api/reviews/summary")
         async def review_summary():
             """Get review summary with counts by status."""
-            summary = {"approved": 0, "pending": 0, "changes_requested": 0, "rejected": 0, "total": len(self._reviews)}
+            summary = {
+                "approved": 0,
+                "pending": 0,
+                "changes_requested": 0,
+                "rejected": 0,
+                "total": len(self._reviews),
+            }
             for r in self._reviews:
                 status = r.get("status", "pending")
                 summary[status] = summary.get(status, 0) + 1
@@ -3186,13 +3633,16 @@ Dataset profile:
         async def get_mentions(username: str):
             """Get all comments mentioning a specific user."""
             import re
+
             mentioned = []
             for c in self._comments:
                 text = c.get("text", "")
-                if re.search(rf'@{re.escape(username)}\b', text, re.IGNORECASE):
+                if re.search(rf"@{re.escape(username)}\b", text, re.IGNORECASE):
                     mentioned.append(c)
                 for reply in c.get("replies", []):
-                    if re.search(rf'@{re.escape(username)}\b', reply.get("text", ""), re.IGNORECASE):
+                    if re.search(
+                        rf"@{re.escape(username)}\b", reply.get("text", ""), re.IGNORECASE
+                    ):
                         mentioned.append({"parent_comment": c["id"], **reply})
             return {"mentions": mentioned, "count": len(mentioned)}
 
@@ -3204,7 +3654,8 @@ Dataset profile:
                 thread = dict(c)
                 thread["reply_count"] = len(c.get("replies", []))
                 thread["last_activity"] = max(
-                    [c.get("created_at", "")] + [r.get("created_at", "") for r in c.get("replies", [])],
+                    [c.get("created_at", "")]
+                    + [r.get("created_at", "") for r in c.get("replies", [])],
                 )
                 threads.append(thread)
             threads.sort(key=lambda t: t.get("last_activity", ""), reverse=True)
@@ -3217,39 +3668,53 @@ Dataset profile:
             """Unified activity feed for notebook collaboration."""
             activities = []
             for c in self._comments:
-                activities.append({
-                    "type": "comment",
-                    "user": c.get("author", {}).get("name", "anonymous") if isinstance(c.get("author"), dict) else str(c.get("author", "anonymous")),
-                    "text": c.get("text", "")[:100],
-                    "timestamp": c.get("created_at", ""),
-                    "cell_id": c.get("cell_id"),
-                    "id": c.get("id"),
-                })
+                activities.append(
+                    {
+                        "type": "comment",
+                        "user": c.get("author", {}).get("name", "anonymous")
+                        if isinstance(c.get("author"), dict)
+                        else str(c.get("author", "anonymous")),
+                        "text": c.get("text", "")[:100],
+                        "timestamp": c.get("created_at", ""),
+                        "cell_id": c.get("cell_id"),
+                        "id": c.get("id"),
+                    }
+                )
                 for reply in c.get("replies", []):
-                    activities.append({
-                        "type": "reply",
-                        "user": reply.get("author", {}).get("name", "anonymous") if isinstance(reply.get("author"), dict) else str(reply.get("author", "anonymous")),
-                        "text": reply.get("text", "")[:100],
-                        "timestamp": reply.get("created_at", ""),
-                        "parent_id": c.get("id"),
-                    })
+                    activities.append(
+                        {
+                            "type": "reply",
+                            "user": reply.get("author", {}).get("name", "anonymous")
+                            if isinstance(reply.get("author"), dict)
+                            else str(reply.get("author", "anonymous")),
+                            "text": reply.get("text", "")[:100],
+                            "timestamp": reply.get("created_at", ""),
+                            "parent_id": c.get("id"),
+                        }
+                    )
             for r in self._reviews:
-                activities.append({
-                    "type": "review",
-                    "user": r.get("requested_by", {}).get("name", "anonymous") if isinstance(r.get("requested_by"), dict) else str(r.get("requested_by", "anonymous")),
-                    "text": r.get("title", "")[:100],
-                    "timestamp": r.get("created_at", ""),
-                    "status": r.get("status", "pending"),
-                    "id": r.get("id"),
-                })
-            for s in getattr(self, '_shares', {}).values():
-                activities.append({
-                    "type": "share",
-                    "user": "system",
-                    "text": f"Notebook shared ({s.get('mode', 'readonly')})",
-                    "timestamp": s.get("created_at", ""),
-                    "share_id": s.get("share_id"),
-                })
+                activities.append(
+                    {
+                        "type": "review",
+                        "user": r.get("requested_by", {}).get("name", "anonymous")
+                        if isinstance(r.get("requested_by"), dict)
+                        else str(r.get("requested_by", "anonymous")),
+                        "text": r.get("title", "")[:100],
+                        "timestamp": r.get("created_at", ""),
+                        "status": r.get("status", "pending"),
+                        "id": r.get("id"),
+                    }
+                )
+            for s in getattr(self, "_shares", {}).values():
+                activities.append(
+                    {
+                        "type": "share",
+                        "user": "system",
+                        "text": f"Notebook shared ({s.get('mode', 'readonly')})",
+                        "timestamp": s.get("created_at", ""),
+                        "share_id": s.get("share_id"),
+                    }
+                )
             activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             return {"activities": activities[:limit], "total": len(activities)}
 
@@ -3258,9 +3723,11 @@ Dataset profile:
         @app.get("/api/user/profile")
         async def get_user_profile():
             """Get the current user's profile (from git config)."""
-            git_user = self.github_sync._get_git_user(
-                str(self.github_sync.repo_path)
-            ) if self.github_sync.repo_path else {"name": "Local User", "email": ""}
+            git_user = (
+                self.github_sync._get_git_user(str(self.github_sync.repo_path))
+                if self.github_sync.repo_path
+                else {"name": "Local User", "email": ""}
+            )
             # Generate a consistent avatar color from the user's name
             name = git_user.get("name", "User")
             hue = sum(ord(c) for c in name) * 37 % 360
@@ -3451,12 +3918,24 @@ Dataset profile:
 
             results = []
             for p in patterns:
-                if q and q not in p.get("name", "").lower() and q not in p.get("description", "").lower():
+                if (
+                    q
+                    and q not in p.get("name", "").lower()
+                    and q not in p.get("description", "").lower()
+                ):
                     if not any(q in t.lower() for t in p.get("tags", [])):
                         continue
-                if data_type and data_type != "any" and p.get("data_type") not in (data_type, "any"):
+                if (
+                    data_type
+                    and data_type != "any"
+                    and p.get("data_type") not in (data_type, "any")
+                ):
                     continue
-                if problem_type and problem_type != "any" and p.get("problem_type") not in (problem_type, "any"):
+                if (
+                    problem_type
+                    and problem_type != "any"
+                    and p.get("problem_type") not in (problem_type, "any")
+                ):
                     continue
                 results.append(p)
 
@@ -3468,13 +3947,16 @@ Dataset profile:
         async def profile_cell(cell_id: str):
             """Profile a cell's execution with CPU, memory, and timing."""
             from flowyml_notebook.profiler import CellProfiler, format_profile_output
+
             if not self._profiler:
                 self._profiler = CellProfiler()
             cell = self.notebook.notebook.get_cell(cell_id)
             if not cell:
                 raise HTTPException(404, f"Cell {cell_id} not found")
             try:
-                result = self._profiler.profile(cell_id, cell.source, self.notebook.session._namespace)
+                result = self._profiler.profile(
+                    cell_id, cell.source, self.notebook.session._namespace
+                )
                 output = format_profile_output(result)
                 return {"profile": result.to_dict(), "output": output.to_dict()}
             except Exception as e:
@@ -3482,14 +3964,21 @@ Dataset profile:
                 return {
                     "profile": {
                         "cell_id": cell_id,
-                        "wall_time_s": 0, "cpu_time_s": 0,
-                        "memory_delta_mb": 0, "peak_memory_mb": 0,
+                        "wall_time_s": 0,
+                        "cpu_time_s": 0,
+                        "memory_delta_mb": 0,
+                        "peak_memory_mb": 0,
                         "function_calls": 0,
-                        "top_functions": [], "top_allocations": [],
+                        "top_functions": [],
+                        "top_allocations": [],
                         "line_times": [{"error": str(e)}],
                         "timestamp": "",
                     },
-                    "output": {"output_type": "error", "data": f"Profiling error: {e}", "metadata": {}},
+                    "output": {
+                        "output_type": "error",
+                        "data": f"Profiling error: {e}",
+                        "metadata": {},
+                    },
                 }
 
         @app.get("/api/profiler/history")
@@ -3512,6 +4001,7 @@ Dataset profile:
         async def benchmark_cell(cell_id: str, runs: int = 5, warmup: int = 1):
             """Benchmark a cell with statistical timing analysis."""
             from flowyml_notebook.benchmark import CellBenchmark, format_benchmark_output
+
             if not self._benchmark:
                 self._benchmark = CellBenchmark()
             cell = self.notebook.notebook.get_cell(cell_id)
@@ -3519,8 +4009,11 @@ Dataset profile:
                 raise HTTPException(404, f"Cell {cell_id} not found")
             try:
                 result = self._benchmark.benchmark(
-                    cell_id, cell.source, self.notebook.session._namespace,
-                    runs=runs, warmup=warmup,
+                    cell_id,
+                    cell.source,
+                    self.notebook.session._namespace,
+                    runs=runs,
+                    warmup=warmup,
                 )
                 output = format_benchmark_output(result)
                 regressions = self._benchmark.detect_regressions(cell_id)
@@ -3533,11 +4026,22 @@ Dataset profile:
                 logger.error(f"Benchmark failed for cell {cell_id}: {e}", exc_info=True)
                 return {
                     "benchmark": {
-                        "cell_id": cell_id, "runs": 0, "warmup": 0,
-                        "mean_s": 0, "std_s": 0, "min_s": 0, "max_s": 0,
-                        "median_s": 0, "times": [], "timestamp": "",
+                        "cell_id": cell_id,
+                        "runs": 0,
+                        "warmup": 0,
+                        "mean_s": 0,
+                        "std_s": 0,
+                        "min_s": 0,
+                        "max_s": 0,
+                        "median_s": 0,
+                        "times": [],
+                        "timestamp": "",
                     },
-                    "output": {"output_type": "error", "data": f"Benchmark error: {e}", "metadata": {}},
+                    "output": {
+                        "output_type": "error",
+                        "data": f"Benchmark error: {e}",
+                        "metadata": {},
+                    },
                     "regressions": [],
                 }
 
@@ -3554,6 +4058,7 @@ Dataset profile:
         async def validate_data(var_name: str):
             """Run data quality checks on a DataFrame variable."""
             from flowyml_notebook.data_validator import DataValidator, format_quality_output
+
             if not self._validator:
                 self._validator = DataValidator()
             self.notebook.session._ensure_kernel()
@@ -3563,6 +4068,7 @@ Dataset profile:
             obj = ns[var_name]
             try:
                 import pandas as pd
+
                 if not isinstance(obj, pd.DataFrame):
                     raise HTTPException(400, f"'{var_name}' is not a DataFrame")
             except ImportError:
@@ -3575,6 +4081,7 @@ Dataset profile:
         async def validate_all_dataframes():
             """Validate all DataFrames in the current namespace."""
             from flowyml_notebook.data_validator import DataValidator
+
             if not self._validator:
                 self._validator = DataValidator()
             self.notebook.session._ensure_kernel()
@@ -3587,6 +4094,7 @@ Dataset profile:
         async def analyze_cell_code(cell_id: str):
             """Run smart code analysis on a cell."""
             from flowyml_notebook.code_analyzer import CodeAnalyzer
+
             if not self._analyzer:
                 self._analyzer = CodeAnalyzer()
             cell = self.notebook.notebook.get_cell(cell_id)
@@ -3599,6 +4107,7 @@ Dataset profile:
         async def auto_fix_cell(cell_id: str):
             """Apply auto-fixes to a cell."""
             from flowyml_notebook.code_analyzer import CodeAnalyzer
+
             if not self._analyzer:
                 self._analyzer = CodeAnalyzer()
             cell = self.notebook.notebook.get_cell(cell_id)
@@ -3615,6 +4124,7 @@ Dataset profile:
         async def get_execution_history():
             """Get execution statistics and global log."""
             from flowyml_notebook.execution_history import ExecutionHistory
+
             if not self._execution_history:
                 self._execution_history = ExecutionHistory()
             return {
@@ -3626,6 +4136,7 @@ Dataset profile:
         async def get_cell_execution_history(cell_id: str):
             """Get execution timeline for a specific cell."""
             from flowyml_notebook.execution_history import ExecutionHistory
+
             if not self._execution_history:
                 self._execution_history = ExecutionHistory()
             timeline = self._execution_history.get_timeline(cell_id)
@@ -3635,6 +4146,7 @@ Dataset profile:
         async def compare_cell_runs(cell_id: str, run_a: int = -2, run_b: int = -1):
             """Compare two execution runs of a cell."""
             from flowyml_notebook.execution_history import ExecutionHistory
+
             if not self._execution_history:
                 self._execution_history = ExecutionHistory()
             comparison = self._execution_history.compare_runs(cell_id, run_a, run_b)
@@ -3646,14 +4158,15 @@ Dataset profile:
         async def get_all_lineage():
             """Get data lineage for all tracked variables."""
             from dataclasses import asdict
+
             from flowyml_notebook.lineage import LineageTracker
+
             if not self._lineage:
                 self._lineage = LineageTracker()
             all_lineage = self._lineage.get_all_lineage()
             return {
                 "lineage": {
-                    var: [asdict(e) for e in entries]
-                    for var, entries in all_lineage.items()
+                    var: [asdict(e) for e in entries] for var, entries in all_lineage.items()
                 },
             }
 
@@ -3661,7 +4174,9 @@ Dataset profile:
         async def get_variable_lineage(var_name: str):
             """Get lineage for a specific variable."""
             from dataclasses import asdict
+
             from flowyml_notebook.lineage import LineageTracker
+
             if not self._lineage:
                 self._lineage = LineageTracker()
             entries = self._lineage.get_lineage(var_name)
@@ -3671,6 +4186,7 @@ Dataset profile:
         async def get_lineage_graph():
             """Get lineage graph for visualization."""
             from flowyml_notebook.lineage import LineageTracker
+
             if not self._lineage:
                 self._lineage = LineageTracker()
             return {"graph": self._lineage.get_lineage_graph()}
@@ -3681,6 +4197,7 @@ Dataset profile:
         async def get_environment_snapshot():
             """Capture a full environment snapshot."""
             from flowyml_notebook.environment import capture_environment
+
             snap = capture_environment()
             d = snap.to_dict()
             # Add frontend-expected aliases
@@ -3695,18 +4212,24 @@ Dataset profile:
             # GPU info for frontend
             gpu_list = d.get("gpu_info", [])
             if gpu_list:
-                d["gpu"] = {"name": gpu_list[0].get("name", "GPU"), "memory": gpu_list[0].get("memory_total_mb")}
+                d["gpu"] = {
+                    "name": gpu_list[0].get("name", "GPU"),
+                    "memory": gpu_list[0].get("memory_total_mb"),
+                }
             return d
 
         @app.post("/api/environment/requirements")
         async def export_requirements(pinned: bool = True):
             """Export requirements.txt from notebook imports."""
+
             from flowyml_notebook.environment import export_requirements
-            from pathlib import Path
-            output_dir = Path.home() / ".flowyml"
+
+            output_dir = APP_CONFIG_DIR
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / "requirements.txt"
-            path = export_requirements(self.notebook.notebook, output_path=output_path, pinned=pinned)
+            path = export_requirements(
+                self.notebook.notebook, output_path=output_path, pinned=pinned
+            )
             # Read content for inline display
             content = path.read_text(encoding="utf-8")
             return {"path": str(path), "pinned": pinned, "content": content}
@@ -3715,27 +4238,33 @@ Dataset profile:
         async def list_packages():
             """List installed packages."""
             from flowyml_notebook.package_installer import list_installed
+
             return {"packages": list_installed()}
 
         @app.post("/api/packages/install")
         async def install_package(name: str, version: str | None = None, upgrade: bool = False):
             """Install a Python package."""
             from flowyml_notebook.package_installer import install_package as _install
+
             result = _install(name, version=version, upgrade=upgrade)
-            return result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+            return result.__dict__ if hasattr(result, "__dict__") else {"success": False}
 
         @app.post("/api/packages/uninstall")
         async def uninstall_package(name: str):
             """Uninstall a Python package."""
             from flowyml_notebook.package_installer import uninstall_package as _uninstall
+
             result = _uninstall(name)
-            return result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+            return result.__dict__ if hasattr(result, "__dict__") else {"success": False}
+
         # ===== Killer Features: Unified Package Management (Frontend) =====
 
         @app.post("/api/environment/packages")
         async def manage_packages(body: dict):
             """Unified package management endpoint for the ToolsPanel frontend."""
-            from flowyml_notebook.package_installer import install_package as _install, uninstall_package as _uninstall
+            from flowyml_notebook.package_installer import install_package as _install
+            from flowyml_notebook.package_installer import uninstall_package as _uninstall
+
             action = body.get("action", "install")
             pkg_name = body.get("package", body.get("name", ""))
             if not pkg_name:
@@ -3743,8 +4272,10 @@ Dataset profile:
             if action == "uninstall":
                 result = _uninstall(pkg_name)
             else:
-                result = _install(pkg_name, version=body.get("version"), upgrade=body.get("upgrade", False))
-            r = result.__dict__ if hasattr(result, '__dict__') else {"success": False}
+                result = _install(
+                    pkg_name, version=body.get("version"), upgrade=body.get("upgrade", False)
+                )
+            r = result.__dict__ if hasattr(result, "__dict__") else {"success": False}
             msg = f"{'Uninstalled' if action == 'uninstall' else 'Installed'} {pkg_name}"
             if r.get("version"):
                 msg += f" ({r['version']})"
@@ -3757,6 +4288,7 @@ Dataset profile:
         async def import_ipynb(file: UploadFile):
             """Import a Jupyter .ipynb file."""
             from flowyml_notebook.ipynb_converter import from_ipynb
+
             content = await file.read()
             nb_data = json.loads(content)
             self.notebook.notebook = from_ipynb(nb_data)
@@ -3770,8 +4302,12 @@ Dataset profile:
         async def export_ipynb():
             """Export current notebook as .ipynb."""
             from flowyml_notebook.ipynb_converter import to_ipynb
+
             ipynb_data = to_ipynb(self.notebook.notebook)
-            return {"ipynb": ipynb_data, "filename": f"{self.notebook.notebook.metadata.name}.ipynb"}
+            return {
+                "ipynb": ipynb_data,
+                "filename": f"{self.notebook.notebook.metadata.name}.ipynb",
+            }
 
         # ===== Killer Features: Cell Dependencies =====
 
@@ -3779,8 +4315,13 @@ Dataset profile:
         async def get_cell_dependencies():
             """Analyze all code cells and return a full dependency graph."""
             from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+
             analyzer = CellDependencyAnalyzer()
-            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            cells = [
+                (c.id, c.source)
+                for c in self.notebook.notebook.cells
+                if c.cell_type.value == "code"
+            ]
             graph = analyzer.build_graph(cells)
             return graph.to_dict()
 
@@ -3788,6 +4329,7 @@ Dataset profile:
         async def get_single_cell_deps(cell_id: str):
             """Get defines/uses/imports for a single cell."""
             from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+
             cell = self.notebook.notebook.get_cell(cell_id)
             if not cell:
                 raise HTTPException(404, f"Cell {cell_id} not found")
@@ -3799,8 +4341,13 @@ Dataset profile:
         async def get_stale_cells(cell_id: str):
             """Find all cells that transitively depend on the given cell."""
             from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+
             analyzer = CellDependencyAnalyzer()
-            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            cells = [
+                (c.id, c.source)
+                for c in self.notebook.notebook.cells
+                if c.cell_type.value == "code"
+            ]
             stale = analyzer.find_stale_cells(cell_id, cells)
             return {"stale_cells": stale, "modified_cell": cell_id}
 
@@ -3808,8 +4355,13 @@ Dataset profile:
         async def get_optimal_order():
             """Return the topologically optimal execution order for all code cells."""
             from flowyml_notebook.cell_deps import CellDependencyAnalyzer
+
             analyzer = CellDependencyAnalyzer()
-            cells = [(c.id, c.source) for c in self.notebook.notebook.cells if c.cell_type.value == 'code']
+            cells = [
+                (c.id, c.source)
+                for c in self.notebook.notebook.cells
+                if c.cell_type.value == "code"
+            ]
             order = analyzer.get_execution_order(cells)
             return {"execution_order": order}
 
@@ -3818,33 +4370,38 @@ Dataset profile:
         @app.post("/api/search")
         async def search_notebook(query: dict):
             from flowyml_notebook.search import NotebookSearch
+
             search = NotebookSearch()
             cells = self.notebook.notebook.cells
             results = search.search(
-                cells, query.get('query', ''),
-                case_sensitive=query.get('case_sensitive', False),
-                regex=query.get('regex', False),
-                search_outputs=query.get('search_outputs', False),
-                max_results=query.get('max_results', 50),
+                cells,
+                query.get("query", ""),
+                case_sensitive=query.get("case_sensitive", False),
+                regex=query.get("regex", False),
+                search_outputs=query.get("search_outputs", False),
+                max_results=query.get("max_results", 50),
             )
             return {"results": [r.to_dict() for r in results], "total": len(results)}
 
         @app.post("/api/search/replace")
         async def search_replace(query: dict):
             from flowyml_notebook.search import NotebookSearch
+
             search = NotebookSearch()
             cells = self.notebook.notebook.cells
             changes = search.search_and_replace(
-                cells, query.get('query', ''),
-                query.get('replacement', ''),
-                case_sensitive=query.get('case_sensitive', False),
-                regex=query.get('regex', False),
+                cells,
+                query.get("query", ""),
+                query.get("replacement", ""),
+                case_sensitive=query.get("case_sensitive", False),
+                regex=query.get("regex", False),
             )
             return {"changes": changes, "count": len(changes)}
 
         @app.get("/api/search/variables")
         async def find_variables():
             from flowyml_notebook.search import NotebookSearch
+
             search = NotebookSearch()
             cells = self.notebook.notebook.cells
             return {"variables": search.find_all_variables(cells)}
@@ -3852,6 +4409,7 @@ Dataset profile:
         @app.get("/api/search/functions")
         async def find_functions():
             from flowyml_notebook.search import NotebookSearch
+
             search = NotebookSearch()
             cells = self.notebook.notebook.cells
             return {"functions": search.find_all_functions(cells)}
@@ -3859,6 +4417,7 @@ Dataset profile:
         @app.get("/api/search/duplicates")
         async def find_duplicates():
             from flowyml_notebook.search import NotebookSearch
+
             search = NotebookSearch()
             cells = self.notebook.notebook.cells
             return {"duplicates": search.find_duplicates(cells)}
@@ -3868,27 +4427,30 @@ Dataset profile:
         @app.get("/api/snippets")
         async def list_snippets(category: str | None = None, q: str | None = None):
             from flowyml_notebook.snippets import SnippetLibrary
-            if not hasattr(self, '_snippets'):
+
+            if not hasattr(self, "_snippets"):
                 self._snippets = SnippetLibrary()
             if q:
                 results = self._snippets.search(q, category=category)
             elif category:
                 results = self._snippets.get_by_category(category)
             else:
-                results = self._snippets.search('')
+                results = self._snippets.search("")
             return {"snippets": [s.to_dict() for s in results]}
 
         @app.get("/api/snippets/categories")
         async def snippet_categories():
             from flowyml_notebook.snippets import SnippetLibrary
-            if not hasattr(self, '_snippets'):
+
+            if not hasattr(self, "_snippets"):
                 self._snippets = SnippetLibrary()
             return {"categories": self._snippets.get_categories()}
 
         @app.post("/api/snippets")
         async def add_snippet(snippet: dict):
-            from flowyml_notebook.snippets import SnippetLibrary, Snippet
-            if not hasattr(self, '_snippets'):
+            from flowyml_notebook.snippets import Snippet, SnippetLibrary
+
+            if not hasattr(self, "_snippets"):
                 self._snippets = SnippetLibrary()
             s = Snippet(**snippet)
             result = self._snippets.add_custom(s)
@@ -3897,7 +4459,8 @@ Dataset profile:
         @app.post("/api/snippets/{snippet_id}/use")
         async def use_snippet(snippet_id: str):
             from flowyml_notebook.snippets import SnippetLibrary
-            if not hasattr(self, '_snippets'):
+
+            if not hasattr(self, "_snippets"):
                 self._snippets = SnippetLibrary()
             snippet = self._snippets.get_snippet(snippet_id)
             if not snippet:
@@ -3936,6 +4499,7 @@ Dataset profile:
                     return FileResponse(file_path)
                 return FileResponse(frontend_dir / "index.html")
         else:
+
             @app.get("/")
             async def dev_index():
                 """Development placeholder when frontend isn't built."""
@@ -3981,8 +4545,6 @@ def dev_app_factory() -> FastAPI:
 def _compute_diff_lines(old_lines: list, new_lines: list) -> list:
     """Simple line-by-line diff for version control."""
     result = []
-    old_set = set(old_lines)
-    new_set = set(new_lines)
 
     max_len = max(len(old_lines), len(new_lines))
     for i in range(max_len):

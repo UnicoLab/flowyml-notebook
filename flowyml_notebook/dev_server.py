@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import atexit
 import os
-import platform
 import shutil
 import signal
 import subprocess
@@ -22,14 +21,13 @@ import time
 from pathlib import Path
 from typing import TextIO
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich import box
 
 from flowyml_notebook import __version__
-
 
 console = Console()
 
@@ -78,11 +76,17 @@ def _info_table(
     table.add_row("", "")
     table.add_row(
         "🎨 Frontend",
-        Text(f"http://localhost:{frontend_port}", style="bold underline #60a5fa link http://localhost:{frontend_port}"),
+        Text(
+            f"http://localhost:{frontend_port}",
+            style="bold underline #60a5fa link http://localhost:{frontend_port}",
+        ),
     )
     table.add_row(
         "🔧 Backend",
-        Text(f"http://localhost:{backend_port}", style="bold underline #a78bfa link http://localhost:{backend_port}"),
+        Text(
+            f"http://localhost:{backend_port}",
+            style="bold underline #a78bfa link http://localhost:{backend_port}",
+        ),
     )
     table.add_row("", "")
     table.add_row("📂 Notebook", Text(notebook_name, style="#f0abfc"))
@@ -282,14 +286,20 @@ class DevServer:
 
         self._backend_proc = subprocess.Popen(
             [
-                sys.executable, "-m", "uvicorn",
+                sys.executable,
+                "-m",
+                "uvicorn",
                 "flowyml_notebook.server:dev_app_factory",
                 "--factory",
-                "--host", "0.0.0.0",
-                "--port", str(self.backend_port),
+                "--host",
+                "0.0.0.0",
+                "--port",
+                str(self.backend_port),
                 "--reload",
-                "--reload-dir", str(Path(__file__).parent),
-                "--log-level", "info",
+                "--reload-dir",
+                str(Path(__file__).parent),
+                "--log-level",
+                "info",
                 "--no-access-log",
             ],
             cwd=PACKAGE_ROOT,
@@ -306,9 +316,11 @@ class DevServer:
 
     def _open_browser(self) -> None:
         """Open the frontend URL in the default browser after a short delay."""
+
         def _open():
             time.sleep(2.0)  # Let servers fully start
             import webbrowser
+
             url = f"http://localhost:{self.frontend_port}"
             console.print(f"\n  [dim]Opening browser →[/] [bold underline #60a5fa]{url}[/]\n")
             webbrowser.open(url)
@@ -405,6 +417,7 @@ class ProdServer:
         # Open browser
         if not self.no_browser:
             import webbrowser
+
             url = f"http://localhost:{self.port}"
             console.print(f"  [dim]Opening browser →[/] [bold underline #60a5fa]{url}[/]\n")
             webbrowser.open(url)

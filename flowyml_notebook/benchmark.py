@@ -11,7 +11,6 @@ import statistics
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 from flowyml_notebook.cells import CellOutput
 
@@ -21,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BenchmarkResult:
     """Result of benchmarking a cell over multiple runs."""
+
     cell_id: str
     runs: int = 0
     mean_s: float = 0.0
@@ -48,6 +48,7 @@ class BenchmarkResult:
 @dataclass
 class PerformanceRegression:
     """Detected performance regression for a cell."""
+
     cell_id: str
     metric: str  # "wall_time", "memory"
     previous_value: float
@@ -96,7 +97,7 @@ class CellBenchmark:
         """
         try:
             compiled = compile(source, f"<cell:{cell_id}>", "exec")
-        except SyntaxError as exc:
+        except SyntaxError:
             return BenchmarkResult(
                 cell_id=cell_id,
                 runs=0,
@@ -170,15 +171,17 @@ class CellBenchmark:
             change_pct = ((curr.mean_s - prev.mean_s) / prev.mean_s) * 100
             if change_pct > threshold_pct:
                 severity = "critical" if change_pct > 100 else "warning"
-                regressions.append(PerformanceRegression(
-                    cell_id=cell_id,
-                    metric="wall_time",
-                    previous_value=prev.mean_s,
-                    current_value=curr.mean_s,
-                    change_pct=change_pct,
-                    severity=severity,
-                    message=f"Cell {cell_id} is {change_pct:.0f}% slower ({prev.mean_s:.4f}s → {curr.mean_s:.4f}s)",
-                ))
+                regressions.append(
+                    PerformanceRegression(
+                        cell_id=cell_id,
+                        metric="wall_time",
+                        previous_value=prev.mean_s,
+                        current_value=curr.mean_s,
+                        change_pct=change_pct,
+                        severity=severity,
+                        message=f"Cell {cell_id} is {change_pct:.0f}% slower ({prev.mean_s:.4f}s → {curr.mean_s:.4f}s)",
+                    )
+                )
 
         return regressions
 
@@ -198,8 +201,16 @@ def format_benchmark_output(result: BenchmarkResult) -> CellOutput:
     bars = ""
     for t in result.all_times:
         height = max(4, int(40 * t / max_time))
-        color = "#22c55e" if t <= result.median_s * 1.1 else "#eab308" if t <= result.median_s * 1.5 else "#ef4444"
-        bars += f'<div style="width:12px;height:{height}px;background:{color};border-radius:2px"></div>'
+        color = (
+            "#22c55e"
+            if t <= result.median_s * 1.1
+            else "#eab308"
+            if t <= result.median_s * 1.5
+            else "#ef4444"
+        )
+        bars += (
+            f'<div style="width:12px;height:{height}px;background:{color};border-radius:2px"></div>'
+        )
 
     html = (
         f'<div style="font-family:monospace;font-size:0.8rem;padding:12px;'
@@ -208,16 +219,16 @@ def format_benchmark_output(result: BenchmarkResult) -> CellOutput:
         f'letter-spacing:0.05em;margin-bottom:8px">⏱ Benchmark ({result.runs} runs)</div>'
         f'<div style="display:flex;gap:24px;margin-bottom:12px">'
         f'<div><span style="color:#64748b">Mean:</span> '
-        f'<span style="color:#22d3ee;font-weight:700">{result.mean_s*1000:.2f}ms</span></div>'
+        f'<span style="color:#22d3ee;font-weight:700">{result.mean_s * 1000:.2f}ms</span></div>'
         f'<div><span style="color:#64748b">Median:</span> '
-        f'<span style="color:#a78bfa;font-weight:700">{result.median_s*1000:.2f}ms</span></div>'
+        f'<span style="color:#a78bfa;font-weight:700">{result.median_s * 1000:.2f}ms</span></div>'
         f'<div><span style="color:#64748b">σ:</span> '
-        f'<span style="color:#fbbf24;font-weight:700">{result.std_s*1000:.2f}ms</span></div>'
+        f'<span style="color:#fbbf24;font-weight:700">{result.std_s * 1000:.2f}ms</span></div>'
         f'<div><span style="color:#64748b">Range:</span> '
-        f'<span style="color:#34d399;font-weight:700">{result.min_s*1000:.2f}–{result.max_s*1000:.2f}ms</span></div>'
-        f'</div>'
+        f'<span style="color:#34d399;font-weight:700">{result.min_s * 1000:.2f}–{result.max_s * 1000:.2f}ms</span></div>'
+        f"</div>"
         f'<div style="display:flex;align-items:flex-end;gap:3px;height:44px">{bars}</div>'
-        f'</div>'
+        f"</div>"
     )
 
     return CellOutput(

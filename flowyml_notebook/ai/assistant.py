@@ -7,7 +7,6 @@ structure, registered assets, and experiment history.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,9 +44,18 @@ class NotebookAIAssistant:
     - Experiment history and metrics
     """
 
-    # FlowyML SDK context for the AI model
-    FLOWYML_CONTEXT = """You are an AI assistant for FlowyML Notebook, a production-grade ML notebook.
+    # Base context for the AI assistant
+    _BASE_CONTEXT = """You are an AI assistant for FlowyML Notebook, a production-grade ML notebook.
 
+Widgets:
+- `slider(min, max, value, label)` — Interactive slider
+- `dropdown(options, label)` — Dropdown selector
+- `table(data)`, `chart(data, x, y, kind)` — Data visualization
+
+Generate clean, idiomatic Python code. Be concise and practical."""
+
+    # FlowyML SDK context — only included when flowyml is installed
+    _FLOWYML_SDK_CONTEXT = """
 FlowyML SDK Quick Reference:
 - `@step(inputs=["x"], outputs=["y"])` — Define pipeline steps
 - `Pipeline("name").add_step(fn)` — Build pipelines
@@ -60,18 +68,38 @@ FlowyML SDK Quick Reference:
 - `detect_drift(reference, current)` — Detect data drift
 - `parallel_map(fn, items)` — Parallel execution
 
-Widgets:
-- `slider(min, max, value, label)` — Interactive slider
-- `dropdown(options, label)` — Dropdown selector
-- `table(data)`, `chart(data, x, y, kind)` — Data visualization
+FlowyML-specific widgets:
 - `pipeline_dag(pipeline)` — Pipeline DAG viewer
 - `metrics_dashboard(metrics)` — Metrics charts
 - `leaderboard(experiments)` — Model comparison
 
-Generate clean, idiomatic Python code. Use FlowyML abstractions when appropriate.
-Provide brief explanations. Be concise and practical."""
+Use FlowyML abstractions when appropriate."""
 
-    def __init__(self, notebook: Any = None, provider: str = "openai", model: str | None = None, base_url: str | None = None):
+    @staticmethod
+    def _flowyml_available() -> bool:
+        """Check if the FlowyML SDK is installed."""
+        try:
+            import flowyml  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
+
+    @property
+    def FLOWYML_CONTEXT(self) -> str:
+        """Build context string based on available packages."""
+        ctx = self._BASE_CONTEXT
+        if self._flowyml_available():
+            ctx += self._FLOWYML_SDK_CONTEXT
+        return ctx
+
+    def __init__(
+        self,
+        notebook: Any = None,
+        provider: str = "openai",
+        model: str | None = None,
+        base_url: str | None = None,
+    ):
         self.notebook = notebook
         self._client = None
         self._provider = provider.lower()
@@ -117,11 +145,11 @@ Provide brief explanations. Be concise and practical."""
             cells_summary = []
             for i, cell in enumerate(self.notebook.cells):
                 if cell.cell_type.value == "code" and cell.source.strip():
-                    cells_summary.append(f"Cell {i + 1} ({cell.id}):\n```python\n{cell.source}\n```")
+                    cells_summary.append(
+                        f"Cell {i + 1} ({cell.id}):\n```python\n{cell.source}\n```"
+                    )
             if cells_summary:
-                context_parts.append(
-                    "\nCurrent notebook cells:\n" + "\n".join(cells_summary)
-                )
+                context_parts.append("\nCurrent notebook cells:\n" + "\n".join(cells_summary))
 
             # Add variable info
             try:
@@ -153,7 +181,10 @@ Provide brief explanations. Be concise and practical."""
             model=self._model,
             messages=[
                 {"role": "system", "content": context},
-                {"role": "user", "content": f"Generate Python code for: {prompt}\n\nReturn ONLY the code in a ```python block, followed by a brief explanation."},
+                {
+                    "role": "user",
+                    "content": f"Generate Python code for: {prompt}\n\nReturn ONLY the code in a ```python block, followed by a brief explanation.",
+                },
             ],
             temperature=0.3,
             max_tokens=2000,
@@ -186,7 +217,10 @@ Provide brief explanations. Be concise and practical."""
             model=self._model,
             messages=[
                 {"role": "system", "content": context},
-                {"role": "user", "content": f"Explain this code concisely:\n```python\n{code}\n```"},
+                {
+                    "role": "user",
+                    "content": f"Explain this code concisely:\n```python\n{code}\n```",
+                },
             ],
             temperature=0.3,
             max_tokens=1000,
@@ -212,11 +246,14 @@ Provide brief explanations. Be concise and practical."""
             model=self._model,
             messages=[
                 {"role": "system", "content": context},
-                {"role": "user", "content": (
-                    f"Debug this code:\n```python\n{code}\n```\n\n"
-                    f"Error:\n```\n{error}\n```\n\n"
-                    "Provide the fixed code in a ```python block and explain the fix."
-                )},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Debug this code:\n```python\n{code}\n```\n\n"
+                        f"Error:\n```\n{error}\n```\n\n"
+                        "Provide the fixed code in a ```python block and explain the fix."
+                    ),
+                },
             ],
             temperature=0.2,
             max_tokens=2000,
@@ -257,8 +294,9 @@ Provide brief explanations. Be concise and practical."""
             except Exception:
                 pass
 
-        # Add FlowyML-specific completions
-        completions.extend(_flowyml_completions(code, cursor_pos))
+        # Add FlowyML-specific completions (only if SDK is installed)
+        if self._flowyml_available():
+            completions.extend(_flowyml_completions(code, cursor_pos))
 
         return list(dict.fromkeys(completions))[:30]  # Deduplicate, limit
 
@@ -292,6 +330,7 @@ Provide brief explanations. Be concise and practical."""
 def _extract_code_block(text: str) -> str:
     """Extract the first Python code block from markdown text."""
     import re
+
     match = re.search(r"```python\s*\n(.*?)```", text, re.DOTALL)
     if match:
         return match.group(1).strip()
@@ -311,20 +350,43 @@ def _flowyml_completions(code: str, cursor_pos: int | None) -> list[str]:
 
     # After 'from flowyml import '
     if "from flowyml import" in text:
-        completions.extend([
-            "Pipeline", "step", "context", "Context",
-            "Dataset", "Model", "Metrics", "Prompt", "Checkpoint",
-            "Experiment", "evaluate", "detect_drift",
-            "parallel_map", "PipelineScheduler",
-        ])
+        completions.extend(
+            [
+                "Pipeline",
+                "step",
+                "context",
+                "Context",
+                "Dataset",
+                "Model",
+                "Metrics",
+                "Prompt",
+                "Checkpoint",
+                "Experiment",
+                "evaluate",
+                "detect_drift",
+                "parallel_map",
+                "PipelineScheduler",
+            ]
+        )
 
     # After 'nb.' or 'notebook.'
     elif last_word.endswith("nb.") or last_word.endswith("notebook."):
-        completions.extend([
-            "cell(", "run()", "save(", "load(", "connect(",
-            "schedule(", "deploy(", "promote(", "report(",
-            "viz.dag()", "viz.metrics()", "viz.drift()",
-        ])
+        completions.extend(
+            [
+                "cell(",
+                "run()",
+                "save(",
+                "load(",
+                "connect(",
+                "schedule(",
+                "deploy(",
+                "promote(",
+                "report(",
+                "viz.dag()",
+                "viz.metrics()",
+                "viz.drift()",
+            ]
+        )
 
     # After '@'
     elif last_word == "@" or last_word.endswith("@"):
@@ -332,9 +394,14 @@ def _flowyml_completions(code: str, cursor_pos: int | None) -> list[str]:
 
     # After 'Dataset.'
     elif "Dataset." in last_word:
-        completions.extend([
-            "from_csv(", "from_dataframe(", "from_dict(",
-            "from_parquet(", "from_json(",
-        ])
+        completions.extend(
+            [
+                "from_csv(",
+                "from_dataframe(",
+                "from_dict(",
+                "from_parquet(",
+                "from_json(",
+            ]
+        )
 
     return completions

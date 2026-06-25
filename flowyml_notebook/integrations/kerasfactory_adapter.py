@@ -38,11 +38,21 @@ def generate_model_recommendation(
     # Select architecture based on task
     if task_type == "classification":
         return _classification_recommendation(
-            var_name, target, feature_names, n_rows, n_features, has_categorical,
+            var_name,
+            target,
+            feature_names,
+            n_rows,
+            n_features,
+            has_categorical,
         )
     elif task_type == "regression":
         return _regression_recommendation(
-            var_name, target, feature_names, n_rows, n_features, has_categorical,
+            var_name,
+            target,
+            feature_names,
+            n_rows,
+            n_features,
+            has_categorical,
         )
     else:
         return _unsupervised_recommendation(var_name, feature_names, n_rows, n_features)
@@ -61,7 +71,7 @@ def generate_advanced_model_recommendation(
     Uses advanced layers like ``TabularAttention``, ``GatedResidualNetwork``,
     and ``DistributionTransformLayer`` for maximum performance.
     """
-    features_str = ", ".join(f"'{f}'" for f in feature_names[:10])
+    _features_str = ", ".join(f"'{f}'" for f in feature_names[:10])
     output_activation = "sigmoid" if task_type == "classification" else "linear"
     loss = "binary_crossentropy" if task_type == "classification" else "mse"
     metrics = "['accuracy']" if task_type == "classification" else "['mae']"

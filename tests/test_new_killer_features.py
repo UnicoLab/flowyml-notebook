@@ -2,16 +2,13 @@
 
 import json
 
-import pytest
-from flowyml_notebook.cells import Cell, CellType
-from flowyml_notebook.snippets import Snippet, SnippetLibrary
 from flowyml_notebook.cell_deps import (
     CellDependency,
     CellDependencyAnalyzer,
-    DependencyGraph,
 )
+from flowyml_notebook.cells import Cell, CellType
 from flowyml_notebook.search import NotebookSearch, SearchResult
-
+from flowyml_notebook.snippets import Snippet, SnippetLibrary
 
 # ═══════════════════════════════════════════════════════════════════════
 # TestSnippetLibrary
@@ -54,12 +51,14 @@ class TestSnippetLibrary:
         assert len(results) > 0
         # At least one result should mention pandas in title, description, tags, or code
         for r in results:
-            searchable = " ".join([
-                r.title.lower(),
-                r.description.lower(),
-                r.code.lower(),
-                " ".join(r.tags),
-            ])
+            searchable = " ".join(
+                [
+                    r.title.lower(),
+                    r.description.lower(),
+                    r.code.lower(),
+                    " ".join(r.tags),
+                ]
+            )
             assert "pandas" in searchable
 
     def test_search_by_category(self):
@@ -333,10 +332,7 @@ class TestCellDependencyAnalyzer:
 
 def _make_cells(sources: list[str], cell_type: CellType = CellType.CODE) -> list[Cell]:
     """Helper to create a list of Cell objects with sequential IDs."""
-    return [
-        Cell(id=f"c{i}", source=src, cell_type=cell_type)
-        for i, src in enumerate(sources)
-    ]
+    return [Cell(id=f"c{i}", source=src, cell_type=cell_type) for i, src in enumerate(sources)]
 
 
 class TestNotebookSearch:
@@ -406,10 +402,12 @@ class TestNotebookSearch:
 
     def test_find_all_functions(self):
         search = NotebookSearch()
-        cells = _make_cells([
-            "def foo():\n    pass",
-            "class Bar:\n    pass",
-        ])
+        cells = _make_cells(
+            [
+                "def foo():\n    pass",
+                "class Bar:\n    pass",
+            ]
+        )
         func_map = search.find_all_functions(cells)
         assert "foo" in func_map
         assert "Bar" in func_map
@@ -418,11 +416,13 @@ class TestNotebookSearch:
 
     def test_find_duplicates(self):
         search = NotebookSearch()
-        cells = _make_cells([
-            "x = 42\nprint(x)",
-            "x = 42\nprint(x)",
-            "y = 100",
-        ])
+        cells = _make_cells(
+            [
+                "x = 42\nprint(x)",
+                "x = 42\nprint(x)",
+                "y = 100",
+            ]
+        )
         dups = search.find_duplicates(cells)
         assert len(dups) >= 1
         dup = dups[0]

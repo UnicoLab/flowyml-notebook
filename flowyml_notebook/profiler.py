@@ -3,6 +3,7 @@
 Provides wall-clock timing, CPU timing, memory tracking via tracemalloc,
 and function-level profiling via cProfile for individual notebook cells.
 """
+
 from __future__ import annotations
 
 import cProfile
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ProfileResult:
@@ -58,6 +60,7 @@ class ProfileResult:
 # ---------------------------------------------------------------------------
 # Profiler
 # ---------------------------------------------------------------------------
+
 
 class CellProfiler:
     """Profile individual cell executions and maintain a history of results."""
@@ -181,7 +184,9 @@ class CellProfiler:
             memory_delta_mb = (mem_after[0] - mem_before[0]) / (1024 * 1024)
             peak_memory_mb = mem_after[1] / (1024 * 1024)
 
-            top_stats = snapshot_after.compare_to(snapshot_before, "lineno") if snapshot_before else []
+            top_stats = (
+                snapshot_after.compare_to(snapshot_before, "lineno") if snapshot_before else []
+            )
             for stat in top_stats[:20]:
                 frame = stat.traceback[0] if stat.traceback else None
                 top_allocations.append(
@@ -238,6 +243,7 @@ class CellProfiler:
 # ---------------------------------------------------------------------------
 # Rich HTML output
 # ---------------------------------------------------------------------------
+
 
 def _badge(value: float, thresholds: tuple[float, float] = (0.1, 1.0)) -> str:
     """Return an inline badge span coloured by *value* vs *thresholds*."""
@@ -315,15 +321,15 @@ def format_profile_output(result: ProfileResult) -> CellOutput:
             f'<tr style="background:{row_bg};">'
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;'
             f'max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-            f'{fn["name"]}</td>'
+            f"{fn['name']}</td>"
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;text-align:right;">'
-            f'{fn["calls"]}</td>'
+            f"{fn['calls']}</td>"
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;text-align:right;">'
-            f'{fn["total_time"]:.6f}</td>'
+            f"{fn['total_time']:.6f}</td>"
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;text-align:right;">'
-            f'{fn["cumulative_time"]:.6f}</td>'
+            f"{fn['cumulative_time']:.6f}</td>"
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;text-align:right;">'
-            f'{fn["per_call"]:.6f}</td>'
+            f"{fn['per_call']:.6f}</td>"
             f"</tr>"
         )
 
@@ -363,9 +369,9 @@ def format_profile_output(result: ProfileResult) -> CellOutput:
             f'<tr style="background:{row_bg};">'
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;'
             f'max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-            f'{alloc["file"]}:{alloc["line"]}</td>'
+            f"{alloc['file']}:{alloc['line']}</td>"
             f'<td style="padding:6px 10px;border-bottom:1px solid #334155;text-align:right;">'
-            f'{alloc["size_kb"]:.2f}</td>'
+            f"{alloc['size_kb']:.2f}</td>"
             f"</tr>"
         )
 

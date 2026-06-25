@@ -12,53 +12,65 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from flowyml_notebook.cells import Cell, CellOutput, CellType, NotebookFile, NotebookMetadata
-from flowyml_notebook.cells import parse_notebook, serialize_notebook
+from flowyml_notebook.cells import (
+    Cell,
+    CellOutput,
+    CellType,
+    NotebookFile,
+    NotebookMetadata,
+    parse_notebook,
+    serialize_notebook,
+)
 from flowyml_notebook.reactive import CellState, ReactiveGraph
 
 logger = logging.getLogger(__name__)
 
 # FlowyML imports that are auto-injected into notebook namespace
 _FLOWYML_AUTO_IMPORTS = """
-import flowyml
-from flowyml import (
-    # Core
-    Pipeline, step, context, Context,
-    # Assets
-    Dataset, Model, Metrics, Artifact, FeatureSet, Report, Prompt, Checkpoint,
-    AssetRegistry,
-    # Tracking
-    Experiment, Run,
-    # Registry
-    ModelRegistry, ModelVersion, ModelStage,
-    # Catalog
-    ArtifactCatalog,
-    # Scheduling
-    PipelineScheduler,
-    # Evaluations
-    evaluate, EvalDataset, EvalSuite, EvalResult,
-    EvalRun, EvalSchedule,
-    make_scorer, make_judge, get_scorer, TraceBridge,
-    # Monitoring
-    detect_drift, compute_stats,
-    configure_notifications,
-    # Parallel & Dynamic
-    parallel_map, map_task, dynamic,
-    sub_pipeline,
-    # Workflow Control
-    approval, ApprovalStep,
-    # Versioning & Projects
-    VersionedPipeline, freeze_pipeline,
-    Project, ProjectManager,
-    # Advanced Caching
-    SmartCache, memoize,
-    # Debugging
-    debug_step, trace_step, profile_step,
-    # GenAI Observability
-    trace_genai, observe_genai, span,
-)
 import pandas as pd
 import numpy as np
+
+# FlowyML SDK (optional — installed via pip install 'flowyml-notebook[flowyml]')
+try:
+    import flowyml
+    from flowyml import (
+        # Core
+        Pipeline, step, context, Context,
+        # Assets
+        Dataset, Model, Metrics, Artifact, FeatureSet, Report, Prompt, Checkpoint,
+        AssetRegistry,
+        # Tracking
+        Experiment, Run,
+        # Registry
+        ModelRegistry, ModelVersion, ModelStage,
+        # Catalog
+        ArtifactCatalog,
+        # Scheduling
+        PipelineScheduler,
+        # Evaluations
+        evaluate, EvalDataset, EvalSuite, EvalResult,
+        EvalRun, EvalSchedule,
+        make_scorer, make_judge, get_scorer, TraceBridge,
+        # Monitoring
+        detect_drift, compute_stats,
+        configure_notifications,
+        # Parallel & Dynamic
+        parallel_map, map_task, dynamic,
+        sub_pipeline,
+        # Workflow Control
+        approval, ApprovalStep,
+        # Versioning & Projects
+        VersionedPipeline, freeze_pipeline,
+        Project, ProjectManager,
+        # Advanced Caching
+        SmartCache, memoize,
+        # Debugging
+        debug_step, trace_step, profile_step,
+        # GenAI Observability
+        trace_genai, observe_genai, span,
+    )
+except ImportError:
+    pass
 
 # UnicoLab Ecosystem (optional — installed via pip install 'flowyml-notebook[keras]')
 try:
@@ -81,7 +93,6 @@ try:
 except ImportError:
     pass
 """
-
 
 
 @dataclass
@@ -158,8 +169,8 @@ class NotebookSession:
         Returns:
             ExecutionResult with outputs and error info.
         """
-        import time
         import sys
+        import time
 
         self._ensure_kernel()
         start = time.time()
@@ -168,6 +179,7 @@ class NotebookSession:
         # Memory tracking: `resource` is Unix-only; fallback to 0 on Windows
         try:
             import resource
+
             mem_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             _has_resource = True
         except ImportError:
@@ -189,7 +201,7 @@ class NotebookSession:
         if _has_resource:
             mem_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             # macOS reports bytes, Linux reports KB
-            divisor = 1024 * 1024 if sys.platform == 'darwin' else 1024
+            divisor = 1024 * 1024 if sys.platform == "darwin" else 1024
             memory_delta = (mem_after - mem_before) / divisor
             peak_memory = mem_after / divisor
         else:
@@ -219,29 +231,38 @@ class NotebookSession:
         images = []
         try:
             import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend
+
+            matplotlib.use("Agg")  # Non-interactive backend
             import matplotlib.pyplot as plt
+
             figs = [plt.figure(i) for i in plt.get_fignums()]
             for fig in figs:
-                import io as _io
                 import base64 as _b64
+                import io as _io
+
                 buf = _io.BytesIO()
-                fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
-                           facecolor='#1a1a2e', edgecolor='none')
+                fig.savefig(
+                    buf,
+                    format="png",
+                    dpi=150,
+                    bbox_inches="tight",
+                    facecolor="#1a1a2e",
+                    edgecolor="none",
+                )
                 buf.seek(0)
-                img_data = _b64.b64encode(buf.read()).decode('utf-8')
-                images.append(f'data:image/png;base64,{img_data}')
+                img_data = _b64.b64encode(buf.read()).decode("utf-8")
+                images.append(f"data:image/png;base64,{img_data}")
                 buf.close()
-            plt.close('all')
+            plt.close("all")
         except (ImportError, Exception):
             pass
         return images
 
     def _execute_code(self, source: str) -> tuple[bool, list[CellOutput], str | None]:
         """Execute Python code cell."""
+        import contextlib
         import io
         import sys
-        import contextlib
 
         outputs: list[CellOutput] = []
         error: str | None = None
@@ -291,8 +312,10 @@ class NotebookSession:
 
             else:
                 # Plain exec fallback
-                with contextlib.redirect_stdout(stdout_capture), \
-                     contextlib.redirect_stderr(stderr_capture):
+                with (
+                    contextlib.redirect_stdout(stdout_capture),
+                    contextlib.redirect_stderr(stderr_capture),
+                ):
                     exec(source, self._namespace)  # noqa: S102
 
                 stdout_val = stdout_capture.getvalue()
@@ -303,7 +326,7 @@ class NotebookSession:
                 if stderr_val:
                     outputs.append(CellOutput(output_type="text", data=stderr_val))
 
-        except Exception as e:
+        except Exception:
             import traceback
 
             success = False
@@ -334,14 +357,17 @@ class NotebookSession:
                 CellOutput(
                     output_type="dataframe",
                     data=df.to_dict("records") if hasattr(df, "to_dict") else str(df),
-                    metadata={"rows": len(df), "columns": list(df.columns) if hasattr(df, "columns") else []},
+                    metadata={
+                        "rows": len(df),
+                        "columns": list(df.columns) if hasattr(df, "columns") else [],
+                    },
                 )
             )
         except ImportError:
             success = False
             error = "SQL engine not available. Install with: pip install 'flowyml-notebook[sql]'"
             outputs.append(CellOutput(output_type="error", data=error))
-        except Exception as e:
+        except Exception:
             import traceback
 
             success = False
@@ -378,7 +404,10 @@ class NotebookSession:
                         # Histogram bins (max 20 bins for frontend rendering)
                         try:
                             import numpy as np
-                            counts, bin_edges = np.histogram(series, bins=min(20, max(5, len(series) // 10)))
+
+                            counts, bin_edges = np.histogram(
+                                series, bins=min(20, max(5, len(series) // 10))
+                            )
                             histograms[col] = {
                                 "counts": counts.tolist(),
                                 "bin_edges": [round(float(e), 4) for e in bin_edges],
@@ -419,7 +448,9 @@ class NotebookSession:
                         try:
                             safe_df[col].apply(hash)  # test hashability
                         except (TypeError, ValueError):
-                            safe_df[col] = safe_df[col].apply(lambda x: str(x) if x is not None else None)
+                            safe_df[col] = safe_df[col].apply(
+                                lambda x: str(x) if x is not None else None
+                            )
 
                 return CellOutput(
                     output_type="dataframe",
@@ -450,7 +481,9 @@ class NotebookSession:
             import json
 
             try:
-                return CellOutput(output_type="json", data=json.dumps(result, indent=2, default=str))
+                return CellOutput(
+                    output_type="json", data=json.dumps(result, indent=2, default=str)
+                )
             except (TypeError, ValueError):
                 pass
 
@@ -467,9 +500,22 @@ class NotebookSession:
 
     def get_variables(self) -> dict[str, dict]:
         """Get all user-defined variables with type info."""
-        skip = {"__builtins__", "__name__", "__doc__", "__package__",
-                "__loader__", "__spec__", "In", "Out", "get_ipython",
-                "exit", "quit", "_", "__", "___"}
+        skip = {
+            "__builtins__",
+            "__name__",
+            "__doc__",
+            "__package__",
+            "__loader__",
+            "__spec__",
+            "In",
+            "Out",
+            "get_ipython",
+            "exit",
+            "quit",
+            "_",
+            "__",
+            "___",
+        }
         result = {}
         for name, value in self._namespace.items():
             if name.startswith("_") and name not in ("_",):
@@ -523,9 +569,7 @@ class Notebook:
         server: str | None = None,
         file_path: str | None = None,
     ):
-        self.notebook = NotebookFile(
-            metadata=NotebookMetadata(name=name, server=server or "")
-        )
+        self.notebook = NotebookFile(metadata=NotebookMetadata(name=name, server=server or ""))
         self.session = NotebookSession()
         self.graph = ReactiveGraph()
         self.file_path = file_path
@@ -727,6 +771,7 @@ class Notebook:
             Path to the exported file.
         """
         import json
+
         from flowyml_notebook.ipynb_converter import to_ipynb
 
         save_path = path or f"{self.name}.ipynb"
@@ -745,6 +790,7 @@ class Notebook:
             Dict with Python version, packages, GPU info, etc.
         """
         from flowyml_notebook.environment import capture_environment
+
         return capture_environment().to_dict()
 
     def export_requirements(self, output_path: str | None = None, pinned: bool = True) -> str:
@@ -758,6 +804,7 @@ class Notebook:
             Path to generated requirements file.
         """
         from flowyml_notebook.environment import export_requirements
+
         return export_requirements(self.notebook, output_path, pinned)
 
     def load(self, path: str) -> None:
@@ -768,6 +815,7 @@ class Notebook:
         """
         if path.endswith(".ipynb"):
             from flowyml_notebook.ipynb_converter import from_ipynb
+
             self.notebook = from_ipynb(path)
         else:
             content = Path(path).read_text(encoding="utf-8")
@@ -818,7 +866,9 @@ class Notebook:
 
         url = server or self.notebook.metadata.server
         if not url:
-            raise ValueError("No server URL provided. Use Notebook(server='...') or nb.connect('...')")
+            raise ValueError(
+                "No server URL provided. Use Notebook(server='...') or nb.connect('...')"
+            )
 
         self._connection = FlowyMLConnection(url)
         self._connection.connect()

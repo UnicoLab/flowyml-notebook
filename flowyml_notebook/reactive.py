@@ -37,17 +37,42 @@ class CellDependency:
 
 
 # Known mutating methods on common types (list, dict, set, DataFrame, etc.)
-_MUTATING_METHODS = frozenset({
-    # Python builtins (list, dict, set)
-    "append", "extend", "insert", "pop", "remove", "update", "clear",
-    "sort", "reverse", "add", "discard",
-    # Pandas DataFrame / Series
-    "drop", "fillna", "sort_values", "sort_index", "rename", "reset_index",
-    "set_index", "replace", "clip", "interpolate", "dropna",
-    "assign", "eval", "query",  # return new unless inplace=True
-    # NumPy in-place
-    "fill", "resize", "put", "itemset",
-})
+_MUTATING_METHODS = frozenset(
+    {
+        # Python builtins (list, dict, set)
+        "append",
+        "extend",
+        "insert",
+        "pop",
+        "remove",
+        "update",
+        "clear",
+        "sort",
+        "reverse",
+        "add",
+        "discard",
+        # Pandas DataFrame / Series
+        "drop",
+        "fillna",
+        "sort_values",
+        "sort_index",
+        "rename",
+        "reset_index",
+        "set_index",
+        "replace",
+        "clip",
+        "interpolate",
+        "dropna",
+        "assign",
+        "eval",
+        "query",  # return new unless inplace=True
+        # NumPy in-place
+        "fill",
+        "resize",
+        "put",
+        "itemset",
+    }
+)
 
 
 class _NameExtractor(ast.NodeVisitor):
@@ -75,13 +100,16 @@ class _NameExtractor(ast.NodeVisitor):
         """Record a read and its position (first occurrence only)."""
         self.reads.add(name)
         if name not in self.read_positions:
-            self.read_positions[name] = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
+            self.read_positions[name] = (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
 
     def _record_write(self, name: str, node: ast.AST) -> None:
         """Record a write and its position (first occurrence only)."""
         self.writes.add(name)
         if name not in self.write_positions:
-            self.write_positions[name] = (getattr(node, 'lineno', 0), getattr(node, 'col_offset', 0))
+            self.write_positions[name] = (
+                getattr(node, "lineno", 0),
+                getattr(node, "col_offset", 0),
+            )
 
     def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
         if isinstance(node.ctx, (ast.Store, ast.Del)):
@@ -186,15 +214,29 @@ class _NameExtractor(ast.NodeVisitor):
             if base and method_name in _MUTATING_METHODS:
                 # Check for inplace=True for pandas-style methods
                 has_inplace = any(
-                    isinstance(kw.arg, str) and kw.arg == "inplace"
-                    and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                    isinstance(kw.arg, str)
+                    and kw.arg == "inplace"
+                    and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is True
                     for kw in node.keywords
                 )
                 # For known always-mutating methods (list.append, etc.) or inplace=True
                 always_mutating = method_name in {
-                    "append", "extend", "insert", "pop", "remove",
-                    "update", "clear", "sort", "reverse", "add", "discard",
-                    "fill", "resize", "put", "itemset",
+                    "append",
+                    "extend",
+                    "insert",
+                    "pop",
+                    "remove",
+                    "update",
+                    "clear",
+                    "sort",
+                    "reverse",
+                    "add",
+                    "discard",
+                    "fill",
+                    "resize",
+                    "put",
+                    "itemset",
                 }
                 if always_mutating or has_inplace:
                     self.mutations.add(base)
@@ -281,7 +323,7 @@ def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
             # Column offsets are misleading for same-line assignments because
             # Python evaluates the RHS before storing to the LHS target.
             read_line = extractor.read_positions.get(name, (0, 0))[0]
-            write_line = extractor.write_positions.get(name, (float('inf'), 0))[0]
+            write_line = extractor.write_positions.get(name, (float("inf"), 0))[0]
             # For mutations (augmented assign, in-place), they are always dependencies
             # because the mutation reads from the current value
             if name in extractor.mutations:
@@ -298,6 +340,7 @@ def analyze_cell_dependencies(source: str) -> tuple[set[str], set[str]]:
     # behavior: in __main__, __builtins__ is a dict and dir() returns dict methods
     # like 'values', 'keys', 'items' — incorrectly filtering user variables.
     import builtins as _builtins_mod
+
     _BUILTINS = set(dir(_builtins_mod))
     true_reads -= _BUILTINS
     true_reads -= {"__name__", "__file__", "__doc__"}

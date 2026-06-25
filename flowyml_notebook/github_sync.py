@@ -25,18 +25,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 import subprocess
 import uuid as _uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from flowyml_notebook.config import APP_CONFIG_DIR as CONFIG_DIR
+from flowyml_notebook.config import GITHUB_CONFIG_FILE
 
-# Default local config location
-CONFIG_DIR = Path.home() / ".flowyml"
-GITHUB_CONFIG_FILE = CONFIG_DIR / "github.json"
+logger = logging.getLogger(__name__)
 
 # Repo-level directory names
 HUB_DIR = ".flowyml-hub"
@@ -67,8 +65,7 @@ def _run_cmd(
         )
     except FileNotFoundError:
         raise RuntimeError(
-            f"Command not found: {args[0]}. "
-            "Ensure git (and optionally gh) are installed."
+            f"Command not found: {args[0]}. Ensure git (and optionally gh) are installed."
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"Command timed out: {' '.join(args)}")
@@ -116,9 +113,7 @@ class GitHubSync:
     def _save_config(self) -> None:
         """Persist configuration to disk."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_text(
-            json.dumps(self.config, indent=2), encoding="utf-8"
-        )
+        self.config_path.write_text(json.dumps(self.config, indent=2), encoding="utf-8")
 
     @property
     def repo_path(self) -> Path | None:
@@ -457,18 +452,21 @@ class GitHubSync:
         try:
             result = _run_cmd(
                 ["git", "stash", "list", "--format=%gd|%gs|%ci"],
-                cwd=str(rp), check=False,
+                cwd=str(rp),
+                check=False,
             )
             stashes = []
             for line in result.stdout.strip().split("\n"):
                 if not line.strip():
                     continue
                 parts = line.split("|", 2)
-                stashes.append({
-                    "ref": parts[0] if len(parts) > 0 else "",
-                    "message": parts[1] if len(parts) > 1 else "",
-                    "date": parts[2] if len(parts) > 2 else "",
-                })
+                stashes.append(
+                    {
+                        "ref": parts[0] if len(parts) > 0 else "",
+                        "message": parts[1] if len(parts) > 1 else "",
+                        "date": parts[2] if len(parts) > 2 else "",
+                    }
+                )
             return stashes
         except Exception:
             return []
@@ -547,9 +545,7 @@ class GitHubSync:
         except Exception as e:
             return {"pushed": False, "error": str(e)}
 
-    def pull_notebook(
-        self, project: str, experiment: str
-    ) -> dict[str, Any] | None:
+    def pull_notebook(self, project: str, experiment: str) -> dict[str, Any] | None:
         """Pull and load a notebook from the GitHub repository.
 
         Returns:
@@ -563,7 +559,9 @@ class GitHubSync:
         rp = str(self.repo_path)
         _run_cmd(["git", "pull", "--rebase"], cwd=rp, check=False)
 
-        nb_file = hub / NOTEBOOKS_DIR / _safe_name(project) / _safe_name(experiment) / "notebook.fml.json"
+        nb_file = (
+            hub / NOTEBOOKS_DIR / _safe_name(project) / _safe_name(experiment) / "notebook.fml.json"
+        )
         if not nb_file.exists():
             return None
 
@@ -598,18 +596,22 @@ class GitHubSync:
                         meta = json.loads(meta_file.read_text(encoding="utf-8"))
                     except Exception:
                         pass
-                experiments.append({
-                    "name": exp_dir.name,
-                    "updated_at": meta.get("updated_at"),
-                    "updated_by": meta.get("updated_by"),
-                    "cell_count": meta.get("cell_count", 0),
-                    "version": meta.get("version", 1),
-                })
-            projects.append({
-                "name": project_dir.name,
-                "experiments": experiments,
-                "count": len(experiments),
-            })
+                experiments.append(
+                    {
+                        "name": exp_dir.name,
+                        "updated_at": meta.get("updated_at"),
+                        "updated_by": meta.get("updated_by"),
+                        "cell_count": meta.get("cell_count", 0),
+                        "version": meta.get("version", 1),
+                    }
+                )
+            projects.append(
+                {
+                    "name": project_dir.name,
+                    "experiments": experiments,
+                    "count": len(experiments),
+                }
+            )
 
         return projects
 
@@ -649,16 +651,15 @@ class GitHubSync:
             _run_cmd(["git", "add", str(cf)], cwd=rp)
             _run_cmd(
                 ["git", "commit", "-m", f"Update comments for {project}/{experiment}"],
-                cwd=rp, check=False,
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
             return {"synced": True, "count": len(comments)}
         except Exception as e:
             return {"synced": False, "error": str(e)}
 
-    def pull_comments(
-        self, project: str, experiment: str
-    ) -> list[dict[str, Any]]:
+    def pull_comments(self, project: str, experiment: str) -> list[dict[str, Any]]:
         """Pull comments from the repo for a notebook."""
         cf = self._comments_file(project, experiment)
         if not cf:
@@ -768,16 +769,15 @@ class GitHubSync:
             _run_cmd(["git", "add", str(rf)], cwd=rp)
             _run_cmd(
                 ["git", "commit", "-m", f"Update review for {project}/{experiment}"],
-                cwd=rp, check=False,
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
             return {"synced": True, "review_id": review["id"]}
         except Exception as e:
             return {"synced": False, "error": str(e)}
 
-    def pull_reviews(
-        self, project: str, experiment: str
-    ) -> list[dict[str, Any]]:
+    def pull_reviews(self, project: str, experiment: str) -> list[dict[str, Any]]:
         """Pull reviews from the repo for a notebook."""
         rf = self._reviews_file(project, experiment)
         if not rf:
@@ -829,7 +829,8 @@ class GitHubSync:
             _run_cmd(["git", "add", str(rf)], cwd=rp)
             _run_cmd(
                 ["git", "commit", "-m", f"Review {status}: {project}/{experiment}"],
-                cwd=rp, check=False,
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
             return {"updated": True, "status": status}
@@ -847,7 +848,9 @@ class GitHubSync:
         try:
             result = _run_cmd(
                 [
-                    "git", "log", f"-{limit}",
+                    "git",
+                    "log",
+                    f"-{limit}",
                     "--format=%H|%h|%s|%ai|%an|%ae|%P",
                 ],
                 cwd=str(rp),
@@ -884,6 +887,7 @@ class GitHubSync:
                 if stat_result.returncode == 0 and stat_result.stdout.strip():
                     stat_text = stat_result.stdout.strip()
                     import re
+
                     m = re.search(r"(\d+) file", stat_text)
                     if m:
                         files_changed = int(m.group(1))
@@ -894,22 +898,24 @@ class GitHubSync:
                     if m:
                         deletions = int(m.group(1))
 
-                commits.append({
-                    "sha": sha_full,
-                    "sha_short": parts[1],
-                    "message": parts[2],
-                    "date": parts[3],
-                    "author": {
-                        "name": author_name,
-                        "email": author_email,
-                        "avatar_hue": hue,
-                        "initials": author_name[0].upper() if author_name else "?",
-                    },
-                    "is_merge": len(parents) > 1,
-                    "files_changed": files_changed,
-                    "insertions": insertions,
-                    "deletions": deletions,
-                })
+                commits.append(
+                    {
+                        "sha": sha_full,
+                        "sha_short": parts[1],
+                        "message": parts[2],
+                        "date": parts[3],
+                        "author": {
+                            "name": author_name,
+                            "email": author_email,
+                            "avatar_hue": hue,
+                            "initials": author_name[0].upper() if author_name else "?",
+                        },
+                        "is_merge": len(parents) > 1,
+                        "files_changed": files_changed,
+                        "insertions": insertions,
+                        "deletions": deletions,
+                    }
+                )
 
             return commits
         except Exception:
@@ -940,9 +946,9 @@ class GitHubSync:
                 "sha": commit_sha,
                 "files": files,
                 "cell_changes": [
-                    f for f in files
-                    if f["file"].endswith((".fml.json", ".json"))
-                    and ".flowyml-hub" in f["file"]
+                    f
+                    for f in files
+                    if f["file"].endswith((".fml.json", ".json")) and ".flowyml-hub" in f["file"]
                 ],
             }
         except Exception as e:
@@ -957,18 +963,20 @@ class GitHubSync:
         # 1. Recent commits
         commits = self.get_commit_log(limit=limit)
         for c in commits:
-            feed.append({
-                "type": "commit",
-                "timestamp": c["date"],
-                "user": c["author"],
-                "message": c["message"],
-                "details": {
-                    "sha": c["sha_short"],
-                    "insertions": c["insertions"],
-                    "deletions": c["deletions"],
-                    "is_merge": c["is_merge"],
-                },
-            })
+            feed.append(
+                {
+                    "type": "commit",
+                    "timestamp": c["date"],
+                    "user": c["author"],
+                    "message": c["message"],
+                    "details": {
+                        "sha": c["sha_short"],
+                        "insertions": c["insertions"],
+                        "deletions": c["deletions"],
+                        "is_merge": c["is_merge"],
+                    },
+                }
+            )
 
         # 2. Comment events from all comment files
         hub = self.hub_path
@@ -980,18 +988,20 @@ class GitHubSync:
                         data = json.loads(cf.read_text(encoding="utf-8"))
                         nb = data.get("notebook", "unknown")
                         for comment in data.get("comments", []):
-                            feed.append({
-                                "type": "comment",
-                                "timestamp": comment.get("created_at", ""),
-                                "user": comment.get("author", {}),
-                                "message": comment.get("text", "")[:100],
-                                "details": {
-                                    "notebook": nb,
-                                    "cell_id": comment.get("cell_id"),
-                                    "resolved": comment.get("resolved", False),
-                                    "reply_count": len(comment.get("replies", [])),
-                                },
-                            })
+                            feed.append(
+                                {
+                                    "type": "comment",
+                                    "timestamp": comment.get("created_at", ""),
+                                    "user": comment.get("author", {}),
+                                    "message": comment.get("text", "")[:100],
+                                    "details": {
+                                        "notebook": nb,
+                                        "cell_id": comment.get("cell_id"),
+                                        "resolved": comment.get("resolved", False),
+                                        "reply_count": len(comment.get("replies", [])),
+                                    },
+                                }
+                            )
                     except Exception:
                         continue
 
@@ -1003,17 +1013,19 @@ class GitHubSync:
                         data = json.loads(rf.read_text(encoding="utf-8"))
                         nb = data.get("notebook", "unknown")
                         for review in data.get("reviews", []):
-                            feed.append({
-                                "type": "review",
-                                "timestamp": review.get("created_at", ""),
-                                "user": review.get("requested_by", {}),
-                                "message": f"Review {review.get('status', 'pending')}",
-                                "details": {
-                                    "notebook": nb,
-                                    "status": review.get("status", "pending"),
-                                    "reviewers": review.get("reviewers", []),
-                                },
-                            })
+                            feed.append(
+                                {
+                                    "type": "review",
+                                    "timestamp": review.get("created_at", ""),
+                                    "user": review.get("requested_by", {}),
+                                    "message": f"Review {review.get('status', 'pending')}",
+                                    "details": {
+                                        "notebook": nb,
+                                        "status": review.get("status", "pending"),
+                                        "reviewers": review.get("reviewers", []),
+                                    },
+                                }
+                            )
                     except Exception:
                         continue
 
@@ -1048,20 +1060,23 @@ class GitHubSync:
         now = datetime.now()
         cutoff = (now - timedelta(minutes=5)).isoformat()
         editors = [
-            e for e in presence.get("editors", [])
+            e
+            for e in presence.get("editors", [])
             if e.get("last_seen", "") > cutoff and e.get("name") != user_name
         ]
 
         if is_editing:
             hue = sum(ord(c) for c in user_name) * 37 % 360
-            editors.append({
-                "name": user_name,
-                "email": user.get("email", ""),
-                "notebook": notebook_path,
-                "last_seen": now.isoformat(),
-                "avatar_hue": hue,
-                "initials": user_name[0].upper() if user_name else "?",
-            })
+            editors.append(
+                {
+                    "name": user_name,
+                    "email": user.get("email", ""),
+                    "notebook": notebook_path,
+                    "last_seen": now.isoformat(),
+                    "avatar_hue": hue,
+                    "initials": user_name[0].upper() if user_name else "?",
+                }
+            )
 
         presence["editors"] = editors
         presence["updated_at"] = now.isoformat()
@@ -1073,7 +1088,8 @@ class GitHubSync:
             _run_cmd(["git", "add", str(presence_file)], cwd=rp)
             _run_cmd(
                 ["git", "commit", "-m", "Update presence"],
-                cwd=rp, check=False,
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
         except Exception:
@@ -1135,11 +1151,13 @@ class GitHubSync:
                 existing = json.loads(recipe_file.read_text(encoding="utf-8"))
                 history = existing.get("version_history", [])
                 # Snapshot current version
-                history.append({
-                    "version": existing.get("version", 1),
-                    "updated_at": existing.get("shared_at", ""),
-                    "updated_by": existing.get("shared_by", ""),
-                })
+                history.append(
+                    {
+                        "version": existing.get("version", 1),
+                        "updated_at": existing.get("shared_at", ""),
+                        "updated_by": existing.get("shared_by", ""),
+                    }
+                )
             except Exception:
                 pass
 
@@ -1167,18 +1185,20 @@ class GitHubSync:
 
         # Update or add entry
         existing = [r for r in catalog["recipes"] if r.get("id") != recipe.get("id")]
-        existing.append({
-            "id": recipe.get("id"),
-            "name": recipe.get("name"),
-            "category": recipe.get("category"),
-            "description": recipe.get("description", ""),
-            "tags": recipe.get("tags", []),
-            "shared_by": recipe_data["shared_by"],
-            "shared_at": recipe_data["shared_at"],
-            "version": recipe_data["version"],
-            "avg_rating": _compute_avg_rating(recipe_data.get("ratings", {})),
-            "fork_count": recipe_data.get("fork_count", 0),
-        })
+        existing.append(
+            {
+                "id": recipe.get("id"),
+                "name": recipe.get("name"),
+                "category": recipe.get("category"),
+                "description": recipe.get("description", ""),
+                "tags": recipe.get("tags", []),
+                "shared_by": recipe_data["shared_by"],
+                "shared_at": recipe_data["shared_at"],
+                "version": recipe_data["version"],
+                "avg_rating": _compute_avg_rating(recipe_data.get("ratings", {})),
+                "fork_count": recipe_data.get("fork_count", 0),
+            }
+        )
         catalog["recipes"] = existing
         catalog["updated_at"] = datetime.now().isoformat()
         catalog_file.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
@@ -1189,7 +1209,8 @@ class GitHubSync:
             _run_cmd(["git", "add", str(hub / RECIPES_DIR)], cwd=rp)
             _run_cmd(
                 ["git", "commit", "-m", f"Share recipe: {recipe.get('name', 'untitled')}"],
-                cwd=rp, check=False,
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
             return {"shared": True, "recipe_id": recipe.get("id")}
@@ -1245,9 +1266,7 @@ class GitHubSync:
 
     # ── Recipe Ratings & Forking ───────────────────────────────────────
 
-    def rate_recipe(
-        self, recipe_id: str, rating: int, category: str = "custom"
-    ) -> dict[str, Any]:
+    def rate_recipe(self, recipe_id: str, rating: int, category: str = "custom") -> dict[str, Any]:
         """Rate a shared recipe (1-5 stars).
 
         Ratings are stored per-user in the recipe file.
@@ -1281,8 +1300,14 @@ class GitHubSync:
             rp = str(self.repo_path)
             _run_cmd(["git", "add", str(recipe_file)], cwd=rp)
             _run_cmd(
-                ["git", "commit", "-m", f"Rate recipe: {recipe.get('name', recipe_id)} ({rating}★)"],
-                cwd=rp, check=False,
+                [
+                    "git",
+                    "commit",
+                    "-m",
+                    f"Rate recipe: {recipe.get('name', recipe_id)} ({rating}★)",
+                ],
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
 
@@ -1296,9 +1321,7 @@ class GitHubSync:
         except Exception as e:
             return {"error": str(e)}
 
-    def fork_recipe(
-        self, recipe_id: str, new_name: str | None = None
-    ) -> dict[str, Any]:
+    def fork_recipe(self, recipe_id: str, new_name: str | None = None) -> dict[str, Any]:
         """Fork a shared recipe to create a variant with attribution."""
         hub = self.hub_path
         if not hub:
@@ -1346,8 +1369,14 @@ class GitHubSync:
             rp = str(self.repo_path)
             _run_cmd(["git", "add", str(hub / RECIPES_DIR)], cwd=rp)
             _run_cmd(
-                ["git", "commit", "-m", f"Fork recipe: {original.get('name', '')} → {forked['name']}"],
-                cwd=rp, check=False,
+                [
+                    "git",
+                    "commit",
+                    "-m",
+                    f"Fork recipe: {original.get('name', '')} → {forked['name']}",
+                ],
+                cwd=rp,
+                check=False,
             )
             _run_cmd(["git", "push"], cwd=rp, check=False)
 
@@ -1399,12 +1428,14 @@ class GitHubSync:
             recipe = json.loads(recipe_file.read_text(encoding="utf-8"))
             history = recipe.get("version_history", [])
             # Add current version at the end
-            history.append({
-                "version": recipe.get("version", 1),
-                "updated_at": recipe.get("shared_at", ""),
-                "updated_by": recipe.get("shared_by", ""),
-                "current": True,
-            })
+            history.append(
+                {
+                    "version": recipe.get("version", 1),
+                    "updated_at": recipe.get("shared_at", ""),
+                    "updated_by": recipe.get("shared_by", ""),
+                    "current": True,
+                }
+            )
             return history
         except Exception:
             return []

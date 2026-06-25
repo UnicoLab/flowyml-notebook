@@ -78,7 +78,7 @@ class LineageDiff:
     columns_added: list[str]
     columns_removed: list[str]
     columns_retyped: dict[str, tuple[str, str]]  # col -> (old_dtype, new_dtype)
-    nulls_changed: dict[str, tuple[int, int]]    # col -> (old_count, new_count)
+    nulls_changed: dict[str, tuple[int, int]]  # col -> (old_count, new_count)
     content_changed: bool
 
     def to_dict(self) -> dict:
@@ -91,12 +91,10 @@ class LineageDiff:
             "columns_added": self.columns_added,
             "columns_removed": self.columns_removed,
             "columns_retyped": {
-                col: {"from": old, "to": new}
-                for col, (old, new) in self.columns_retyped.items()
+                col: {"from": old, "to": new} for col, (old, new) in self.columns_retyped.items()
             },
             "nulls_changed": {
-                col: {"from": old, "to": new}
-                for col, (old, new) in self.nulls_changed.items()
+                col: {"from": old, "to": new} for col, (old, new) in self.nulls_changed.items()
             },
             "content_changed": self.content_changed,
         }
@@ -162,9 +160,7 @@ def _capture_snapshot(var_name: str, cell_id: str, df: Any) -> DataSnapshot:
         columns = []
 
     try:
-        dtypes: dict[str, str] = {
-            str(col): str(dtype) for col, dtype in df.dtypes.items()
-        }
+        dtypes: dict[str, str] = {str(col): str(dtype) for col, dtype in df.dtypes.items()}
     except Exception:
         dtypes = {}
 
@@ -341,21 +337,15 @@ class LineageTracker:
             diff: LineageDiff | None = None
             if name in before_snapshots:
                 try:
-                    diff = _compute_diff(
-                        name, cell_id, before_snapshots[name], after_snap
-                    )
+                    diff = _compute_diff(name, cell_id, before_snapshots[name], after_snap)
                 except Exception:  # noqa: BLE001
-                    logger.debug(
-                        "Failed to compute diff for '%s' in cell %s", name, cell_id
-                    )
+                    logger.debug("Failed to compute diff for '%s' in cell %s", name, cell_id)
 
             entry = LineageEntry(cell_id=cell_id, snapshot=after_snap, diff=diff)
             self._lineage.setdefault(name, []).append(entry)
             entries.append(entry)
 
-        logger.debug(
-            "Recorded %d lineage entries for cell %s", len(entries), cell_id
-        )
+        logger.debug("Recorded %d lineage entries for cell %s", len(entries), cell_id)
         return entries
 
     # -- Query API -----------------------------------------------------------

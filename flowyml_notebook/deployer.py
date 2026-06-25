@@ -39,10 +39,10 @@ def promote_to_pipeline(
 
     lines = [
         f'"""Production pipeline: {name}',
-        f"",
-        f"Auto-generated from FlowyML Notebook.",
+        "",
+        "Auto-generated from FlowyML Notebook.",
         f"Generated at: {datetime.now().isoformat()}",
-        f'"""',
+        '"""',
         "",
     ]
 
@@ -77,12 +77,14 @@ def promote_to_pipeline(
     lines.extend(code_lines)
 
     # Add main guard
-    lines.extend([
-        "",
-        'if __name__ == "__main__":',
-        f'    print("Running pipeline: {name}")',
-        '    # Pipeline auto-executes when this module is run',
-    ])
+    lines.extend(
+        [
+            "",
+            'if __name__ == "__main__":',
+            f'    print("Running pipeline: {name}")',
+            "    # Pipeline auto-executes when this module is run",
+        ]
+    )
 
     content = "\n".join(lines) + "\n"
     Path(save_path).write_text(content, encoding="utf-8")
@@ -122,6 +124,7 @@ def deploy_model(
         # Local deployment
         try:
             from flowyml.serving.model_server import ModelServer
+
             server = ModelServer()
             server.register_model(model_name, model)
             result = {
@@ -133,7 +136,10 @@ def deploy_model(
             logger.info(f"Deployed model '{model_name}' locally")
             return result
         except ImportError:
-            raise ImportError("FlowyML serving module required for deployment") from None
+            raise ImportError(
+                "FlowyML is required for local deployment. "
+                "Install with: pip install 'flowyml-notebook[flowyml]'"
+            ) from None
 
 
 def generate_dockerfile(
@@ -177,10 +183,16 @@ CMD ["python", "{Path(pipeline_path).name}"]
 
     # Generate requirements.txt
     reqs = [
-        "flowyml>=1.8.0",
         "pandas>=2.0",
         "numpy>=1.24",
     ]
+    # Include flowyml in generated requirements only if installed
+    try:
+        import flowyml
+
+        reqs.insert(0, f"flowyml>={flowyml.__version__}")
+    except ImportError:
+        pass
     Path("requirements.txt").write_text("\n".join(reqs) + "\n", encoding="utf-8")
 
     logger.info(f"Generated Dockerfile at {output_path}")

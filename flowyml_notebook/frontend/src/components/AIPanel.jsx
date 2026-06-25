@@ -160,7 +160,7 @@ export default function AIPanel({ onClose }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: "Hi! I'm your FlowyML AI assistant. I can help you generate code, explain concepts, debug errors, and optimize your ML pipelines. What would you like to do?",
+      content: "Hi! I'm your AI assistant. I can help you generate code, explain concepts, debug errors, and optimize your ML pipelines. What would you like to do?",
     },
   ]);
   const [input, setInput] = useState('');
@@ -277,7 +277,7 @@ export default function AIPanel({ onClose }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about FlowyML, generate code, debug errors..."
+            placeholder="Ask questions, generate code, debug errors..."
             rows={2}
           />
           <button

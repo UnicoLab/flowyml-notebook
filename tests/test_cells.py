@@ -1,14 +1,13 @@
 """Tests for the cell model and .py file format parser."""
 
-import pytest
 from flowyml_notebook.cells import (
     Cell,
-    CellType,
     CellOutput,
+    CellType,
     NotebookFile,
     NotebookMetadata,
-    serialize_notebook,
     parse_notebook,
+    serialize_notebook,
 )
 
 
@@ -56,7 +55,7 @@ class TestNotebookFile:
 
     def test_add_cell(self):
         nb = NotebookFile()
-        cell = nb.add_cell("x = 1", CellType.CODE, "setup")
+        _cell = nb.add_cell("x = 1", CellType.CODE, "setup")
         assert len(nb.cells) == 1
         assert nb.cells[0].source == "x = 1"
         assert nb.cells[0].name == "setup"
@@ -195,14 +194,16 @@ class TestSerializeParseRoundTrip:
         assert restored.cells[0].source == ""
 
     def test_metadata_roundtrip(self):
-        nb = NotebookFile(metadata=NotebookMetadata(
-            name="ml_pipeline",
-            version=3,
-            server="https://flowyml.company.com",
-            author="Alice",
-            description="Training pipeline",
-            tags=["ml", "production"],
-        ))
+        nb = NotebookFile(
+            metadata=NotebookMetadata(
+                name="ml_pipeline",
+                version=3,
+                server="https://flowyml.company.com",
+                author="Alice",
+                description="Training pipeline",
+                tags=["ml", "production"],
+            )
+        )
         text = serialize_notebook(nb)
 
         assert "# server: https://flowyml.company.com" in text
@@ -226,7 +227,7 @@ class TestSerializeParseRoundTrip:
 
         # VS Code recognizes cells starting with # %%
         lines = text.split("\n")
-        cell_markers = [l for l in lines if l.startswith("# %%")]
+        cell_markers = [line for line in lines if line.startswith("# %%")]
         assert len(cell_markers) == 2
 
     def test_file_is_valid_python(self):

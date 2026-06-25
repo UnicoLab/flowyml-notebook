@@ -6,10 +6,6 @@ without requiring the actual ecosystem packages to be installed.
 
 from __future__ import annotations
 
-import importlib
-from unittest.mock import patch
-
-
 # ── Ecosystem Detection ──────────────────────────────────────────────────────
 
 
@@ -224,12 +220,20 @@ class TestKerasFactoryAdapter:
         )
 
         small = generate_model_recommendation(
-            var_name="df", task_type="classification", target="y",
-            feature_names=["x1"], n_rows=100, n_features=1,
+            var_name="df",
+            task_type="classification",
+            target="y",
+            feature_names=["x1"],
+            n_rows=100,
+            n_features=1,
         )
         large = generate_model_recommendation(
-            var_name="df", task_type="classification", target="y",
-            feature_names=["x1"], n_rows=5000, n_features=1,
+            var_name="df",
+            task_type="classification",
+            target="y",
+            feature_names=["x1"],
+            n_rows=5000,
+            n_features=1,
         )
         assert large["score"] > small["score"]
 

@@ -16,7 +16,6 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Any
 
 from flowyml_notebook.cells import (
     Cell,
@@ -161,11 +160,13 @@ def _convert_ipynb_outputs(ipynb_outputs: list[dict]) -> list[CellOutput]:
             if isinstance(text, list):
                 text = "".join(text)
             stream_name = out.get("name", "stdout")
-            outputs.append(CellOutput(
-                output_type="text",
-                data=text,
-                metadata={"stream": stream_name},
-            ))
+            outputs.append(
+                CellOutput(
+                    output_type="text",
+                    data=text,
+                    metadata={"stream": stream_name},
+                )
+            )
 
         elif output_type_str == "error":
             # Exception traceback
@@ -176,6 +177,7 @@ def _convert_ipynb_outputs(ipynb_outputs: list[dict]) -> list[CellOutput]:
             if traceback_lines:
                 # .ipynb traceback contains ANSI escape codes; strip them
                 import re
+
                 clean_tb = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in traceback_lines]
                 error_text = "\n".join(clean_tb)
             outputs.append(CellOutput(output_type="error", data=error_text))
@@ -189,45 +191,55 @@ def _convert_ipynb_outputs(ipynb_outputs: list[dict]) -> list[CellOutput]:
                 html = mime_data["text/html"]
                 if isinstance(html, list):
                     html = "".join(html)
-                outputs.append(CellOutput(
-                    output_type="html",
-                    data=html,
-                    metadata=meta,
-                ))
+                outputs.append(
+                    CellOutput(
+                        output_type="html",
+                        data=html,
+                        metadata=meta,
+                    )
+                )
             elif "image/png" in mime_data:
                 # Base64 encoded image
                 b64 = mime_data["image/png"]
                 if isinstance(b64, list):
                     b64 = "".join(b64)
-                outputs.append(CellOutput(
-                    output_type="image",
-                    data=f"data:image/png;base64,{b64}",
-                    metadata=meta,
-                ))
+                outputs.append(
+                    CellOutput(
+                        output_type="image",
+                        data=f"data:image/png;base64,{b64}",
+                        metadata=meta,
+                    )
+                )
             elif "image/svg+xml" in mime_data:
                 svg = mime_data["image/svg+xml"]
                 if isinstance(svg, list):
                     svg = "".join(svg)
-                outputs.append(CellOutput(
-                    output_type="html",
-                    data=svg,
-                    metadata=meta,
-                ))
+                outputs.append(
+                    CellOutput(
+                        output_type="html",
+                        data=svg,
+                        metadata=meta,
+                    )
+                )
             elif "application/json" in mime_data:
-                outputs.append(CellOutput(
-                    output_type="json",
-                    data=json.dumps(mime_data["application/json"], indent=2, default=str),
-                    metadata=meta,
-                ))
+                outputs.append(
+                    CellOutput(
+                        output_type="json",
+                        data=json.dumps(mime_data["application/json"], indent=2, default=str),
+                        metadata=meta,
+                    )
+                )
             elif "text/plain" in mime_data:
                 text = mime_data["text/plain"]
                 if isinstance(text, list):
                     text = "".join(text)
-                outputs.append(CellOutput(
-                    output_type="text",
-                    data=text,
-                    metadata=meta,
-                ))
+                outputs.append(
+                    CellOutput(
+                        output_type="text",
+                        data=text,
+                        metadata=meta,
+                    )
+                )
 
     return outputs
 
@@ -286,7 +298,7 @@ def _to_ipynb_cell(cell: Cell, include_outputs: bool = True) -> dict:
     cell_id = cell.id
     # .ipynb cell IDs should be longer UUIDs, but short ones are also valid
     if len(cell_id) < 8:
-        cell_id = cell_id + str(uuid.uuid4())[:8 - len(cell_id)]
+        cell_id = cell_id + str(uuid.uuid4())[: 8 - len(cell_id)]
 
     if cell.cell_type == CellType.CODE:
         outputs = _to_ipynb_outputs(cell.outputs) if include_outputs else []
@@ -339,11 +351,13 @@ def _to_ipynb_outputs(outputs: list[CellOutput]) -> list[dict]:
     for output in outputs:
         if output.output_type == "text":
             stream = (output.metadata or {}).get("stream", "stdout")
-            ipynb_outputs.append({
-                "output_type": "stream",
-                "name": stream,
-                "text": output.data or "",
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "stream",
+                    "name": stream,
+                    "text": output.data or "",
+                }
+            )
 
         elif output.output_type == "error":
             # Parse error text
@@ -351,22 +365,26 @@ def _to_ipynb_outputs(outputs: list[CellOutput]) -> list[dict]:
             parts = error_text.split(": ", 1)
             ename = parts[0] if len(parts) > 1 else "Error"
             evalue = parts[1] if len(parts) > 1 else error_text
-            ipynb_outputs.append({
-                "output_type": "error",
-                "ename": ename,
-                "evalue": evalue,
-                "traceback": error_text.split("\n"),
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "error",
+                    "ename": ename,
+                    "evalue": evalue,
+                    "traceback": error_text.split("\n"),
+                }
+            )
 
         elif output.output_type == "html":
-            ipynb_outputs.append({
-                "output_type": "display_data",
-                "data": {
-                    "text/html": output.data or "",
-                    "text/plain": "",
-                },
-                "metadata": output.metadata or {},
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "display_data",
+                    "data": {
+                        "text/html": output.data or "",
+                        "text/plain": "",
+                    },
+                    "metadata": output.metadata or {},
+                }
+            )
 
         elif output.output_type == "image":
             # Extract base64 from data URI
@@ -374,47 +392,55 @@ def _to_ipynb_outputs(outputs: list[CellOutput]) -> list[dict]:
             b64 = data_str
             if "base64," in data_str:
                 b64 = data_str.split("base64,", 1)[1]
-            ipynb_outputs.append({
-                "output_type": "display_data",
-                "data": {
-                    "image/png": b64,
-                    "text/plain": "<Image>",
-                },
-                "metadata": output.metadata or {},
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "display_data",
+                    "data": {
+                        "image/png": b64,
+                        "text/plain": "<Image>",
+                    },
+                    "metadata": output.metadata or {},
+                }
+            )
 
         elif output.output_type == "dataframe":
             # DataFrames → execute_result with text/plain
-            ipynb_outputs.append({
-                "output_type": "execute_result",
-                "data": {
-                    "text/plain": str(output.data),
-                },
-                "metadata": output.metadata or {},
-                "execution_count": None,
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "execute_result",
+                    "data": {
+                        "text/plain": str(output.data),
+                    },
+                    "metadata": output.metadata or {},
+                    "execution_count": None,
+                }
+            )
 
         elif output.output_type == "json":
-            ipynb_outputs.append({
-                "output_type": "execute_result",
-                "data": {
-                    "application/json": output.data,
-                    "text/plain": str(output.data),
-                },
-                "metadata": output.metadata or {},
-                "execution_count": None,
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "execute_result",
+                    "data": {
+                        "application/json": output.data,
+                        "text/plain": str(output.data),
+                    },
+                    "metadata": output.metadata or {},
+                    "execution_count": None,
+                }
+            )
 
         else:
             # Generic text output
-            ipynb_outputs.append({
-                "output_type": "execute_result",
-                "data": {
-                    "text/plain": str(output.data or ""),
-                },
-                "metadata": output.metadata or {},
-                "execution_count": None,
-            })
+            ipynb_outputs.append(
+                {
+                    "output_type": "execute_result",
+                    "data": {
+                        "text/plain": str(output.data or ""),
+                    },
+                    "metadata": output.metadata or {},
+                    "execution_count": None,
+                }
+            )
 
     return ipynb_outputs
 
@@ -473,6 +499,5 @@ def convert_file(input_path: str | Path, output_path: str | Path | None = None) 
 
     else:
         raise ValueError(
-            f"Unsupported file extension: {input_path.suffix}. "
-            "Use .ipynb or .py files."
+            f"Unsupported file extension: {input_path.suffix}. Use .ipynb or .py files."
         )

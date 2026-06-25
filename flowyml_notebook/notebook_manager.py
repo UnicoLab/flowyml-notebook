@@ -8,17 +8,15 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from flowyml_notebook import __version__
+from flowyml_notebook.config import NOTEBOOKS_DIR as DEFAULT_NOTEBOOKS_DIR
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_NOTEBOOKS_DIR = Path.home() / ".flowyml" / "notebooks"
 
 
 class NotebookFileInfo:
@@ -79,7 +77,9 @@ class NotebookManager:
                     name=meta.get("name", path.stem.replace(".fml", "")),
                     path=path,
                     created_at=meta.get("created_at"),
-                    modified_at=meta.get("modified_at", datetime.fromtimestamp(path.stat().st_mtime).isoformat()),
+                    modified_at=meta.get(
+                        "modified_at", datetime.fromtimestamp(path.stat().st_mtime).isoformat()
+                    ),
                     cell_count=len(data.get("cells", [])),
                     description=meta.get("description", ""),
                     tags=meta.get("tags", []),
@@ -91,9 +91,16 @@ class NotebookManager:
     def list_notebooks(self) -> list[dict[str, Any]]:
         """List all notebooks with metadata."""
         self._scan()
-        return [info.to_dict() for info in sorted(self._index.values(), key=lambda x: x.modified_at or "", reverse=True)]
+        return [
+            info.to_dict()
+            for info in sorted(
+                self._index.values(), key=lambda x: x.modified_at or "", reverse=True
+            )
+        ]
 
-    def create_notebook(self, name: str = "Untitled", description: str = "", tags: list[str] | None = None) -> dict[str, Any]:
+    def create_notebook(
+        self, name: str = "Untitled", description: str = "", tags: list[str] | None = None
+    ) -> dict[str, Any]:
         """Create a new empty notebook."""
         nb_id = str(uuid.uuid4())[:8]
         now = datetime.now().isoformat()
@@ -118,9 +125,13 @@ class NotebookManager:
         logger.info(f"Created notebook: {name} ({nb_id})")
 
         info = NotebookFileInfo(
-            id=nb_id, name=name, path=path,
-            created_at=now, modified_at=now,
-            description=description, tags=tags or [],
+            id=nb_id,
+            name=name,
+            path=path,
+            created_at=now,
+            modified_at=now,
+            description=description,
+            tags=tags or [],
         )
         self._index[nb_id] = info
         return info.to_dict()
@@ -153,7 +164,9 @@ class NotebookManager:
             logger.error(f"Failed to rename notebook {nb_id}: {e}")
             return None
 
-    def update_metadata(self, nb_id: str, description: str | None = None, tags: list[str] | None = None) -> dict[str, Any] | None:
+    def update_metadata(
+        self, nb_id: str, description: str | None = None, tags: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """Update notebook metadata (description, tags)."""
         info = self._index.get(nb_id)
         if not info or not info.path.exists():
@@ -218,7 +231,9 @@ class NotebookManager:
             logger.error(f"Failed to duplicate notebook {nb_id}: {e}")
             return None
 
-    def save_notebook_data(self, nb_id: str, cells: list[dict], metadata: dict | None = None) -> bool:
+    def save_notebook_data(
+        self, nb_id: str, cells: list[dict], metadata: dict | None = None
+    ) -> bool:
         """Save notebook cells and metadata."""
         info = self._index.get(nb_id)
         if not info or not info.path.exists():

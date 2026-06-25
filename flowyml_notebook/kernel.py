@@ -11,8 +11,8 @@ import traceback
 from datetime import datetime
 from typing import Any
 
-from flowyml_notebook.cells import Cell, CellType
-from flowyml_notebook.core import Notebook, NotebookSession, ExecutionResult
+from flowyml_notebook.cells import CellType
+from flowyml_notebook.core import Notebook
 from flowyml_notebook.reactive import CellState
 
 logger = logging.getLogger(__name__)
@@ -94,19 +94,23 @@ class NotebookKernel:
             if handler:
                 await handler(websocket, data)
             else:
-                await self._send(websocket, KernelMessage.EXECUTION_ERROR, {
-                    "error": f"Unknown message type: {msg_type}"
-                })
+                await self._send(
+                    websocket,
+                    KernelMessage.EXECUTION_ERROR,
+                    {"error": f"Unknown message type: {msg_type}"},
+                )
 
         except json.JSONDecodeError:
-            await self._send(websocket, KernelMessage.EXECUTION_ERROR, {
-                "error": "Invalid JSON message"
-            })
+            await self._send(
+                websocket, KernelMessage.EXECUTION_ERROR, {"error": "Invalid JSON message"}
+            )
         except Exception as e:
             logger.error(f"Kernel error: {e}", exc_info=True)
-            await self._send(websocket, KernelMessage.EXECUTION_ERROR, {
-                "error": str(e), "traceback": traceback.format_exc()
-            })
+            await self._send(
+                websocket,
+                KernelMessage.EXECUTION_ERROR,
+                {"error": str(e), "traceback": traceback.format_exc()},
+            )
 
     async def _handle_execute_cell(self, ws: Any, data: dict) -> None:
         """Execute a single cell with reactive downstream propagation."""
@@ -134,14 +138,20 @@ class NotebookKernel:
             for result in results:
                 await self._send(ws, KernelMessage.CELL_COMPLETE, result.to_dict())
                 # Update cell state in graph
-                await self._send(ws, KernelMessage.CELL_STATE, {
-                    "cell_id": result.cell_id,
-                    "state": self.notebook.graph.get_cell_state(result.cell_id).value,
-                })
+                await self._send(
+                    ws,
+                    KernelMessage.CELL_STATE,
+                    {
+                        "cell_id": result.cell_id,
+                        "state": self.notebook.graph.get_cell_state(result.cell_id).value,
+                    },
+                )
 
             # Send updated graph and variables
             await self._send(ws, KernelMessage.GRAPH_UPDATE, self.notebook.graph.to_dict())
-            await self._send(ws, KernelMessage.VARIABLES_UPDATE, self.notebook.session.get_variables())
+            await self._send(
+                ws, KernelMessage.VARIABLES_UPDATE, self.notebook.session.get_variables()
+            )
 
         finally:
             self._executing = False
@@ -152,14 +162,14 @@ class NotebookKernel:
         self._interrupt_requested = False
 
         try:
-            results = await asyncio.get_event_loop().run_in_executor(
-                None, self.notebook.run
-            )
+            results = await asyncio.get_event_loop().run_in_executor(None, self.notebook.run)
             for result in results:
                 await self._send(ws, KernelMessage.CELL_COMPLETE, result.to_dict())
 
             await self._send(ws, KernelMessage.GRAPH_UPDATE, self.notebook.graph.to_dict())
-            await self._send(ws, KernelMessage.VARIABLES_UPDATE, self.notebook.session.get_variables())
+            await self._send(
+                ws, KernelMessage.VARIABLES_UPDATE, self.notebook.session.get_variables()
+            )
 
         finally:
             self._executing = False
@@ -173,9 +183,14 @@ class NotebookKernel:
 
         # Notify about stale cells
         for stale_id in stale:
-            await self._send(ws, KernelMessage.CELL_STATE, {
-                "cell_id": stale_id, "state": CellState.STALE.value,
-            })
+            await self._send(
+                ws,
+                KernelMessage.CELL_STATE,
+                {
+                    "cell_id": stale_id,
+                    "state": CellState.STALE.value,
+                },
+            )
 
         await self._send(ws, KernelMessage.GRAPH_UPDATE, self.notebook.graph.to_dict())
 
@@ -200,9 +215,14 @@ class NotebookKernel:
         stale = self.notebook.graph.remove_cell(cell_id)
 
         for stale_id in stale:
-            await self._send(ws, KernelMessage.CELL_STATE, {
-                "cell_id": stale_id, "state": CellState.STALE.value,
-            })
+            await self._send(
+                ws,
+                KernelMessage.CELL_STATE,
+                {
+                    "cell_id": stale_id,
+                    "state": CellState.STALE.value,
+                },
+            )
 
         await self._send(ws, KernelMessage.STATE_UPDATE, self.notebook.get_state())
 
@@ -268,11 +288,14 @@ class NotebookKernel:
 
     async def _send(self, ws: Any, msg_type: str, data: dict) -> None:
         """Send a message to the WebSocket client."""
-        message = json.dumps({
-            "type": msg_type,
-            "data": data,
-            "timestamp": datetime.now().isoformat(),
-        }, default=str)
+        message = json.dumps(
+            {
+                "type": msg_type,
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+            },
+            default=str,
+        )
 
         try:
             await ws.send_text(message)

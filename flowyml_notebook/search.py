@@ -14,8 +14,7 @@ from __future__ import annotations
 import ast
 import logging
 import re
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from typing import Any
 
 from flowyml_notebook.cells import CellOutput
@@ -26,6 +25,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SearchResult:
@@ -56,6 +56,7 @@ class SearchResult:
 # ---------------------------------------------------------------------------
 # Helpers — pure-Python Levenshtein distance (no external deps)
 # ---------------------------------------------------------------------------
+
 
 def _edit_distance(a: str, b: str) -> int:
     """Compute the Levenshtein edit distance between *a* and *b*."""
@@ -102,6 +103,7 @@ def _context_lines(lines: list[str], idx: int, radius: int = 2) -> str:
 # Search engine
 # ---------------------------------------------------------------------------
 
+
 class NotebookSearch:
     """Full-text search engine for FlowyML notebook cells."""
 
@@ -147,9 +149,16 @@ class NotebookSearch:
             # Search source lines
             source = cell.source or ""
             results.extend(
-                self._search_text(source, query, cell.id, idx, ct,
-                                  case_sensitive=case_sensitive, regex=regex,
-                                  fuzzy_threshold=fuzzy_threshold)
+                self._search_text(
+                    source,
+                    query,
+                    cell.id,
+                    idx,
+                    ct,
+                    case_sensitive=case_sensitive,
+                    regex=regex,
+                    fuzzy_threshold=fuzzy_threshold,
+                )
             )
 
             # Optionally search outputs
@@ -158,9 +167,16 @@ class NotebookSearch:
                     out_text = self._output_to_text(output)
                     if out_text:
                         results.extend(
-                            self._search_text(out_text, query, cell.id, idx, ct,
-                                              case_sensitive=case_sensitive, regex=regex,
-                                              fuzzy_threshold=fuzzy_threshold)
+                            self._search_text(
+                                out_text,
+                                query,
+                                cell.id,
+                                idx,
+                                ct,
+                                case_sensitive=case_sensitive,
+                                regex=regex,
+                                fuzzy_threshold=fuzzy_threshold,
+                            )
                         )
 
         # Sort by score descending, then by cell index
@@ -207,12 +223,14 @@ class NotebookSearch:
                         new_line = re.sub(re.escape(query), replacement, line, flags=flags)
 
                 if new_line != line:
-                    changes.append({
-                        "cell_id": cell.id,
-                        "old_text": line,
-                        "new_text": new_line,
-                        "line": lineno,
-                    })
+                    changes.append(
+                        {
+                            "cell_id": cell.id,
+                            "old_text": line,
+                            "new_text": new_line,
+                            "line": lineno,
+                        }
+                    )
                     cell_changed = True
 
                 new_lines.append(new_line)
@@ -327,12 +345,14 @@ class NotebookSearch:
 
                 if similarity >= threshold:
                     snippet = (cell_a.source or "")[:120]
-                    duplicates.append({
-                        "cell_ids": [cell_a.id, cell_b.id],
-                        "cell_indices": [idx_a, idx_b],
-                        "similarity": round(similarity, 4),
-                        "snippet": snippet,
-                    })
+                    duplicates.append(
+                        {
+                            "cell_ids": [cell_a.id, cell_b.id],
+                            "cell_indices": [idx_a, idx_b],
+                            "similarity": round(similarity, 4),
+                            "snippet": snippet,
+                        }
+                    )
 
         duplicates.sort(key=lambda d: -d["similarity"])
         return duplicates
@@ -363,12 +383,18 @@ class NotebookSearch:
             if regex:
                 try:
                     for m in re.finditer(query, line, flags):
-                        results.append(SearchResult(
-                            cell_id=cell_id, cell_index=cell_index,
-                            cell_type=cell_type, line_number=lineno,
-                            match_text=m.group(), context=ctx,
-                            score=1.0, match_type="regex",
-                        ))
+                        results.append(
+                            SearchResult(
+                                cell_id=cell_id,
+                                cell_index=cell_index,
+                                cell_type=cell_type,
+                                line_number=lineno,
+                                match_text=m.group(),
+                                context=ctx,
+                                score=1.0,
+                                match_type="regex",
+                            )
+                        )
                 except re.error:
                     pass  # invalid regex — skip silently
             else:
@@ -377,25 +403,37 @@ class NotebookSearch:
                 cmp_query = query if case_sensitive else query.lower()
 
                 if cmp_query in cmp_line:
-                    results.append(SearchResult(
-                        cell_id=cell_id, cell_index=cell_index,
-                        cell_type=cell_type, line_number=lineno,
-                        match_text=query, context=ctx,
-                        score=1.0, match_type="exact",
-                    ))
+                    results.append(
+                        SearchResult(
+                            cell_id=cell_id,
+                            cell_index=cell_index,
+                            cell_type=cell_type,
+                            line_number=lineno,
+                            match_text=query,
+                            context=ctx,
+                            score=1.0,
+                            match_type="exact",
+                        )
+                    )
                 else:
                     # Token-level fuzzy matching (compare against each word)
-                    words = re.findall(r'\w+', line)
+                    words = re.findall(r"\w+", line)
                     for word in words:
                         cmp_word = word if case_sensitive else word.lower()
                         score = _fuzzy_score(cmp_query, cmp_word, threshold=fuzzy_threshold)
                         if score > 0:
-                            results.append(SearchResult(
-                                cell_id=cell_id, cell_index=cell_index,
-                                cell_type=cell_type, line_number=lineno,
-                                match_text=word, context=ctx,
-                                score=score, match_type="fuzzy",
-                            ))
+                            results.append(
+                                SearchResult(
+                                    cell_id=cell_id,
+                                    cell_index=cell_index,
+                                    cell_type=cell_type,
+                                    line_number=lineno,
+                                    match_text=word,
+                                    context=ctx,
+                                    score=score,
+                                    match_type="fuzzy",
+                                )
+                            )
                             break  # one fuzzy match per line is enough
 
         return results
@@ -449,6 +487,7 @@ class NotebookSearch:
 # ---------------------------------------------------------------------------
 # Rich HTML output formatter
 # ---------------------------------------------------------------------------
+
 
 def format_search_output(results: list[SearchResult]) -> CellOutput:
     """Format a list of search results as a rich HTML ``CellOutput``."""
@@ -505,9 +544,7 @@ def format_search_output(results: list[SearchResult]) -> CellOutput:
         f"<th style='padding:6px 10px;text-align:left;'>Location</th>"
         f"<th style='padding:6px 10px;text-align:left;'>Context</th>"
         f"<th style='padding:6px 10px;text-align:center;'>Score</th>"
-        f"</tr></thead><tbody>"
-        + "".join(rows)
-        + "</tbody></table></div>"
+        f"</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
     )
 
     return CellOutput(output_type="html", data=html)
@@ -516,8 +553,5 @@ def format_search_output(results: list[SearchResult]) -> CellOutput:
 def _html_escape(text: str) -> str:
     """Minimal HTML escaping."""
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )

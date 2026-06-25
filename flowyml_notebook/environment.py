@@ -19,9 +19,9 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
-from flowyml_notebook.cells import Cell, CellType, NotebookFile
+from flowyml_notebook.cells import CellType, NotebookFile
 
 logger = logging.getLogger(__name__)
 
@@ -178,39 +178,209 @@ def _get_stdlib_modules() -> Set[str]:
 
     # Fallback for Python < 3.10
     return {
-        "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio",
-        "asyncore", "atexit", "audioop", "base64", "bdb", "binascii",
-        "binhex", "bisect", "builtins", "bz2", "calendar", "cgi", "cgitb",
-        "chunk", "cmath", "cmd", "code", "codecs", "codeop", "collections",
-        "colorsys", "compileall", "concurrent", "configparser", "contextlib",
-        "contextvars", "copy", "copyreg", "cProfile", "crypt", "csv",
-        "ctypes", "curses", "dataclasses", "datetime", "dbm", "decimal",
-        "difflib", "dis", "distutils", "doctest", "email", "encodings",
-        "enum", "errno", "faulthandler", "fcntl", "filecmp", "fileinput",
-        "fnmatch", "formatter", "fractions", "ftplib", "functools", "gc",
-        "getopt", "getpass", "gettext", "glob", "grp", "gzip", "hashlib",
-        "heapq", "hmac", "html", "http", "idlelib", "imaplib", "imghdr",
-        "imp", "importlib", "inspect", "io", "ipaddress", "itertools",
-        "json", "keyword", "lib2to3", "linecache", "locale", "logging",
-        "lzma", "mailbox", "mailcap", "marshal", "math", "mimetypes",
-        "mmap", "modulefinder", "multiprocessing", "netrc", "nis", "nntplib",
-        "numbers", "operator", "optparse", "os", "ossaudiodev", "parser",
-        "pathlib", "pdb", "pickle", "pickletools", "pipes", "pkgutil",
-        "platform", "plistlib", "poplib", "posix", "posixpath", "pprint",
-        "profile", "pstats", "pty", "pwd", "py_compile", "pyclbr",
-        "pydoc", "queue", "quopri", "random", "re", "readline", "reprlib",
-        "resource", "rlcompleter", "runpy", "sched", "secrets", "select",
-        "selectors", "shelve", "shlex", "shutil", "signal", "site",
-        "smtpd", "smtplib", "sndhdr", "socket", "socketserver", "sqlite3",
-        "ssl", "stat", "statistics", "string", "stringprep", "struct",
-        "subprocess", "sunau", "symtable", "sys", "sysconfig", "syslog",
-        "tabnanny", "tarfile", "telnetlib", "tempfile", "termios", "test",
-        "textwrap", "threading", "time", "timeit", "tkinter", "token",
-        "tokenize", "trace", "traceback", "tracemalloc", "tty", "turtle",
-        "turtledemo", "types", "typing", "unicodedata", "unittest", "urllib",
-        "uu", "uuid", "venv", "warnings", "wave", "weakref", "webbrowser",
-        "winreg", "winsound", "wsgiref", "xdrlib", "xml", "xmlrpc",
-        "zipapp", "zipfile", "zipimport", "zlib", "_thread",
+        "abc",
+        "aifc",
+        "argparse",
+        "array",
+        "ast",
+        "asynchat",
+        "asyncio",
+        "asyncore",
+        "atexit",
+        "audioop",
+        "base64",
+        "bdb",
+        "binascii",
+        "binhex",
+        "bisect",
+        "builtins",
+        "bz2",
+        "calendar",
+        "cgi",
+        "cgitb",
+        "chunk",
+        "cmath",
+        "cmd",
+        "code",
+        "codecs",
+        "codeop",
+        "collections",
+        "colorsys",
+        "compileall",
+        "concurrent",
+        "configparser",
+        "contextlib",
+        "contextvars",
+        "copy",
+        "copyreg",
+        "cProfile",
+        "crypt",
+        "csv",
+        "ctypes",
+        "curses",
+        "dataclasses",
+        "datetime",
+        "dbm",
+        "decimal",
+        "difflib",
+        "dis",
+        "distutils",
+        "doctest",
+        "email",
+        "encodings",
+        "enum",
+        "errno",
+        "faulthandler",
+        "fcntl",
+        "filecmp",
+        "fileinput",
+        "fnmatch",
+        "formatter",
+        "fractions",
+        "ftplib",
+        "functools",
+        "gc",
+        "getopt",
+        "getpass",
+        "gettext",
+        "glob",
+        "grp",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "hmac",
+        "html",
+        "http",
+        "idlelib",
+        "imaplib",
+        "imghdr",
+        "imp",
+        "importlib",
+        "inspect",
+        "io",
+        "ipaddress",
+        "itertools",
+        "json",
+        "keyword",
+        "lib2to3",
+        "linecache",
+        "locale",
+        "logging",
+        "lzma",
+        "mailbox",
+        "mailcap",
+        "marshal",
+        "math",
+        "mimetypes",
+        "mmap",
+        "modulefinder",
+        "multiprocessing",
+        "netrc",
+        "nis",
+        "nntplib",
+        "numbers",
+        "operator",
+        "optparse",
+        "os",
+        "ossaudiodev",
+        "parser",
+        "pathlib",
+        "pdb",
+        "pickle",
+        "pickletools",
+        "pipes",
+        "pkgutil",
+        "platform",
+        "plistlib",
+        "poplib",
+        "posix",
+        "posixpath",
+        "pprint",
+        "profile",
+        "pstats",
+        "pty",
+        "pwd",
+        "py_compile",
+        "pyclbr",
+        "pydoc",
+        "queue",
+        "quopri",
+        "random",
+        "re",
+        "readline",
+        "reprlib",
+        "resource",
+        "rlcompleter",
+        "runpy",
+        "sched",
+        "secrets",
+        "select",
+        "selectors",
+        "shelve",
+        "shlex",
+        "shutil",
+        "signal",
+        "site",
+        "smtpd",
+        "smtplib",
+        "sndhdr",
+        "socket",
+        "socketserver",
+        "sqlite3",
+        "ssl",
+        "stat",
+        "statistics",
+        "string",
+        "stringprep",
+        "struct",
+        "subprocess",
+        "sunau",
+        "symtable",
+        "sys",
+        "sysconfig",
+        "syslog",
+        "tabnanny",
+        "tarfile",
+        "telnetlib",
+        "tempfile",
+        "termios",
+        "test",
+        "textwrap",
+        "threading",
+        "time",
+        "timeit",
+        "tkinter",
+        "token",
+        "tokenize",
+        "trace",
+        "traceback",
+        "tracemalloc",
+        "tty",
+        "turtle",
+        "turtledemo",
+        "types",
+        "typing",
+        "unicodedata",
+        "unittest",
+        "urllib",
+        "uu",
+        "uuid",
+        "venv",
+        "warnings",
+        "wave",
+        "weakref",
+        "webbrowser",
+        "winreg",
+        "winsound",
+        "wsgiref",
+        "xdrlib",
+        "xml",
+        "xmlrpc",
+        "zipapp",
+        "zipfile",
+        "zipimport",
+        "zlib",
+        "_thread",
     }
 
 
@@ -244,9 +414,7 @@ def extract_imports(notebook: NotebookFile) -> Set[str]:
         try:
             tree = ast.parse(cell.source)
         except SyntaxError:
-            logger.debug(
-                "Skipping cell with syntax error during import extraction"
-            )
+            logger.debug("Skipping cell with syntax error during import extraction")
             continue
 
         for node in ast.walk(tree):
@@ -325,9 +493,7 @@ def export_requirements(
     env = capture_environment()
 
     # Build a case-insensitive lookup of installed packages
-    installed: Dict[str, str] = {
-        name.lower(): version for name, version in env.packages.items()
-    }
+    installed: Dict[str, str] = {name.lower(): version for name, version in env.packages.items()}
 
     lines: List[str] = []
     for imp in sorted(imports):
@@ -339,11 +505,7 @@ def export_requirements(
             lines.append(pkg_name)
 
     output = Path(output_path)
-    header = (
-        f"# Auto-generated by FlowyML Notebook\n"
-        f"# Timestamp: {datetime.now().isoformat()}\n"
-        f"#\n"
-    )
+    header = f"# Auto-generated by FlowyML Notebook\n# Timestamp: {datetime.now().isoformat()}\n#\n"
     output.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
 
     logger.info("Wrote requirements to %s (%d packages)", output, len(lines))
@@ -383,9 +545,7 @@ def export_conda_env(
     imports = extract_imports(notebook)
     env = capture_environment()
 
-    installed: Dict[str, str] = {
-        name.lower(): version for name, version in env.packages.items()
-    }
+    installed: Dict[str, str] = {name.lower(): version for name, version in env.packages.items()}
 
     if env_name is None:
         env_name = "flowyml_env"

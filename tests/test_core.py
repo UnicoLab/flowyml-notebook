@@ -1,8 +1,7 @@
 """Tests for the core notebook engine."""
 
-import pytest
-from flowyml_notebook.cells import Cell, CellType, NotebookFile, NotebookMetadata
-from flowyml_notebook.core import Notebook, NotebookSession, ExecutionResult
+from flowyml_notebook.cells import Cell, CellType
+from flowyml_notebook.core import ExecutionResult, Notebook, NotebookSession
 
 
 class TestNotebookSession:
@@ -113,7 +112,7 @@ class TestNotebook:
     def test_reactive_execution(self):
         nb = Notebook()
         c1 = nb.cell("x = 10")
-        c2 = nb.cell("y = x * 2")
+        _c2 = nb.cell("y = x * 2")
 
         # Execute c1 reactively — should also execute c2
         results = nb.execute_cell_reactive(c1.id)

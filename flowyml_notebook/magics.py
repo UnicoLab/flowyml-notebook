@@ -21,8 +21,8 @@ def register_magics(notebook) -> None:
     global _MAGICS_REGISTERED
 
     try:
-        from IPython.core.magic import register_line_magic, register_cell_magic
         from IPython import get_ipython
+        from IPython.core.magic import register_cell_magic, register_line_magic
     except ImportError:
         logger.info("IPython not available, skipping magic registration")
         return
@@ -62,7 +62,7 @@ def register_magics(notebook) -> None:
         """Schedule the notebook. Usage: %schedule cron "0 2 * * *" """
         parts = line.strip().split(maxsplit=1)
         if len(parts) < 2:
-            print("Usage: %schedule cron \"0 2 * * *\"")
+            print('Usage: %schedule cron "0 2 * * *"')
             print("       %schedule interval 4  (hours)")
             return
         sched_type, value = parts
@@ -128,8 +128,8 @@ def register_magics(notebook) -> None:
         vars_dict = notebook.session.get_variables()
         if vars_dict:
             for name, info in sorted(vars_dict.items()):
-                shape = f" shape={info['shape']}" if 'shape' in info else ""
-                length = f" len={info['length']}" if 'length' in info else ""
+                shape = f" shape={info['shape']}" if "shape" in info else ""
+                length = f" len={info['length']}" if "length" in info else ""
                 print(f"  {name}: {info['type']}{shape}{length}")
         else:
             print("No user variables defined.")
@@ -140,6 +140,7 @@ def register_magics(notebook) -> None:
         result_var = line.strip() or "df"
         try:
             from flowyml_notebook.sql.engine import execute_sql
+
             df, info = execute_sql(cell, notebook.session._namespace)
             notebook.session.set_variable(result_var, df)
             print(f"✅ Query returned {len(df)} rows → stored in '{result_var}'")
@@ -153,6 +154,7 @@ def register_magics(notebook) -> None:
     def pip(line):
         """Install a package. Usage: %pip install pandas>=2.0"""
         from flowyml_notebook.package_installer import install_package
+
         parts = line.strip().split()
         if not parts or parts[0] not in ("install", "uninstall"):
             print("Usage: %pip install <package> [version]")
@@ -170,6 +172,7 @@ def register_magics(notebook) -> None:
                 print(f"❌ Failed to install {pkg}: {result.error}")
         elif action == "uninstall" and len(parts) >= 2:
             from flowyml_notebook.package_installer import uninstall_package
+
             result = uninstall_package(parts[1])
             if result.success:
                 print(f"✅ Uninstalled {parts[1]}")
@@ -180,6 +183,7 @@ def register_magics(notebook) -> None:
     def env_snapshot(line):
         """Capture environment snapshot. Usage: %env_snapshot"""
         from flowyml_notebook.environment import capture_environment
+
         snap = capture_environment()
         print(f"🐍 Python {snap.python_version} on {snap.os_name} ({snap.architecture})")
         print(f"   {len(snap.packages)} packages installed")

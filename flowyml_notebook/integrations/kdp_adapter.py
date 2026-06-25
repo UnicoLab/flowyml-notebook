@@ -97,16 +97,16 @@ def generate_preprocessing_suggestion(
         f"\n"
         f"# Build the KDP preprocessing model\n"
         f"preprocessor = PreprocessingModel(\n"
-        f"    path_data=\"data.csv\",  # or pass DataFrame directly\n"
+        f'    path_data="data.csv",  # or pass DataFrame directly\n'
         f"    features_specs=features_specs,\n"
         f"    use_distribution_aware={use_distribution},\n"
         f"    tabular_attention={use_attention},\n"
         f")\n"
         f"result = preprocessor.build_preprocessor()\n"
-        f"preprocessing_model = result[\"model\"]\n"
+        f'preprocessing_model = result["model"]\n'
         f"\n"
         f"# Use as standalone or as first layers of your Keras model\n"
-        f"print(f\"✅ KDP preprocessor ready — {{preprocessing_model.count_params():,}} parameters\")\n"
+        f'print(f"✅ KDP preprocessor ready — {{preprocessing_model.count_params():,}} parameters")\n'
         f"preprocessing_model.summary()"
     )
 

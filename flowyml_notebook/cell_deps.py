@@ -16,7 +16,6 @@ import builtins
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any
 
 from flowyml_notebook.cells import CellOutput
 
@@ -29,6 +28,7 @@ _BUILTIN_NAMES: frozenset[str] = frozenset(dir(builtins))
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CellDependency:
@@ -73,6 +73,7 @@ class DependencyGraph:
 # ---------------------------------------------------------------------------
 # AST visitor — extracts defines / uses from a single cell
 # ---------------------------------------------------------------------------
+
 
 class _DepVisitor(ast.NodeVisitor):
     """Walk an AST and collect defined names, used names, imports, etc."""
@@ -288,6 +289,7 @@ class _DepVisitor(ast.NodeVisitor):
 # Analyzer
 # ---------------------------------------------------------------------------
 
+
 class CellDependencyAnalyzer:
     """Analyzes Python cells to detect variable dependencies."""
 
@@ -334,11 +336,13 @@ class CellDependencyAnalyzer:
             for var in dep.uses:
                 provider = var_to_cell.get(var)
                 if provider and provider != dep.cell_id:
-                    edges.append({
-                        "from_cell": provider,
-                        "to_cell": dep.cell_id,
-                        "via_variable": var,
-                    })
+                    edges.append(
+                        {
+                            "from_cell": provider,
+                            "to_cell": dep.cell_id,
+                            "via_variable": var,
+                        }
+                    )
                     adj[provider].add(dep.cell_id)
 
         execution_order = self._topo_sort(deps, adj)
@@ -380,7 +384,9 @@ class CellDependencyAnalyzer:
         while queue:
             node = queue.popleft()
             ordered.append(node)
-            for neighbour in sorted(adj.get(node, []), key=lambda n: all_ids.index(n) if n in all_ids else 0):
+            for neighbour in sorted(
+                adj.get(node, []), key=lambda n: all_ids.index(n) if n in all_ids else 0
+            ):
                 if neighbour in in_degree:
                     in_degree[neighbour] -= 1
                     if in_degree[neighbour] == 0:
@@ -433,6 +439,7 @@ class CellDependencyAnalyzer:
 # Rich output formatter
 # ---------------------------------------------------------------------------
 
+
 def format_dependency_output(graph: DependencyGraph) -> CellOutput:
     """Render a text-based dependency tree as rich HTML."""
     lines: list[str] = []
@@ -464,9 +471,7 @@ def format_dependency_output(graph: DependencyGraph) -> CellOutput:
         lines.append("")
         lines.append("Edges:")
         for edge in graph.edges:
-            lines.append(
-                f"  {edge['from_cell']} ──({edge['via_variable']})──▶ {edge['to_cell']}"
-            )
+            lines.append(f"  {edge['from_cell']} ──({edge['via_variable']})──▶ {edge['to_cell']}")
 
     # Execution order
     lines.append("")
@@ -479,9 +484,9 @@ def format_dependency_output(graph: DependencyGraph) -> CellOutput:
     text = "\n".join(lines)
 
     html = (
-        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.78rem;'
+        "<div style=\"font-family:'JetBrains Mono',monospace;font-size:0.78rem;"
         "padding:14px;background:#0f172a;border-radius:8px;"
-        'border:1px solid rgba(255,255,255,0.06);white-space:pre;overflow-x:auto;'
+        "border:1px solid rgba(255,255,255,0.06);white-space:pre;overflow-x:auto;"
         f'color:#e2e8f0">{_html_escape(text)}</div>'
     )
 
@@ -494,8 +499,5 @@ def format_dependency_output(graph: DependencyGraph) -> CellOutput:
 
 def _html_escape(text: str) -> str:
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )

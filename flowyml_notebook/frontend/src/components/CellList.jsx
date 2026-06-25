@@ -9,7 +9,7 @@ import {
 import { FLOWYML_SNIPPETS, QUICK_INSERT_SNIPPETS } from '../data/flowymlSnippets';
 
 export default function CellList({
-  cells, graph, executing, focusedCellId, theme,
+  cells, graph, executing, focusedCellId, theme, flowymlAvailable,
   onFocusCell, onUpdateCell, onExecuteCell, onDeleteCell, onAddCell,
   onInsertSnippet, onClearOutput, onMoveCell,
 }) {
@@ -106,7 +106,8 @@ export default function CellList({
             </button>
           </div>
 
-          {/* FlowyML quick-start when empty */}
+          {/* FlowyML quick-start when empty — only when FlowyML is installed */}
+          {flowymlAvailable && (
           <div className="flowyml-quickstart">
             <div className="flowyml-quickstart-label">
               <Zap size={12} /> Quick Start with FlowyML
@@ -125,6 +126,7 @@ export default function CellList({
               ))}
             </div>
           </div>
+          )}
 
           <div style={{ marginTop: 20, width: '100%', maxWidth: 480 }}>
             <FileUploader />
@@ -148,6 +150,7 @@ export default function CellList({
               <FlowyMLQuickInsert
                 onAdd={(type) => onAddCell(type, index)}
                 onInsertSnippet={(source, name) => onInsertSnippet?.(source, name, index)}
+                flowymlAvailable={flowymlAvailable}
               />
             )}
 
@@ -196,13 +199,14 @@ export default function CellList({
         <FlowyMLQuickInsert
           onAdd={(type) => onAddCell(type)}
           onInsertSnippet={(source, name) => onInsertSnippet?.(source, name)}
+          flowymlAvailable={flowymlAvailable}
         />
       )}
     </div>
   );
 }
 
-function FlowyMLQuickInsert({ onAdd, onInsertSnippet }) {
+function FlowyMLQuickInsert({ onAdd, onInsertSnippet, flowymlAvailable = true }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -219,6 +223,8 @@ function FlowyMLQuickInsert({ onAdd, onInsertSnippet }) {
           <Plus size={12} /> SQL
         </button>
 
+        {flowymlAvailable && (
+        <>
         <div className="add-cell-divider" />
 
         <button
@@ -230,6 +236,8 @@ function FlowyMLQuickInsert({ onAdd, onInsertSnippet }) {
           FlowyML
           {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
         </button>
+        </>
+        )}
       </div>
 
       {/* FlowyML expansion row */}

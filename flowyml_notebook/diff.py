@@ -84,21 +84,21 @@ class NotebookDiff:
 
     cells: list[CellDiff] = field(default_factory=list)
     metadata_changes: dict[str, tuple[Any, Any]] = field(default_factory=dict)
-    summary: dict[str, int] = field(default_factory=lambda: {
-        "added": 0,
-        "removed": 0,
-        "modified": 0,
-        "unchanged": 0,
-        "moved": 0,
-    })
+    summary: dict[str, int] = field(
+        default_factory=lambda: {
+            "added": 0,
+            "removed": 0,
+            "modified": 0,
+            "unchanged": 0,
+            "moved": 0,
+        }
+    )
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-compatible dict."""
         return {
             "cells": [c.to_dict() for c in self.cells],
-            "metadata_changes": {
-                k: list(v) for k, v in self.metadata_changes.items()
-            },
+            "metadata_changes": {k: list(v) for k, v in self.metadata_changes.items()},
             "summary": dict(self.summary),
         }
 
@@ -167,7 +167,7 @@ def diff_notebooks(nb_a: NotebookFile, nb_b: NotebookFile) -> NotebookDiff:
             metadata_changes[key] = (val_a, val_b)
 
     # -- Build cell lookups -------------------------------------------------
-    cells_a_by_id: dict[str, tuple[int, Any]] = {
+    _cells_a_by_id: dict[str, tuple[int, Any]] = {
         cell.id: (idx, cell) for idx, cell in enumerate(nb_a.cells)
     }
     cells_b_by_id: dict[str, tuple[int, Any]] = {
@@ -184,21 +184,29 @@ def diff_notebooks(nb_a: NotebookFile, nb_b: NotebookFile) -> NotebookDiff:
 
         if cid not in cells_b_by_id:
             # Removed
-            cell_diffs.append(CellDiff(
-                status="removed",
-                cell_id=cid,
-                cell_type=cell_a.cell_type.name if isinstance(cell_a.cell_type, CellType) else str(cell_a.cell_type),
-                name=cell_a.name,
-                source_a=cell_a.source,
-                source_b="",
-                unified_diff="",
-                index_a=idx_a,
-                index_b=None,
-            ))
+            cell_diffs.append(
+                CellDiff(
+                    status="removed",
+                    cell_id=cid,
+                    cell_type=cell_a.cell_type.name
+                    if isinstance(cell_a.cell_type, CellType)
+                    else str(cell_a.cell_type),
+                    name=cell_a.name,
+                    source_a=cell_a.source,
+                    source_b="",
+                    unified_diff="",
+                    index_a=idx_a,
+                    index_b=None,
+                )
+            )
             logger.debug("Cell %s (%s) removed", cid, cell_a.name)
         else:
             idx_b, cell_b = cells_b_by_id[cid]
-            cell_type_str = cell_a.cell_type.name if isinstance(cell_a.cell_type, CellType) else str(cell_a.cell_type)
+            cell_type_str = (
+                cell_a.cell_type.name
+                if isinstance(cell_a.cell_type, CellType)
+                else str(cell_a.cell_type)
+            )
 
             if cell_a.source == cell_b.source:
                 # Content identical – check position
@@ -208,31 +216,35 @@ def diff_notebooks(nb_a: NotebookFile, nb_b: NotebookFile) -> NotebookDiff:
                 else:
                     status = "unchanged"
 
-                cell_diffs.append(CellDiff(
-                    status=status,
-                    cell_id=cid,
-                    cell_type=cell_type_str,
-                    name=cell_a.name,
-                    source_a=cell_a.source,
-                    source_b=cell_b.source,
-                    unified_diff="",
-                    index_a=idx_a,
-                    index_b=idx_b,
-                ))
+                cell_diffs.append(
+                    CellDiff(
+                        status=status,
+                        cell_id=cid,
+                        cell_type=cell_type_str,
+                        name=cell_a.name,
+                        source_a=cell_a.source,
+                        source_b=cell_b.source,
+                        unified_diff="",
+                        index_a=idx_a,
+                        index_b=idx_b,
+                    )
+                )
             else:
                 # Modified
                 udiff = _compute_unified_diff(cell_a.source, cell_b.source, cell_a.name or cid)
-                cell_diffs.append(CellDiff(
-                    status="modified",
-                    cell_id=cid,
-                    cell_type=cell_type_str,
-                    name=cell_a.name,
-                    source_a=cell_a.source,
-                    source_b=cell_b.source,
-                    unified_diff=udiff,
-                    index_a=idx_a,
-                    index_b=idx_b,
-                ))
+                cell_diffs.append(
+                    CellDiff(
+                        status="modified",
+                        cell_id=cid,
+                        cell_type=cell_type_str,
+                        name=cell_a.name,
+                        source_a=cell_a.source,
+                        source_b=cell_b.source,
+                        unified_diff=udiff,
+                        index_a=idx_a,
+                        index_b=idx_b,
+                    )
+                )
                 logger.debug("Cell %s (%s) modified", cid, cell_a.name)
 
     # -- Walk notebook B for additions --------------------------------------
@@ -240,17 +252,21 @@ def diff_notebooks(nb_a: NotebookFile, nb_b: NotebookFile) -> NotebookDiff:
         cid = cell_b.id
         if cid in visited_ids:
             continue
-        cell_diffs.append(CellDiff(
-            status="added",
-            cell_id=cid,
-            cell_type=cell_b.cell_type.name if isinstance(cell_b.cell_type, CellType) else str(cell_b.cell_type),
-            name=cell_b.name,
-            source_a="",
-            source_b=cell_b.source,
-            unified_diff="",
-            index_a=None,
-            index_b=idx_b,
-        ))
+        cell_diffs.append(
+            CellDiff(
+                status="added",
+                cell_id=cid,
+                cell_type=cell_b.cell_type.name
+                if isinstance(cell_b.cell_type, CellType)
+                else str(cell_b.cell_type),
+                name=cell_b.name,
+                source_a="",
+                source_b=cell_b.source,
+                unified_diff="",
+                index_a=None,
+                index_b=idx_b,
+            )
+        )
         logger.debug("Cell %s (%s) added", cid, cell_b.name)
 
     # -- Sort by position (prefer nb_b order, removed cells use nb_a) -------
@@ -358,9 +374,7 @@ def render_diff_terminal(diff: NotebookDiff) -> str:
         if cd.status == "moved" and cd.index_a is not None and cd.index_b is not None:
             pos_info = f" (pos {cd.index_a} → {cd.index_b})"
 
-        lines.append(
-            f"{color}{badge}{_RESET} {cd.cell_type} | {cd.name or cd.cell_id}{pos_info}"
-        )
+        lines.append(f"{color}{badge}{_RESET} {cd.cell_type} | {cd.name or cd.cell_id}{pos_info}")
 
         if cd.status == "modified" and cd.unified_diff:
             for diff_line in cd.unified_diff.splitlines():
@@ -420,13 +434,11 @@ def render_diff_html(diff: NotebookDiff) -> str:
             '<div style="margin-bottom:24px;">'
             '<h2 style="color:#f59e0b;font-size:18px;margin-bottom:12px;">Metadata Changes</h2>'
             '<table style="border-collapse:collapse;width:100%;">'
-            '<thead><tr>'
+            "<thead><tr>"
             '<th style="text-align:left;padding:6px 12px;color:#94a3b8;border-bottom:1px solid #334155;">Field</th>'
             '<th style="text-align:left;padding:6px 12px;color:#94a3b8;border-bottom:1px solid #334155;">Old</th>'
             '<th style="text-align:left;padding:6px 12px;color:#94a3b8;border-bottom:1px solid #334155;">New</th>'
-            '</tr></thead><tbody>'
-            + "\n".join(meta_rows)
-            + '</tbody></table></div>'
+            "</tr></thead><tbody>" + "\n".join(meta_rows) + "</tbody></table></div>"
         )
 
     cell_cards: list[str] = []
@@ -435,7 +447,7 @@ def render_diff_html(diff: NotebookDiff) -> str:
 
         badge = (
             f'<span style="display:inline-block;padding:2px 10px;border-radius:4px;'
-            f'background:{color};color:#fff;font-size:12px;font-weight:600;'
+            f"background:{color};color:#fff;font-size:12px;font-weight:600;"
             f'text-transform:uppercase;letter-spacing:0.5px;">{html_escape(cd.status)}</span>'
         )
 
@@ -449,7 +461,7 @@ def render_diff_html(diff: NotebookDiff) -> str:
         if cd.status == "moved" and cd.index_a is not None and cd.index_b is not None:
             pos_info = (
                 f'<span style="color:#06b6d4;margin-left:12px;font-size:13px;">'
-                f'(pos {cd.index_a} → {cd.index_b})</span>'
+                f"(pos {cd.index_a} → {cd.index_b})</span>"
             )
 
         diff_block = ""
@@ -458,9 +470,7 @@ def render_diff_html(diff: NotebookDiff) -> str:
             for dl in cd.unified_diff.splitlines():
                 escaped = html_escape(dl)
                 if dl.startswith("+++") or dl.startswith("---"):
-                    diff_lines.append(
-                        f'<div style="color:#94a3b8;">{escaped}</div>'
-                    )
+                    diff_lines.append(f'<div style="color:#94a3b8;">{escaped}</div>')
                 elif dl.startswith("@@"):
                     diff_lines.append(
                         f'<div style="color:#7c3aed;background:#1e1b4b;padding:2px 8px;'
@@ -482,20 +492,20 @@ def render_diff_html(diff: NotebookDiff) -> str:
                     )
             diff_block = (
                 '<div style="margin-top:12px;background:#020617;border-radius:6px;'
-                'padding:12px;font-family:\'JetBrains Mono\',\'Fira Code\',monospace;'
+                "padding:12px;font-family:'JetBrains Mono','Fira Code',monospace;"
                 'font-size:13px;line-height:1.5;overflow-x:auto;">'
                 + "\n".join(diff_lines)
-                + '</div>'
+                + "</div>"
             )
 
         card = (
             f'<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;'
             f'padding:16px;margin-bottom:12px;">'
             f'<div style="display:flex;align-items:center;flex-wrap:wrap;">'
-            f'{badge}{cell_info}{pos_info}'
-            f'</div>'
-            f'{diff_block}'
-            f'</div>'
+            f"{badge}{cell_info}{pos_info}"
+            f"</div>"
+            f"{diff_block}"
+            f"</div>"
         )
         cell_cards.append(card)
 

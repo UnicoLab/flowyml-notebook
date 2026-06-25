@@ -10,7 +10,6 @@ results to pandas DataFrames. Supports multiple data sources:
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -34,6 +33,7 @@ class SQLEngine:
         if self._duckdb_conn is None:
             try:
                 import duckdb
+
                 self._duckdb_conn = duckdb.connect()
             except ImportError:
                 raise ImportError(
@@ -51,6 +51,7 @@ class SQLEngine:
         """
         try:
             from sqlalchemy import create_engine
+
             engine = create_engine(connection_string)
             self._connections[name] = engine
             logger.info(f"Registered SQL connection: {name}")
@@ -81,7 +82,7 @@ class SQLEngine:
 
         # Strip leading comments
         lines = query.split("\n")
-        clean_lines = [l for l in lines if not l.strip().startswith("--")]
+        clean_lines = [line for line in lines if not line.strip().startswith("--")]
         query = "\n".join(clean_lines).strip()
 
         if connection and connection in self._connections:
@@ -89,9 +90,7 @@ class SQLEngine:
         else:
             return self._execute_duckdb(query, namespace or {})
 
-    def _execute_duckdb(
-        self, query: str, namespace: dict[str, Any]
-    ) -> tuple[Any, dict]:
+    def _execute_duckdb(self, query: str, namespace: dict[str, Any]) -> tuple[Any, dict]:
         """Execute SQL via DuckDB with namespace DataFrames as tables."""
         import pandas as pd
 

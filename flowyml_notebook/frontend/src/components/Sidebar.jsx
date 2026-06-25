@@ -12,20 +12,24 @@ import VersionHistory from './VersionHistory';
 import ConnectionConfig from './ConnectionConfig';
 import CellRecipes from './CellRecipes';
 
-const TABS = [
+const _ALL_TABS = [
   { id: 'notebooks', label: 'Notebooks', shortLabel: 'Notes', icon: FileText, group: 'core' },
   { id: 'files', label: 'Files', shortLabel: 'Files', icon: FolderOpen, group: 'core' },
   { id: 'recipes', label: 'Recipes', shortLabel: 'Snips', icon: Package, group: 'core' },
   { id: 'variables', label: 'Variables', shortLabel: 'Vars', icon: Variable, group: 'analysis' },
   { id: 'graph', label: 'Graph', shortLabel: 'Graph', icon: GitBranch, group: 'analysis' },
   { id: 'outline', label: 'Outline', shortLabel: 'Cells', icon: List, group: 'analysis' },
-  { id: 'flowyml', label: 'FlowyML', shortLabel: 'FML', icon: Layers, group: 'analysis' },
+  { id: 'flowyml', label: 'FlowyML', shortLabel: 'FML', icon: Layers, group: 'analysis', requiresFlowyML: true },
   { id: 'history', label: 'History', shortLabel: 'Hist', icon: History, group: 'system' },
   { id: 'github', label: 'GitHub', shortLabel: 'Git', icon: Github, group: 'system' },
   { id: 'env', label: 'Environment', shortLabel: 'Env', icon: Terminal, group: 'system' },
 ];
 
+import { useFlowyMLAvailability } from '../hooks/useFlowyMLAvailability';
+
 export default function Sidebar({ variables, graph, cells, metadata, connected, onInsertRecipe, onOpenNotebook, onScrollToCell, onFileOpen, onNotebookFileOpen, saveStatus }) {
+  const { flowymlAvailable } = useFlowyMLAvailability();
+  const TABS = useMemo(() => _ALL_TABS.filter(t => !t.requiresFlowyML || flowymlAvailable), [flowymlAvailable]);
   const [activeTab, setActiveTab] = useState('variables');
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsed, setCollapsed] = useState(false);
@@ -37,7 +41,7 @@ export default function Sidebar({ variables, graph, cells, metadata, connected, 
       g[tab.group].push(tab);
     });
     return g;
-  }, []);
+  }, [TABS]);
 
   return (
     <div className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>

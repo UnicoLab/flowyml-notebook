@@ -45,7 +45,7 @@ const ALL_COMMANDS = [
   { id: 'find', label: 'Find in Notebook', shortcut: ['⌘', 'F'], icon: Search, group: 'Tools' },
 ];
 
-export default function CommandPalette({ open, onClose, onCommand }) {
+export default function CommandPalette({ open, onClose, onCommand, flowymlAvailable = true }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef(null);
@@ -72,12 +72,15 @@ export default function CommandPalette({ open, onClose, onCommand }) {
   }, [open, onClose, onCommand]);
 
   const filtered = useMemo(() => {
-    if (!query) return ALL_COMMANDS;
+    const commands = flowymlAvailable
+      ? ALL_COMMANDS
+      : ALL_COMMANDS.filter(c => c.group !== 'FlowyML' && c.group !== 'FlowyML Insert');
+    if (!query) return commands;
     const q = query.toLowerCase();
-    return ALL_COMMANDS.filter(c =>
+    return commands.filter(c =>
       c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, flowymlAvailable]);
 
   // Group results
   const grouped = useMemo(() => {

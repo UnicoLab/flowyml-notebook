@@ -1,6 +1,5 @@
 """Edge case tests for the reactive engine position-aware dependency analysis."""
 
-import pytest
 from flowyml_notebook.reactive import analyze_cell_dependencies
 
 

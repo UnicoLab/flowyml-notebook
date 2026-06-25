@@ -7,11 +7,9 @@ A "time machine" for notebook exploration.
 
 from __future__ import annotations
 
-
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 from flowyml_notebook.cells import CellOutput
 
@@ -21,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExecutionSnapshot:
     """Snapshot of a cell's state at a point in time."""
+
     cell_id: str
     source: str
     outputs: list[dict] = field(default_factory=list)
@@ -46,6 +45,7 @@ class ExecutionSnapshot:
 @dataclass
 class CellTimeline:
     """Complete execution timeline for a single cell."""
+
     cell_id: str
     snapshots: list[ExecutionSnapshot] = field(default_factory=list)
 
@@ -121,12 +121,12 @@ class ExecutionHistory:
 
         # Trim if over limit
         if len(timeline.snapshots) > self._max_snapshots:
-            timeline.snapshots = timeline.snapshots[-self._max_snapshots:]
+            timeline.snapshots = timeline.snapshots[-self._max_snapshots :]
 
         # Add to global log
         self._global_log.append(snapshot)
         if len(self._global_log) > self._max_snapshots * 10:
-            self._global_log = self._global_log[-(self._max_snapshots * 5):]
+            self._global_log = self._global_log[-(self._max_snapshots * 5) :]
 
         return snapshot
 
@@ -188,7 +188,10 @@ class ExecutionHistory:
             "success_changed": snap_a.success != snap_b.success,
             "duration_delta_s": round(snap_b.duration_s - snap_a.duration_s, 4),
             "duration_change_pct": (
-                round(((snap_b.duration_s - snap_a.duration_s) / max(snap_a.duration_s, 0.001)) * 100, 1)
+                round(
+                    ((snap_b.duration_s - snap_a.duration_s) / max(snap_a.duration_s, 0.001)) * 100,
+                    1,
+                )
             ),
         }
 
@@ -198,23 +201,14 @@ class ExecutionHistory:
 
     def get_all_timelines(self) -> dict[str, dict]:
         """Get timelines for all cells."""
-        return {
-            cell_id: timeline.to_dict()
-            for cell_id, timeline in self._timelines.items()
-        }
+        return {cell_id: timeline.to_dict() for cell_id, timeline in self._timelines.items()}
 
     def get_execution_stats(self) -> dict:
         """Get aggregate execution statistics."""
         total_executions = sum(len(t.snapshots) for t in self._timelines.values())
         total_cells = len(self._timelines)
-        failures = sum(
-            1 for t in self._timelines.values()
-            for s in t.snapshots if not s.success
-        )
-        total_time = sum(
-            s.duration_s for t in self._timelines.values()
-            for s in t.snapshots
-        )
+        failures = sum(1 for t in self._timelines.values() for s in t.snapshots if not s.success)
+        total_time = sum(s.duration_s for t in self._timelines.values() for s in t.snapshots)
 
         return {
             "total_executions": total_executions,
@@ -262,11 +256,11 @@ def format_timeline_output(timeline: dict) -> CellOutput:
     total = timeline.get("total_executions", 0)
 
     html_parts = [
-        f'<div style="font-family:monospace;font-size:0.8rem;padding:12px;'
-        f'background:#1e293b;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">',
+        '<div style="font-family:monospace;font-size:0.8rem;padding:12px;'
+        'background:#1e293b;border-radius:8px;border:1px solid rgba(255,255,255,0.06)">',
         f'<div style="color:#94a3b8;font-size:0.65rem;text-transform:uppercase;'
         f'letter-spacing:0.05em;margin-bottom:8px">🕰 Execution History — '
-        f'{total} runs</div>',
+        f"{total} runs</div>",
     ]
 
     # Show last 10 runs as a compact list
@@ -281,13 +275,13 @@ def format_timeline_output(timeline: dict) -> CellOutput:
             f'<div style="display:flex;gap:8px;padding:3px 0;'
             f'border-bottom:1px solid rgba(255,255,255,0.03)">'
             f'<span style="color:#64748b;min-width:24px">#{exec_num}</span>'
-            f'<span>{icon}</span>'
+            f"<span>{icon}</span>"
             f'<span style="color:#94a3b8;flex:1">{time_str}</span>'
-            f'<span style="color:#22d3ee">{duration*1000:.1f}ms</span>'
-            f'</div>'
+            f'<span style="color:#22d3ee">{duration * 1000:.1f}ms</span>'
+            f"</div>"
         )
 
-    html_parts.append('</div>')
+    html_parts.append("</div>")
 
     return CellOutput(
         output_type="html",

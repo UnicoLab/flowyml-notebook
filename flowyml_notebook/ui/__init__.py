@@ -75,13 +75,14 @@ class Widget:
 
     def _repr_html_(self) -> str:
         """IPython HTML representation for notebook rendering."""
-        return f'<div class="fml-widget" data-widget=\'{json.dumps(self.to_dict())}\'></div>'
+        return f"<div class=\"fml-widget\" data-widget='{json.dumps(self.to_dict())}'></div>"
 
     def __repr__(self) -> str:
         return f"{self.widget_type.value}({self.label!r}, value={self.value!r})"
 
 
 # --- Widget Factory Functions ---
+
 
 def slider(
     min_val: float = 0,
@@ -161,9 +162,7 @@ def number_input(
         config["min"] = min_val
     if max_val is not None:
         config["max"] = max_val
-    return Widget(
-        widget_type=WidgetType.NUMBER_INPUT, label=label, value=value, config=config
-    )
+    return Widget(widget_type=WidgetType.NUMBER_INPUT, label=label, value=value, config=config)
 
 
 def button(label: str = "Run", variant: str = "primary") -> Widget:

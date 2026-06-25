@@ -14,16 +14,14 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
-import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from flowyml_notebook.github_sync import GitHubSync, _safe_name, _compute_avg_rating, _notebook_hash
+from flowyml_notebook.github_sync import GitHubSync, _compute_avg_rating, _notebook_hash, _safe_name
 
 
 @pytest.fixture
@@ -62,7 +60,9 @@ def sync_with_repo(tmp_dir, sync):
 
     # Configure sync
     sync.config = {
-        "repos": {"test-repo": {"url": "https://github.com/test/test-repo", "local_path": str(repo_dir)}},
+        "repos": {
+            "test-repo": {"url": "https://github.com/test/test-repo", "local_path": str(repo_dir)}
+        },
         "default_repo": "test-repo",
         "user": {"name": "Test User", "email": "test@example.com"},
     }
@@ -136,7 +136,13 @@ class TestGitPersistedComments:
 
     def test_push_comments(self, sync_with_repo):
         comments = [
-            {"id": "c1", "text": "Test comment", "author": {"name": "User1"}, "created_at": "", "replies": []}
+            {
+                "id": "c1",
+                "text": "Test comment",
+                "author": {"name": "User1"},
+                "created_at": "",
+                "replies": [],
+            }
         ]
         with patch("flowyml_notebook.github_sync._run_cmd") as mock_cmd:
             mock_cmd.return_value = MagicMock(returncode=0)
@@ -166,12 +172,22 @@ class TestGitPersistedComments:
         assert len(merged) == 3
 
     def test_merge_comments_preserves_replies(self, sync_with_repo):
-        local = [{"id": "c1", "text": "X", "created_at": "", "replies": [
-            {"text": "local reply", "author": {}, "created_at": ""}
-        ]}]
-        remote = [{"id": "c1", "text": "X", "created_at": "", "replies": [
-            {"text": "remote reply", "author": {}, "created_at": ""}
-        ]}]
+        local = [
+            {
+                "id": "c1",
+                "text": "X",
+                "created_at": "",
+                "replies": [{"text": "local reply", "author": {}, "created_at": ""}],
+            }
+        ]
+        remote = [
+            {
+                "id": "c1",
+                "text": "X",
+                "created_at": "",
+                "replies": [{"text": "remote reply", "author": {}, "created_at": ""}],
+            }
+        ]
         merged = sync_with_repo.merge_comments(local, remote)
         assert len(merged) == 1
         assert len(merged[0]["replies"]) == 2  # Both replies present
@@ -236,7 +252,9 @@ class TestNotebookSync:
     def test_push_notebook_creates_files(self, sync_with_repo):
         with patch("flowyml_notebook.github_sync._run_cmd") as mock_cmd:
             mock_cmd.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            result = sync_with_repo.push_notebook("my-project", "experiment-1", {"cells": [{"id": "c1"}]})
+            _result = sync_with_repo.push_notebook(
+                "my-project", "experiment-1", {"cells": [{"id": "c1"}]}
+            )
 
         hub = sync_with_repo.hub_path
         nb_file = hub / "notebooks" / "my-project" / "experiment-1" / "notebook.fml.json"

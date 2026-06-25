@@ -14,10 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from flowyml_notebook.config import RECIPES_DIR, RECIPES_USAGE_FILE
+
 logger = logging.getLogger(__name__)
 
-RECIPES_DIR = Path.home() / ".flowyml" / "recipes"
-USAGE_FILE = RECIPES_DIR / "usage.json"
+USAGE_FILE = RECIPES_USAGE_FILE
 
 
 class RecipeStore:

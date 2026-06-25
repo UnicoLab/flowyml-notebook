@@ -10,6 +10,7 @@ import {
   Plus, ToggleLeft, Tag, FileCode, AlertTriangle, Eraser
 } from 'lucide-react';
 import { detectFlowyML, wrapInStep, DETECTION_BADGES, extractAllArtifacts, getArtifactType } from '../data/flowymlSnippets';
+import { useFlowyMLAvailability } from '../hooks/useFlowyMLAvailability';
 
 const CELL_TYPE_CONFIG = {
   code: { icon: Code, label: 'Python', language: 'python', badge: 'code' },
@@ -34,11 +35,13 @@ export default function CellEditor({
   const resizeStartRef = useRef(null);
   const config = CELL_TYPE_CONFIG[cell.cell_type] || CELL_TYPE_CONFIG.code;
 
-  // Detect FlowyML constructs in this cell
+  const { flowymlAvailable } = useFlowyMLAvailability();
+
+  // Detect FlowyML constructs in this cell (only when FlowyML is installed)
   const flowymlDetections = useMemo(() => {
-    if (cell.cell_type !== 'code') return null;
+    if (!flowymlAvailable || cell.cell_type !== 'code') return null;
     return detectFlowyML(cell.source);
-  }, [cell.source, cell.cell_type]);
+  }, [cell.source, cell.cell_type, flowymlAvailable]);
 
   // Extract artifact I/O for pill badges
   const cellArtifacts = useMemo(() => {
@@ -49,11 +52,12 @@ export default function CellEditor({
   }, [cell.source, cell.cell_type]);
 
   const canWrapInStep = useMemo(() => {
-    return cell.cell_type === 'code'
+    return flowymlAvailable
+      && cell.cell_type === 'code'
       && cell.source?.trim()
       && !flowymlDetections?.includes('step')
       && onWrapInStep;
-  }, [cell.cell_type, cell.source, flowymlDetections, onWrapInStep]);
+  }, [cell.cell_type, cell.source, flowymlDetections, onWrapInStep, flowymlAvailable]);
 
   const stateClass = state === 'idle' ? '' :
     state === 'success' ? 'state-success' :

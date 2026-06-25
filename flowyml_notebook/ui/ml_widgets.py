@@ -1,7 +1,8 @@
-"""FlowyML-specific widgets for ML pipeline visualization.
+"""ML pipeline visualization widgets.
 
-Specialized widgets that leverage FlowyML's data structures to provide
-rich, interactive ML-specific visualizations directly in the notebook.
+Specialized widgets for rich, interactive ML-specific visualizations
+directly in the notebook — confusion matrices, feature importance,
+drift monitors, leaderboards, and pipeline DAGs.
 """
 
 from __future__ import annotations
@@ -11,8 +12,8 @@ from typing import Any
 from flowyml_notebook.ui import Widget, WidgetType
 
 
-class FlowyMLWidgetType(WidgetType):
-    """Extended widget types specific to FlowyML."""
+class MLWidgetType(WidgetType):
+    """Extended widget types for ML visualization."""
 
     PIPELINE_DAG = "pipeline_dag"
     METRICS_DASHBOARD = "metrics_dashboard"
@@ -26,14 +27,20 @@ class FlowyMLWidgetType(WidgetType):
     FEATURE_IMPORTANCE = "feature_importance"
 
 
-def pipeline_dag(pipeline: Any = None, run_id: str | None = None, label: str = "Pipeline DAG") -> Widget:
+# Backward compatibility alias
+FlowyMLWidgetType = MLWidgetType
+
+
+def pipeline_dag(
+    pipeline: Any = None, run_id: str | None = None, label: str = "Pipeline DAG"
+) -> Widget:
     """Create an interactive pipeline DAG visualization.
 
     Shows the pipeline step graph with status colors, execution times,
     and click-to-inspect for each step.
 
     Args:
-        pipeline: FlowyML Pipeline object or pipeline data dict.
+        pipeline: Pipeline object (any framework) or pipeline data dict.
         run_id: Optional run ID to show execution status.
         label: Display label.
     """
@@ -244,19 +251,22 @@ def feature_importance(
 
 # --- Helper functions ---
 
+
 def _extract_dag_data(pipeline: Any) -> dict:
-    """Extract DAG data from a FlowyML Pipeline object."""
+    """Extract DAG data from a pipeline object (any framework with .steps)."""
     try:
         if hasattr(pipeline, "steps"):
             nodes = []
             edges = []
             for step in pipeline.steps:
                 name = getattr(step, "name", str(step))
-                nodes.append({
-                    "id": name,
-                    "label": name,
-                    "status": getattr(step, "status", "idle"),
-                })
+                nodes.append(
+                    {
+                        "id": name,
+                        "label": name,
+                        "status": getattr(step, "status", "idle"),
+                    }
+                )
                 for dep in getattr(step, "dependencies", []):
                     edges.append({"source": dep, "target": name})
             return {"nodes": nodes, "edges": edges}
@@ -270,8 +280,7 @@ def _normalize_metrics(metrics: dict | list) -> dict:
     if isinstance(metrics, dict):
         return {
             "series": [
-                {"name": k, "values": v if isinstance(v, list) else [v]}
-                for k, v in metrics.items()
+                {"name": k, "values": v if isinstance(v, list) else [v]} for k, v in metrics.items()
             ]
         }
     if isinstance(metrics, list):
@@ -279,14 +288,12 @@ def _normalize_metrics(metrics: dict | list) -> dict:
     return {}
 
 
-def _compute_drift_summary(
-    reference: Any, current: Any, features: list[str] | None
-) -> dict:
+def _compute_drift_summary(reference: Any, current: Any, features: list[str] | None) -> dict:
     """Compute basic drift summary between datasets."""
     summary = {"features": [], "overall_drift": 0.0}
     try:
-        import pandas as pd
         import numpy as np
+        import pandas as pd
 
         if isinstance(reference, pd.DataFrame) and isinstance(current, pd.DataFrame):
             cols = features or list(set(reference.columns) & set(current.columns))
@@ -296,13 +303,15 @@ def _compute_drift_summary(
                     cur_mean = float(current[col].mean())
                     ref_std = float(reference[col].std()) or 1.0
                     drift_score = abs(cur_mean - ref_mean) / ref_std
-                    summary["features"].append({
-                        "name": col,
-                        "drift_score": round(drift_score, 4),
-                        "ref_mean": round(ref_mean, 4),
-                        "cur_mean": round(cur_mean, 4),
-                        "drifted": drift_score > 0.5,
-                    })
+                    summary["features"].append(
+                        {
+                            "name": col,
+                            "drift_score": round(drift_score, 4),
+                            "ref_mean": round(ref_mean, 4),
+                            "cur_mean": round(cur_mean, 4),
+                            "drifted": drift_score > 0.5,
+                        }
+                    )
             if summary["features"]:
                 summary["overall_drift"] = round(
                     sum(f["drift_score"] for f in summary["features"]) / len(summary["features"]), 4
@@ -315,8 +324,6 @@ def _compute_drift_summary(
 def _compute_confusion_matrix(y_true: Any, y_pred: Any, labels: list[str] | None) -> dict:
     """Compute confusion matrix data."""
     try:
-        from collections import Counter
-
         # Get unique labels
         all_labels = labels or sorted(set(list(y_true) + list(y_pred)))
         label_to_idx = {label: i for i, label in enumerate(all_labels)}
@@ -329,7 +336,7 @@ def _compute_confusion_matrix(y_true: Any, y_pred: Any, labels: list[str] | None
 
         return {
             "matrix": matrix,
-            "labels": [str(l) for l in all_labels],
+            "labels": [str(label) for label in all_labels],
             "total": sum(sum(row) for row in matrix),
         }
     except Exception:

@@ -1,8 +1,5 @@
 """Tests for the killer features: benchmark, data_validator, code_analyzer, execution_history."""
 
-import pytest
-from flowyml_notebook.cells import Cell, CellOutput, CellType, NotebookFile, NotebookMetadata
-
 
 class TestCellBenchmark:
     """Test the cell benchmarking module."""
@@ -31,7 +28,7 @@ class TestCellBenchmark:
         assert len(history) == 2
 
     def test_benchmark_regression_detection(self):
-        from flowyml_notebook.benchmark import CellBenchmark, BenchmarkResult
+        from flowyml_notebook.benchmark import BenchmarkResult, CellBenchmark
 
         bm = CellBenchmark()
         # Simulate fast then slow
@@ -58,8 +55,13 @@ class TestCellBenchmark:
         from flowyml_notebook.benchmark import BenchmarkResult, format_benchmark_output
 
         result = BenchmarkResult(
-            cell_id="c1", runs=5, mean_s=0.05,
-            median_s=0.04, std_s=0.01, min_s=0.03, max_s=0.08,
+            cell_id="c1",
+            runs=5,
+            mean_s=0.05,
+            median_s=0.04,
+            std_s=0.01,
+            min_s=0.03,
+            max_s=0.08,
             all_times=[0.03, 0.04, 0.04, 0.05, 0.08],
         )
         output = format_benchmark_output(result)
@@ -73,6 +75,7 @@ class TestDataValidator:
 
     def test_validate_clean_dataframe(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
@@ -86,6 +89,7 @@ class TestDataValidator:
 
     def test_validate_nulls_detected(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         df = pd.DataFrame({"a": [1, None, None, None, 5]})
@@ -100,6 +104,7 @@ class TestDataValidator:
 
     def test_validate_duplicates_detected(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         df = pd.DataFrame({"a": [1, 1, 2, 2, 3]})
@@ -111,6 +116,7 @@ class TestDataValidator:
 
     def test_validate_constant_column(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         df = pd.DataFrame({"a": [1, 1, 1, 1, 1]})
@@ -123,6 +129,7 @@ class TestDataValidator:
 
     def test_validate_empty_dataframe(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         df = pd.DataFrame({"a": []})
@@ -134,6 +141,7 @@ class TestDataValidator:
 
     def test_validate_namespace(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         ns = {
@@ -149,6 +157,7 @@ class TestDataValidator:
 
     def test_format_quality_output(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator, format_quality_output
 
         df = pd.DataFrame({"a": [1, None, 3], "b": ["x", "y", "z"]})
@@ -161,6 +170,7 @@ class TestDataValidator:
 
     def test_get_reports(self):
         import pandas as pd
+
         from flowyml_notebook.data_validator import DataValidator
 
         validator = DataValidator()

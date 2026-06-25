@@ -54,11 +54,11 @@ _METADATA_LINE = re.compile(r"^# (\w[\w_]*):\s*(.+)$")
 # Matches: # %% [type] id=xxx "name"
 # All parts after # %% are optional
 _CELL_MARKER = re.compile(
-    r'^# %%'                          # Required: cell marker
-    r'(?:\s+\[(\w+)\])?'             # Optional: [code], [markdown], [sql]
-    r'(?:\s+id=(\S+))?'              # Optional: id=abc123
-    r'(?:\s+"([^"]*)")?'             # Optional: "Cell Name"
-    r'\s*$'
+    r"^# %%"  # Required: cell marker
+    r"(?:\s+\[(\w+)\])?"  # Optional: [code], [markdown], [sql]
+    r"(?:\s+id=(\S+))?"  # Optional: id=abc123
+    r'(?:\s+"([^"]*)")?'  # Optional: "Cell Name"
+    r"\s*$"
 )
 
 
@@ -74,7 +74,9 @@ class CellType(str, Enum):
 class CellOutput:
     """Output from cell execution."""
 
-    output_type: str  # "text", "html", "image", "dataframe", "chart", "error", "widget", "asset", "json"
+    output_type: (
+        str  # "text", "html", "image", "dataframe", "chart", "error", "widget", "asset", "json"
+    )
     data: Any = None
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -434,9 +436,7 @@ def parse_notebook(source: str) -> NotebookFile:
                 if source_text.strip() == "pass  # empty cell":
                     source_text = ""
 
-            cells.append(
-                Cell(id=cell_id, cell_type=cell_type, source=source_text, name=cell_name)
-            )
+            cells.append(Cell(id=cell_id, cell_type=cell_type, source=source_text, name=cell_name))
 
         else:
             # Content before any cell marker — treat as an implicit code cell
