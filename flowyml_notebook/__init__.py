@@ -28,7 +28,7 @@ Killer features:
 - Package Installer: in-notebook pip management
 """
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 __author__ = "UnicoLab"
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "flowyml-notebook"
-version = "2.0.3"
+version = "2.0.4"
 description = "Production-grade reactive notebook — the Jupyter replacement for ML pipelines. Works standalone or with FlowyML."
 readme = "README.md"
 license = {text = "Apache-2.0"}
