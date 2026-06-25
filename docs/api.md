@@ -21,7 +21,7 @@ fml-notebook dev [OPTIONS]
 | `--server` | — | FlowyML server URL |
 | `--file` | — | Load notebook from `.py` file |
 | `--frontend-port` | `3000` | Vite dev server port |
-| `--backend-port` | `8888` | API server port |
+| `--backend-port` | `8899` | API server port |
 | `--no-browser` | `false` | Don't auto-open browser |
 
 ### `fml-notebook start`
@@ -36,7 +36,7 @@ fml-notebook start [OPTIONS]
 |---|---|---|
 | `--name` | `untitled` | Notebook name |
 | `--server` | — | FlowyML server URL |
-| `--port` | `8888` | Server port |
+| `--port` | `8899` | Server port |
 | `--file` | — | Load notebook from `.py` file |
 | `--no-browser` | `false` | Don't auto-open browser |
 

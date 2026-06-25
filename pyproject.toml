@@ -1,6 +1,6 @@
 [project]
 name = "flowyml-notebook"
-version = "2.0.2"
+version = "2.0.3"
 description = "Production-grade reactive notebook — the Jupyter replacement for ML pipelines. Works standalone or with FlowyML."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -88,6 +88,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flowyml_notebook", "fmln"]
+exclude = ["flowyml_notebook/frontend/dist", "flowyml_notebook/frontend/node_modules", "flowyml_notebook/frontend/src"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "flowyml_notebook/frontend/dist" = "flowyml_notebook/frontend/dist"

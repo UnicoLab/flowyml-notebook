@@ -173,7 +173,7 @@ class DevServer:
         server: str | None = None,
         file_path: str | None = None,
         frontend_port: int = 3000,
-        backend_port: int = 8888,
+        backend_port: int = 8899,
         no_browser: bool = False,
     ):
         self.notebook_name = notebook_name
@@ -378,7 +378,7 @@ class ProdServer:
         notebook_name: str = "untitled",
         server: str | None = None,
         file_path: str | None = None,
-        port: int = 8888,
+        port: int = 8899,
         no_browser: bool = False,
     ):
         self.notebook_name = notebook_name
@@ -446,6 +446,10 @@ class ProdServer:
         """Build the frontend if sources exist and dist is stale."""
         dist_dir = FRONTEND_DIR / "dist"
         src_dir = FRONTEND_DIR / "src"
+
+        # If dist already exists (e.g. PyPI install), no build needed
+        if dist_dir.exists() and not src_dir.exists():
+            return True
 
         if not src_dir.exists():
             return False

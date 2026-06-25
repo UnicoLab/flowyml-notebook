@@ -31,14 +31,14 @@ def main(argv: list[str] | None = None) -> int:
     dev_parser.add_argument("--server", help="FlowyML server URL")
     dev_parser.add_argument("--file", help="Load notebook from .py file")
     dev_parser.add_argument("--frontend-port", type=int, default=3000, help="Vite dev server port")
-    dev_parser.add_argument("--backend-port", type=int, default=8888, help="API server port")
+    dev_parser.add_argument("--backend-port", type=int, default=8899, help="API server port")
     dev_parser.add_argument("--no-browser", action="store_true", help="Don't auto-open browser")
 
     # --- start ---
     start_parser = subparsers.add_parser("start", help="Launch notebook (production build)")
     start_parser.add_argument("--name", default="untitled", help="Notebook name")
     start_parser.add_argument("--server", help="FlowyML server URL")
-    start_parser.add_argument("--port", type=int, default=8888, help="Server port")
+    start_parser.add_argument("--port", type=int, default=8899, help="Server port")
     start_parser.add_argument("--no-browser", action="store_true", help="Don't open browser")
     start_parser.add_argument("--file", help="Load notebook from .py file")
 

@@ -11,6 +11,7 @@ import FilesExplorer from './FilesExplorer';
 import VersionHistory from './VersionHistory';
 import ConnectionConfig from './ConnectionConfig';
 import CellRecipes from './CellRecipes';
+import { useFlowyMLAvailability } from '../hooks/useFlowyMLAvailability';
 
 const _ALL_TABS = [
   { id: 'notebooks', label: 'Notebooks', shortLabel: 'Notes', icon: FileText, group: 'core' },
@@ -24,8 +25,6 @@ const _ALL_TABS = [
   { id: 'github', label: 'GitHub', shortLabel: 'Git', icon: Github, group: 'system' },
   { id: 'env', label: 'Environment', shortLabel: 'Env', icon: Terminal, group: 'system' },
 ];
-
-import { useFlowyMLAvailability } from '../hooks/useFlowyMLAvailability';
 
 export default function Sidebar({ variables, graph, cells, metadata, connected, onInsertRecipe, onOpenNotebook, onScrollToCell, onFileOpen, onNotebookFileOpen, saveStatus }) {
   const { flowymlAvailable } = useFlowyMLAvailability();

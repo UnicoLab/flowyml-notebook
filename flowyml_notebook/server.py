@@ -99,7 +99,7 @@ class WidgetUpdate(BaseModel):
 class NotebookServer:
     """Main server for the FlowyML Notebook GUI."""
 
-    def __init__(self, notebook: Notebook | None = None, port: int = 8888):
+    def __init__(self, notebook: Notebook | None = None, port: int = 8899):
         self.notebook = notebook or Notebook()
         self.kernel = NotebookKernel(self.notebook)
         self.port = port
