@@ -1,0 +1,112 @@
+/* FlowyML Notebook — Premium MkDocs Material Overrides */
+
+/* ─── Hero Section ─── */
+.hero {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.hero h1 {
+  font-size: 3rem !important;
+  font-weight: 800 !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem !important;
+}
+
+.hero h3 {
+  font-size: 1.4rem !important;
+  font-weight: 400 !important;
+  color: var(--md-default-fg-color--light) !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.hero p {
+  max-width: 700px;
+  margin: 0 auto 1.5rem auto;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+/* ─── Hero Image ─── */
+.hero-image {
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(102, 126, 234, 0.2);
+}
+
+/* ─── Screenshot Styling ─── */
+figure img {
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+figure img:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+[data-md-color-scheme="slate"] figure img {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-md-color-scheme="slate"] figure img:hover {
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+/* ─── Figcaption ─── */
+figcaption {
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  text-align: center;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* ─── Grid Cards Enhancement ─── */
+.md-typeset .grid.cards > ul > li {
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .grid.cards > ul > li:hover {
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+}
+
+/* ─── Table Header ─── */
+.md-typeset table:not([class]) th {
+  background: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+  font-weight: 600;
+}
+
+/* ─── Buttons ─── */
+.md-typeset .md-button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  font-weight: 600;
+}
+
+.md-typeset .md-button--primary:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+/* ─── Admonitions ─── */
+.md-typeset .admonition {
+  border-radius: 8px;
+}
+
+/* ─── Tabbed Labels ─── */
+.md-typeset .tabbed-labels > label {
+  font-weight: 500;
+}
