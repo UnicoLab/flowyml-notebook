@@ -33,6 +33,78 @@ export function useNotebook() {
   const autoSaveTimerRef = useRef(null);
   const dirtyRef = useRef(false);
 
+  // --- Declare callbacks BEFORE any useEffect that references them ---
+  // (Fixes TDZ violations that crash Vite/Rollup production builds)
+
+  const markDirty = useCallback(() => {
+    setDirty(true);
+    setSaveStatus('idle');
+  }, []);
+
+  const performAutoSave = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      const res = await fetch(`${API}/auto-save`, { method: 'POST' });
+      const data = await res.json();
+      if (data.saved) {
+        setDirty(false);
+        setSaveStatus('saved');
+        setLastSaved(new Date().toISOString());
+        // Reset to idle after 3 seconds
+        setTimeout(() => setSaveStatus(prev => prev === 'saved' ? 'idle' : prev), 3000);
+      } else {
+        setSaveStatus('error');
+      }
+    } catch {
+      setSaveStatus('error');
+    }
+  }, []);
+
+  const handleKernelMessage = useCallback((msg) => {
+    const { type, data } = msg;
+
+    switch (type) {
+      case 'cell_complete':
+        setCells(prev => prev.map(c =>
+          c.id === data.cell_id
+            ? { ...c, outputs: data.outputs, execution_count: (c.execution_count || 0) + 1 }
+            : c
+        ));
+        setExecuting(null);
+        markDirty();
+        break;
+
+      case 'cell_state':
+        setGraph(prev => ({
+          ...prev,
+          cells: {
+            ...prev.cells,
+            [data.cell_id]: {
+              ...prev.cells?.[data.cell_id],
+              state: data.state,
+            },
+          },
+        }));
+        break;
+
+      case 'graph_update':
+        setGraph(data);
+        break;
+
+      case 'variables_update':
+        setVariables(data);
+        break;
+
+      case 'state_update':
+        setCells(data.notebook?.cells || []);
+        setGraph(data.graph || { cells: {}, var_producers: {} });
+        setVariables(data.variables || {});
+        break;
+    }
+  }, [markDirty]);
+
+  // --- Effects (safe to reference all callbacks above) ---
+
   // Load initial state
   useEffect(() => {
     fetch(`${API}/state`)
@@ -103,79 +175,12 @@ export function useNotebook() {
         clearInterval(autoSaveTimerRef.current);
       }
     };
-  }, []);
+  }, [performAutoSave]);
 
   // Keep dirtyRef in sync
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
-
-  const markDirty = useCallback(() => {
-    setDirty(true);
-    setSaveStatus('idle');
-  }, []);
-
-  const performAutoSave = useCallback(async () => {
-    setSaveStatus('saving');
-    try {
-      const res = await fetch(`${API}/auto-save`, { method: 'POST' });
-      const data = await res.json();
-      if (data.saved) {
-        setDirty(false);
-        setSaveStatus('saved');
-        setLastSaved(new Date().toISOString());
-        // Reset to idle after 3 seconds
-        setTimeout(() => setSaveStatus(prev => prev === 'saved' ? 'idle' : prev), 3000);
-      } else {
-        setSaveStatus('error');
-      }
-    } catch {
-      setSaveStatus('error');
-    }
-  }, []);
-
-  const handleKernelMessage = useCallback((msg) => {
-    const { type, data } = msg;
-
-    switch (type) {
-      case 'cell_complete':
-        setCells(prev => prev.map(c =>
-          c.id === data.cell_id
-            ? { ...c, outputs: data.outputs, execution_count: (c.execution_count || 0) + 1 }
-            : c
-        ));
-        setExecuting(null);
-        markDirty();
-        break;
-
-      case 'cell_state':
-        setGraph(prev => ({
-          ...prev,
-          cells: {
-            ...prev.cells,
-            [data.cell_id]: {
-              ...prev.cells?.[data.cell_id],
-              state: data.state,
-            },
-          },
-        }));
-        break;
-
-      case 'graph_update':
-        setGraph(data);
-        break;
-
-      case 'variables_update':
-        setVariables(data);
-        break;
-
-      case 'state_update':
-        setCells(data.notebook?.cells || []);
-        setGraph(data.graph || { cells: {}, var_producers: {} });
-        setVariables(data.variables || {});
-        break;
-    }
-  }, [markDirty]);
 
   // --- Actions ---
 
