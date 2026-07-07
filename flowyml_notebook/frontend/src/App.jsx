@@ -106,7 +106,7 @@ export default function App() {
         return;
       }
     }
-  }, [notebook, focusedCellId, flowymlAvailable]);
+  }, [notebook, focusedCellId, flowymlAvailable, handleAction]);
 
   const handleAction = useCallback(async (action, payload) => {
     switch (action) {
@@ -151,7 +151,7 @@ export default function App() {
   React.useEffect(() => {
     const handler = (e) => {
       // Cmd+S → Save
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 's') {
         e.preventDefault();
         notebook.saveNotebook();
       }
@@ -468,6 +468,9 @@ export default function App() {
                   onResolveComment={notebook.resolveComment}
                   onDeleteComment={notebook.deleteComment}
                   onReplyComment={notebook.replyToComment}
+                  onReactComment={notebook.reactToComment}
+                  onSyncComments={notebook.syncComments}
+                  activeCellFilter={focusedCellId}
                   onClose={() => setRightPanel(null)}
                 />
               )}
@@ -492,6 +495,7 @@ export default function App() {
                       await notebook.insertCellWithSource(cell.source, cell.name);
                     }
                   }}
+                  onClose={() => setRightPanel(null)}
                 />
               )}
               {rightPanel === 'tools' && (

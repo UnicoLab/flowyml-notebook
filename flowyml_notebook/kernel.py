@@ -126,11 +126,11 @@ class NotebookKernel:
 
         try:
             if reactive:
-                results = await asyncio.get_event_loop().run_in_executor(
+                results = await asyncio.get_running_loop().run_in_executor(
                     None, self.notebook.execute_cell_reactive, cell_id
                 )
             else:
-                result = await asyncio.get_event_loop().run_in_executor(
+                result = await asyncio.get_running_loop().run_in_executor(
                     None, self.notebook.execute_cell, cell_id
                 )
                 results = [result]
@@ -162,7 +162,7 @@ class NotebookKernel:
         self._interrupt_requested = False
 
         try:
-            results = await asyncio.get_event_loop().run_in_executor(None, self.notebook.run)
+            results = await asyncio.get_running_loop().run_in_executor(None, self.notebook.run)
             for result in results:
                 await self._send(ws, KernelMessage.CELL_COMPLETE, result.to_dict())
 

@@ -9,7 +9,7 @@ import {
 const PROBLEM_TYPES = ['any', 'classification', 'regression', 'clustering', 'eda', 'preprocessing'];
 const DATA_TYPES = ['any', 'tabular', 'time_series', 'text', 'image'];
 
-export default function AnalysisPatternsPanel({ cells = [], onInsertCells }) {
+export default function AnalysisPatternsPanel({ cells = [], onInsertCells, onClose }) {
   const [patterns, setPatterns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,6 +160,11 @@ export default function AnalysisPatternsPanel({ cells = [], onInsertCells }) {
           }}>
           {showCreate ? <><X size={11} /> Cancel</> : <><Plus size={11} /> New Pattern</>}
         </button>
+        {onClose && (
+          <button className="btn-icon" onClick={onClose} style={{ width: 20, height: 20 }}>
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>

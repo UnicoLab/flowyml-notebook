@@ -32,6 +32,10 @@ export function useNotebook() {
   const wsRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
   const dirtyRef = useRef(false);
+  const kernelStatusRef = useRef(kernelStatus);
+  const cellsRef = useRef(cells);
+  const graphRef = useRef(graph);
+  const pushUndoRef = useRef(null);
 
   // --- Declare callbacks BEFORE any useEffect that references them ---
   // (Fixes TDZ violations that crash Vite/Rollup production builds)
@@ -100,6 +104,28 @@ export function useNotebook() {
         setGraph(data.graph || { cells: {}, var_producers: {} });
         setVariables(data.variables || {});
         break;
+
+      case 'cell_output':
+        // Streaming: append output to cell
+        setCells(prev => prev.map(c =>
+          c.id === data.cell_id
+            ? { ...c, outputs: [...(c.outputs || []), data.output] }
+            : c
+        ));
+        break;
+
+      case 'execution_error':
+        console.error('Kernel execution error:', data);
+        setExecuting(null);
+        break;
+
+      case 'kernel_status':
+        if (data.status === 'restarted') {
+          setKernelStatus('idle');
+        } else if (data.status) {
+          setKernelStatus(data.status);
+        }
+        break;
     }
   }, [markDirty]);
 
@@ -154,9 +180,25 @@ export function useNotebook() {
     };
 
     ws.onclose = () => {
-      setTimeout(() => {
-        // Reconnect logic would go here
-      }, 3000);
+      setConnected(false);
+      wsRef.current = null;
+      // Reconnect with exponential backoff
+      const reconnect = (attempt = 0) => {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+        setTimeout(() => {
+          const newWs = new WebSocket(wsUrl);
+          newWs.onmessage = ws.onmessage;
+          newWs.onclose = ws.onclose;
+          newWs.onopen = () => {
+            setConnected(true);
+            wsRef.current = newWs;
+          };
+          newWs.onerror = () => {
+            if (attempt < 10) reconnect(attempt + 1);
+          };
+        }, delay);
+      };
+      reconnect();
     };
 
     return () => ws.close();
@@ -182,25 +224,44 @@ export function useNotebook() {
     dirtyRef.current = dirty;
   }, [dirty]);
 
+  useEffect(() => {
+    kernelStatusRef.current = kernelStatus;
+  }, [kernelStatus]);
+
+  useEffect(() => {
+    cellsRef.current = cells;
+  }, [cells]);
+
+  useEffect(() => {
+    graphRef.current = graph;
+  }, [graph]);
+
   // --- Actions ---
 
   const addCell = useCallback(async (cellType = 'code', index = null) => {
-    const res = await fetch(`${API}/cells`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cell_type: cellType, source: '', index }),
-    });
-    const cell = await res.json();
-    setCells(prev => {
-      if (index !== null) {
-        const next = [...prev];
-        next.splice(index, 0, cell);
-        return next;
-      }
-      return [...prev, cell];
-    });
-    markDirty();
-    return cell;
+    try {
+      const res = await fetch(`${API}/cells`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cell_type: cellType, source: '', index }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cell = await res.json();
+      setCells(prev => {
+        if (index !== null) {
+          const next = [...prev];
+          next.splice(index, 0, cell);
+          return next;
+        }
+        return [...prev, cell];
+      });
+      markDirty();
+      pushUndoRef.current?.({ type: 'add_cell', cellId: cell.id, cell, index });
+      return cell;
+    } catch (e) {
+      console.error('Add cell failed:', e);
+      return null;
+    }
   }, [markDirty]);
 
   const debouncedApiUpdate = useRef(null);
@@ -227,9 +288,19 @@ export function useNotebook() {
   }, [markDirty]);
 
   const deleteCell = useCallback(async (cellId) => {
+    // Capture cell for undo before removing
+    const cellIndex = cellsRef.current.findIndex(c => c.id === cellId);
+    const cellData = cellsRef.current[cellIndex];
+    if (cellData) {
+      pushUndoRef.current?.({ type: 'delete_cell', cell: cellData, index: cellIndex });
+    }
     setCells(prev => prev.filter(c => c.id !== cellId));
     markDirty();
-    await fetch(`${API}/cells/${cellId}`, { method: 'DELETE' });
+    try {
+      await fetch(`${API}/cells/${cellId}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Delete cell failed:', e);
+    }
   }, [markDirty]);
 
   const moveCell = useCallback(async (cellId, newIndex) => {
@@ -253,7 +324,7 @@ export function useNotebook() {
   const executeCell = useCallback(async (cellId) => {
     setExecuting(cellId);
     // Track kernel startup for the very first execution
-    if (kernelStatus === 'idle') {
+    if (kernelStatusRef.current === 'idle') {
       setKernelStatus('starting');
     }
     setGraph(prev => ({
@@ -268,7 +339,7 @@ export function useNotebook() {
       const res = await fetch(`${API}/cells/${cellId}/execute`, { method: 'POST' });
 
       // Kernel is now ready after first successful execution
-      if (kernelStatus !== 'ready') {
+      if (kernelStatusRef.current !== 'ready') {
         setKernelStatus('ready');
       }
 
@@ -323,7 +394,7 @@ export function useNotebook() {
       markDirty();
     } catch (err) {
       console.error('Execute cell error:', err);
-      if (kernelStatus === 'starting') setKernelStatus('error');
+      if (kernelStatusRef.current === 'starting') setKernelStatus('error');
       setCells(prev => prev.map(c =>
         c.id === cellId
           ? { ...c, outputs: [{ output_type: 'error', data: `Network error: ${err.message}` }] }
@@ -335,13 +406,13 @@ export function useNotebook() {
       }));
     }
     setExecuting(null);
-  }, [markDirty, kernelStatus]);
+  }, [markDirty]);
 
   const executeAll = useCallback(async () => {
     setExecuting('all');
     try {
       // Execute cells one by one in order for proper progress feedback
-      const cellsCopy = [...cells];
+      const cellsCopy = [...cellsRef.current];
       for (const cell of cellsCopy) {
         if (cell.cell_type !== 'code') continue;
         setExecuting(cell.id);
@@ -373,7 +444,7 @@ export function useNotebook() {
       console.error('Execute all error:', err);
     }
     setExecuting(null);
-  }, [cells, markDirty]);
+  }, [markDirty]);
 
   const resetKernel = useCallback(async () => {
     await fetch(`${API}/kernel/reset`, { method: 'POST' });
@@ -386,6 +457,11 @@ export function useNotebook() {
   // --- Clear outputs ---
 
   const clearCellOutput = useCallback(async (cellId) => {
+    // Capture outputs for undo
+    const cell = cellsRef.current.find(c => c.id === cellId);
+    if (cell?.outputs?.length) {
+      pushUndoRef.current?.({ type: 'clear_output', cellId, outputs: cell.outputs });
+    }
     setCells(prev => prev.map(c =>
       c.id === cellId ? { ...c, outputs: [], execution_count: 0 } : c
     ));
@@ -396,6 +472,11 @@ export function useNotebook() {
   }, [markDirty]);
 
   const clearAllOutputs = useCallback(async () => {
+    // Capture all cells state for undo
+    const hasOutputs = cellsRef.current.some(c => c.outputs?.length > 0);
+    if (hasOutputs) {
+      pushUndoRef.current?.({ type: 'clear_all_outputs', previousCells: [...cellsRef.current] });
+    }
     setCells(prev => prev.map(c => ({ ...c, outputs: [], execution_count: 0 })));
     markDirty();
     try {
@@ -416,11 +497,11 @@ export function useNotebook() {
     // Execute stale cells in sequence (each will cascade reactively)
     for (const cellId of staleCellIds) {
       // Re-check state since previous execution may have resolved staleness
-      const currentState = graph?.cells?.[cellId]?.state;
+      const currentState = graphRef.current?.cells?.[cellId]?.state;
       if (currentState !== 'stale') continue;
       await executeCell(cellId);
     }
-  }, [staleCellIds, graph, executeCell]);
+  }, [staleCellIds, executeCell]);
 
   const saveNotebook = useCallback(async (path) => {
     setSaveStatus('saving');
@@ -460,9 +541,9 @@ export function useNotebook() {
       // Refresh state to pick up new cell
       const stateRes = await fetch(`${API}/state`);
       const state = await stateRes.json();
-      if (state.cells) setCells(state.cells);
-      if (state.graph) setGraph(state.graph);
-      if (state.variables) setVariables(state.variables);
+      if (state.notebook?.cells) setCells(state.notebook.cells);
+      if (state.graph) setGraph(state.graph || { cells: {}, var_producers: {} });
+      if (state.variables) setVariables(state.variables || {});
       markDirty();
 
       return data;
@@ -474,39 +555,51 @@ export function useNotebook() {
 
   // Insert a recipe as a new cell
   const insertRecipe = useCallback(async (recipe) => {
-    const res = await fetch(`${API}/cells`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cell_type: recipe.cell_type || 'code',
-        source: recipe.source || '',
-        name: recipe.name || '',
-      }),
-    });
-    const cell = await res.json();
-    setCells(prev => [...prev, cell]);
-    markDirty();
-    return cell;
+    try {
+      const res = await fetch(`${API}/cells`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cell_type: recipe.cell_type || 'code',
+          source: recipe.source || '',
+          name: recipe.name || '',
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cell = await res.json();
+      setCells(prev => [...prev, cell]);
+      markDirty();
+      return cell;
+    } catch (e) {
+      console.error('Insert recipe failed:', e);
+      return null;
+    }
   }, [markDirty]);
 
   // Insert a cell with pre-filled source code at a specific position
   const insertCellWithSource = useCallback(async (source, name = '', cellType = 'code', index = null) => {
-    const res = await fetch(`${API}/cells`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cell_type: cellType, source, name, index }),
-    });
-    const cell = await res.json();
-    setCells(prev => {
-      if (index !== null) {
-        const next = [...prev];
-        next.splice(index, 0, cell);
-        return next;
-      }
-      return [...prev, cell];
-    });
-    markDirty();
-    return cell;
+    try {
+      const res = await fetch(`${API}/cells`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cell_type: cellType, source, name, index }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cell = await res.json();
+      setCells(prev => {
+        if (index !== null) {
+          const next = [...prev];
+          next.splice(index, 0, cell);
+          return next;
+        }
+        return [...prev, cell];
+      });
+      markDirty();
+      return cell;
+    } catch (e) {
+      console.error('Insert cell failed:', e);
+      return null;
+    }
   }, [markDirty]);
 
   // Load a full notebook state (from open-notebook API response)
@@ -620,6 +713,32 @@ export function useNotebook() {
         setComments(prev => prev.map(c => c.id === commentId ? updated : c));
       }
     } catch (e) { console.error('Reply failed:', e); }
+  }, []);
+
+  const reactToComment = useCallback(async (commentId, emoji) => {
+    try {
+      const res = await fetch(`${API}/comments/${commentId}/react?emoji=${encodeURIComponent(emoji)}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setComments(prev => prev.map(c => c.id === commentId ? updated : c));
+      }
+    } catch (e) { console.error('React to comment failed:', e); }
+  }, []);
+
+  const syncComments = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/comments/sync`, { method: 'POST' });
+      if (res.ok) {
+        // Refresh comments after sync
+        const commentsRes = await fetch(`${API}/comments`);
+        if (commentsRes.ok) {
+          const data = await commentsRes.json();
+          setComments(data.comments || []);
+        }
+      }
+    } catch (e) { console.error('Sync comments failed:', e); }
   }, []);
 
   // --- Collaboration: Reviews ---
@@ -764,6 +883,10 @@ export function useNotebook() {
     setRedoStack([]); // Clear redo on new action
   }, []);
 
+  useEffect(() => {
+    pushUndoRef.current = pushUndo;
+  }, [pushUndo]);
+
   const undo = useCallback(() => {
     setUndoStack(prev => {
       if (prev.length === 0) return prev;
@@ -803,7 +926,17 @@ export function useNotebook() {
       if (action.type === 'delete_cell') {
         setCells(c => c.filter(cell => cell.id !== action.cell.id));
       } else if (action.type === 'add_cell') {
-        // Re-add is complex, just mark dirty
+        if (action.cell) {
+          setCells(c => {
+            const next = [...c];
+            if (action.index !== null && action.index !== undefined) {
+              next.splice(action.index, 0, action.cell);
+            } else {
+              next.push(action.cell);
+            }
+            return next;
+          });
+        }
       } else if (action.type === 'clear_output') {
         setCells(c => c.map(cell =>
           cell.id === action.cellId ? { ...cell, outputs: [], execution_count: 0 } : cell
@@ -852,7 +985,7 @@ export function useNotebook() {
     // Smart imports
     suggestImports,
     // Collaboration
-    comments, addComment, resolveComment, deleteComment, replyToComment,
+    comments, addComment, resolveComment, deleteComment, replyToComment, reactToComment, syncComments,
     reviews, requestReview, updateReview,
     userProfile,
   };

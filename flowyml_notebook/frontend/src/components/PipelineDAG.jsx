@@ -322,8 +322,8 @@ export default function PipelineDAG({ cells, graph, executing, onClose, onCellCl
     const edgeSet = new Set(edges.map(e => e.id));
     for (const { cell } of cellData) {
       const cellInfo = cellStates[cell.id];
-      if (cellInfo?.depends_on) {
-        for (const dep of cellInfo.depends_on) {
+      if (cellInfo?.reads) {
+        for (const dep of cellInfo.reads) {
           const pid = varProducers[dep];
           if (pid && pid !== cell.id) {
             const eid = `var-${pid}-${cell.id}-${dep}`;

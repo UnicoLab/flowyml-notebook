@@ -254,7 +254,7 @@ class NotebookSession:
                 images.append(f"data:image/png;base64,{img_data}")
                 buf.close()
             plt.close("all")
-        except (ImportError, Exception):
+        except Exception:
             pass
         return images
 
@@ -469,7 +469,7 @@ class NotebookSession:
             pass
 
         # Check for FlowyML asset types
-        if hasattr(result, "__class__") and result.__class__.__module__.startswith("flowyml"):
+        if getattr(result.__class__, "__module__", None) and result.__class__.__module__.startswith("flowyml"):
             return CellOutput(
                 output_type="asset",
                 data=repr(result),
@@ -702,7 +702,8 @@ class Notebook:
 
         # Clear stale state for all successfully executed cells
         for rid in executed:
-            self.graph.set_cell_state(rid, CellState.SUCCESS)
+            if self.graph.get_cell_state(rid) != CellState.ERROR:
+                self.graph.set_cell_state(rid, CellState.SUCCESS)
 
         return results
 

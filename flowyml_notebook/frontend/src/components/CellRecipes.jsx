@@ -2817,7 +2817,7 @@ print(f"   {dict(Counter(y_combined))} ({len(X_combined)} samples)")`,
 function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onShare, isFavorite, usageCount }) {
   const [expanded, setExpanded] = useState(false);
   const [ratingHover, setRatingHover] = useState(0);
-  const cat = CATEGORIES.find(c => c.id === recipe.category) || CATEGORIES[4];
+  const cat = _ALL_CATEGORIES.find(c => c.id === recipe.category) || _ALL_CATEGORIES[4];
   const CatIcon = cat.icon;
 
   const handleDragStart = (e) => {
@@ -3006,10 +3006,10 @@ function RecipeCard({ recipe, onInsert, onEdit, onDelete, onToggleFavorite, onSh
             </div>
 
             {/* Documentation */}
-            {recipe.documentation && (
+            {(recipe.documentation || recipe.docs) && (
               <div className="recipe-docs">
                 <span className="recipe-docs-label">Documentation</span>
-                <p>{recipe.documentation}</p>
+                <p>{recipe.documentation || recipe.docs}</p>
               </div>
             )}
           </div>
@@ -3187,7 +3187,7 @@ export default function CellRecipes({ onInsertRecipe }) {
       description: recipe.description || '',
       tags: (recipe.tags || []).join(', '),
       source: recipe.source || '',
-      documentation: recipe.documentation || '',
+      documentation: recipe.documentation || recipe.docs || '',
     });
     setEditingRecipe(recipe);
     setShowCreate(true);

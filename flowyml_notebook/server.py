@@ -481,29 +481,32 @@ class NotebookServer:
             try:
                 import pandas as pd
             except ImportError:
-                return {"error": "pandas is required. Install with: pip install pandas"}
+                raise HTTPException(400, "pandas is required. Install with: pip install pandas")
 
             contents = await file.read()
-            var_name = file.filename.rsplit(".", 1)[0].replace("-", "_").replace(" ", "_").lower()
+            filename = file.filename or "uploaded_data.csv"
+            var_name = filename.rsplit(".", 1)[0].replace("-", "_").replace(" ", "_").lower()
             # Sanitize variable name
             var_name = "".join(c if c.isalnum() or c == "_" else "_" for c in var_name)
+            if not var_name:
+                var_name = "df_upload"
             if var_name[0].isdigit():
                 var_name = "df_" + var_name
 
             try:
                 df = pd.read_csv(io.BytesIO(contents))
             except Exception as e:
-                return {"error": f"Failed to parse CSV: {str(e)}"}
+                raise HTTPException(400, f"Failed to parse CSV: {str(e)}")
 
             # Store in kernel namespace
             self.notebook.session._ensure_kernel()
             self.notebook.session._namespace[var_name] = df
 
             # Create a code cell that references the loaded data
-            cell_source = f"# Loaded from: {file.filename}\\n{var_name}"
+            cell_source = f"# Loaded from: {filename}\n{var_name}"
             new_cell = self.notebook.cell(
                 source=cell_source,
-                cell_type=CellType(CellType.CODE),
+                cell_type=CellType.CODE,
                 name=f"load_{var_name}",
             )
 
@@ -3759,7 +3762,9 @@ Dataset profile:
                 pass
             # Merge, avoiding duplicates by id
             seen_ids = {r["id"] for r in local}
-            combined = local + [r for r in shared if r.get("id") not in seen_ids]
+            shared_filtered = [r for r in shared if r.get("id") not in seen_ids]
+            combined = local + shared_filtered
+            seen_ids.update(r.get("id") for r in shared_filtered)
             # Add builtin ecosystem recipes
             try:
                 builtin = _builtin_recipes.get_builtin_recipes()
@@ -3780,19 +3785,6 @@ Dataset profile:
             saved = self.recipe_store.save_recipe(recipe)
             return saved
 
-        @app.delete("/api/recipes/{recipe_id}")
-        async def delete_recipe(recipe_id: str):
-            """Delete a custom recipe."""
-            if not self.recipe_store.delete_recipe(recipe_id):
-                raise HTTPException(404, "Recipe not found")
-            return {"deleted": True}
-
-        @app.post("/api/recipes/{recipe_id}/use")
-        async def track_recipe_usage(recipe_id: str):
-            """Track usage of a recipe."""
-            count = self.recipe_store.track_usage(recipe_id)
-            return {"recipe_id": recipe_id, "usage_count": count}
-
         @app.post("/api/recipes/share/{recipe_id}")
         async def share_recipe(recipe_id: str):
             """Share a recipe to the GitHub repository."""
@@ -3801,21 +3793,6 @@ Dataset profile:
                 raise HTTPException(404, "Recipe not found")
             result = self.github_sync.push_recipe(recipe)
             return result
-
-        @app.post("/api/recipes/{recipe_id}/rate")
-        async def rate_recipe(recipe_id: str, rating: int = 5):
-            """Rate a shared recipe (1-5 stars)."""
-            return self.github_sync.rate_recipe(recipe_id, rating)
-
-        @app.post("/api/recipes/{recipe_id}/fork")
-        async def fork_recipe(recipe_id: str, new_name: str | None = None):
-            """Fork a shared recipe to create a variant with attribution."""
-            return self.github_sync.fork_recipe(recipe_id, new_name)
-
-        @app.get("/api/recipes/{recipe_id}/history")
-        async def recipe_history(recipe_id: str):
-            """Get version history for a recipe."""
-            return {"history": self.github_sync.get_recipe_history(recipe_id)}
 
         @app.get("/api/recipes/leaderboard")
         async def recipe_leaderboard():
@@ -3832,6 +3809,36 @@ Dataset profile:
         async def export_recipes():
             """Export all custom recipes as JSON."""
             return {"recipes": self.recipe_store.export_all()}
+
+        @app.delete("/api/recipes/{recipe_id}")
+        async def delete_recipe(recipe_id: str):
+            """Delete a custom recipe."""
+            if not self.recipe_store.delete_recipe(recipe_id):
+                raise HTTPException(404, "Recipe not found")
+            return {"deleted": True}
+
+        @app.post("/api/recipes/{recipe_id}/use")
+        async def track_recipe_usage(recipe_id: str):
+            """Track usage of a recipe."""
+            count = self.recipe_store.track_usage(recipe_id)
+            return {"recipe_id": recipe_id, "usage_count": count}
+
+        @app.post("/api/recipes/{recipe_id}/rate")
+        async def rate_recipe(recipe_id: str, rating: int = 5):
+            """Rate a shared recipe (1-5 stars)."""
+            if not 1 <= rating <= 5:
+                raise HTTPException(400, "Rating must be between 1 and 5")
+            return self.github_sync.rate_recipe(recipe_id, rating)
+
+        @app.post("/api/recipes/{recipe_id}/fork")
+        async def fork_recipe(recipe_id: str, new_name: str | None = None):
+            """Fork a shared recipe to create a variant with attribution."""
+            return self.github_sync.fork_recipe(recipe_id, new_name)
+
+        @app.get("/api/recipes/{recipe_id}/history")
+        async def recipe_history(recipe_id: str):
+            """Get version history for a recipe."""
+            return {"history": self.github_sync.get_recipe_history(recipe_id)}
 
         # ===== Analysis Patterns (Collaborative Knowledge Base) =====
 
