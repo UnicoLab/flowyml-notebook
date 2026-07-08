@@ -43,6 +43,45 @@ export default function App() {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
   }, []);
 
+  const handleAction = useCallback(async (action, payload) => {
+    switch (action) {
+      case 'execute-all': notebook.executeAll(); break;
+      case 'export':
+        try {
+          const res = await fetch('/api/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          console.log('Export:', data);
+        } catch (e) { console.error(e); }
+        break;
+      case 'promote':
+        try {
+          await fetch('/api/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format: 'pipeline' }),
+          });
+        } catch (e) { console.error(e); }
+        break;
+      case 'deploy':
+      case 'deploy-model':
+        console.log('Deploy:', payload);
+        break;
+      case 'schedule':
+        try {
+          await fetch('/api/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch (e) { console.error(e); }
+        break;
+    }
+  }, [notebook]);
+
   const handleCommand = useCallback((cmd) => {
     switch (cmd) {
       case '__open_palette': setPaletteOpen(true); return;
@@ -107,45 +146,6 @@ export default function App() {
       }
     }
   }, [notebook, focusedCellId, flowymlAvailable, handleAction]);
-
-  const handleAction = useCallback(async (action, payload) => {
-    switch (action) {
-      case 'execute-all': notebook.executeAll(); break;
-      case 'export':
-        try {
-          const res = await fetch('/api/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          const data = await res.json();
-          console.log('Export:', data);
-        } catch (e) { console.error(e); }
-        break;
-      case 'promote':
-        try {
-          await fetch('/api/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ format: 'pipeline' }),
-          });
-        } catch (e) { console.error(e); }
-        break;
-      case 'deploy':
-      case 'deploy-model':
-        console.log('Deploy:', payload);
-        break;
-      case 'schedule':
-        try {
-          await fetch('/api/schedule', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-        } catch (e) { console.error(e); }
-        break;
-    }
-  }, [notebook]);
 
   // Global keyboard shortcuts
   React.useEffect(() => {
