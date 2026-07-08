@@ -94,11 +94,11 @@ def _generate_html_report(
                 "html",
             }
             has_rich = any(
-                getattr(o, "output_type", o.get("output_type", "")) in rich_types
+                getattr(o, "output_type", "") in rich_types
                 for o in cell.outputs
             )
             for output in cell.outputs:
-                otype = getattr(output, "output_type", output.get("output_type", "text"))
+                otype = getattr(output, "output_type", "text")
                 if has_rich and otype == "text":
                     continue  # Skip raw text when we have rich outputs
                 parts.append(_render_output_html(output))
