@@ -155,7 +155,7 @@ class TestAlgorithmMatchLogic:
             }
         )
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        cat_cols = df.select_dtypes(include=["object", "str", "category"]).columns.tolist()
+        cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
 
         assert len(numeric_cols) == 3  # num1, num2, target
         assert len(cat_cols) == 1

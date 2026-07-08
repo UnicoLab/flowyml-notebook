@@ -559,7 +559,7 @@ class NotebookServer:
 
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             categorical_cols = df.select_dtypes(
-                include=["object", "str", "category", "bool"]
+                include=["object", "category", "bool"]
             ).columns.tolist()
 
             # Per-column stats (enhanced with ML-relevant metrics)
@@ -733,7 +733,7 @@ class NotebookServer:
                 "constant_columns": [col for col in df.columns if df[col].nunique() <= 1],
                 "high_cardinality": [
                     col
-                    for col in df.select_dtypes(include=["object", "str"]).columns
+                    for col in df.select_dtypes(include=["object", "category"]).columns
                     if df[col].nunique() > 50
                 ],
             }
@@ -1113,7 +1113,7 @@ class NotebookServer:
                     )
 
             # --- 4. High cardinality ---
-            for col in df.select_dtypes(include=["object", "str", "category"]).columns:
+            for col in df.select_dtypes(include=["object", "category"]).columns:
                 n_unique = int(df[col].nunique())
                 if n_unique > 50:
                     suggestions.append(
@@ -1250,7 +1250,7 @@ class NotebookServer:
 
             n_rows, n_cols = df.shape
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            cat_cols = df.select_dtypes(include=["object", "str", "category"]).columns.tolist()
+            cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
             n_nulls = int(df.isnull().sum().sum())
 
             # Detect task type
