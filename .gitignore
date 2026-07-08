@@ -58,3 +58,4 @@ coverage.xml
 .tox/
 .hypothesis/
 TODO.md
+uv.lock
