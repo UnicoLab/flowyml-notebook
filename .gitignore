@@ -59,3 +59,4 @@ coverage.xml
 .hypothesis/
 TODO.md
 uv.lock
+TEST.csv
